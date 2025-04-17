@@ -30,3 +30,7 @@ Unreleased
 - Geoplateform's URL
 - Search bar to look for specific data
 - CRS bug correction
+
+## 1.1.1 - 2025-04-18
+- Correct Internet Checker
+- Transfer Git repo to FramaGit

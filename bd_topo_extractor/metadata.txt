@@ -22,12 +22,13 @@ qgisMinimumVersion=3.10
 qgisMaximumVersion=3.99
 
 # versioning
-version=1.1.0
+version=1.1.1
 changelog=
     1.0.0 sphinx documentation, add metadata variable for schema, geometry column and crs.
     1.0.1 crs correction.
     1.0.2 crs correction for area calculation, adding a gif when export is loading
     1.1.0 add group by themes and style created by IGN.
+    1.1.1 correct internet checker
 
 
 [wfs]

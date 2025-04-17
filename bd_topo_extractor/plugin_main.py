@@ -74,8 +74,7 @@ class BdTopoExtractorPlugin:
             0:2
         ]
         locale_path: Path = (
-            DIR_PLUGIN_ROOT
-            / f"resources/i18n/{__title__.lower()}_{self.locale}.qm"  # noqa: E501
+            DIR_PLUGIN_ROOT / f"resources/i18n/{__title__.lower()}_{self.locale}.qm"
         )
         self.log(message=f"Translation: {self.locale}, {locale_path}", log_level=4)
         if locale_path.exists():
@@ -93,7 +92,7 @@ class BdTopoExtractorPlugin:
         # -- Actions
         self.action_launch = QAction(
             QIcon(str(__icon_path__)),
-            self.tr(f"{__wfs_name__} Extractor"),
+            f"{__wfs_name__} Extractor",
             self.iface.mainWindow(),
         )
         self.iface.addToolBarIcon(self.action_launch)
@@ -190,7 +189,7 @@ class BdTopoExtractorPlugin:
         """
         self.internet_checker = InternetChecker(None, self.manager)
         self.internet_checker.finished.connect(self.handle_finished)
-        self.internet_checker.ping("https://github.com/")
+        self.internet_checker.ping(f"{self.url}?service=wfs&request=GetCapabilities")
 
     def handle_finished(self):
         # Check if plugin is already launched
@@ -463,7 +462,7 @@ class InternetChecker(QObject):
                     None,
                     self.tr("Error"),
                     self.tr(
-                        f"Code error : {str(reply.error())}\nGo to\n{__uri_tracker__}\nto report the issue."
+                        f"Code error : {str(reply.error())}<br>Go to<br><a href={__uri_tracker__}>FramaGit</a><br>to report the issue."
                     ),  # noqa: E501
                 )
         else:

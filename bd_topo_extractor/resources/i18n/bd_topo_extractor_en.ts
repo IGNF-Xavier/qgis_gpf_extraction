@@ -1,45 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.1" language="en" sourcelanguage="fr_FR">
+<TS version="2.1" language="en" sourcelanguage="en">
 <context>
     <name>BdTopoExtractorPlugin</name>
     <message>
-        <location filename="../../plugin_main.py" line="109"/>
+        <location filename="../../plugin_main.py" line="101"/>
         <source>Help</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="118"/>
+        <location filename="../../plugin_main.py" line="110"/>
         <source>Settings</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="102"/>
-        <source>{} Extractor</source>
-        <translation>{} Extractor</translation>
-    </message>
-    <message>
-        <location filename="../../plugin_main.py" line="361"/>
+        <location filename="../../plugin_main.py" line="374"/>
         <source>Downloaded data : </source>
         <translation>Downloaded data : </translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="385"/>
+        <location filename="../../plugin_main.py" line="398"/>
         <source>Informations</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="385"/>
+        <location filename="../../plugin_main.py" line="398"/>
         <source>Data number : </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="385"/>
+        <location filename="../../plugin_main.py" line="398"/>
         <source>Total data : </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="385"/>
+        <location filename="../../plugin_main.py" line="398"/>
         <source>No data number : </source>
         <translation type="unfinished"></translation>
     </message>
@@ -47,48 +42,45 @@
 <context>
     <name>InternetChecker</name>
     <message>
-        <location filename="../../plugin_main.py" line="449"/>
+        <location filename="../../plugin_main.py" line="462"/>
         <source>Error</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="437"/>
+        <location filename="../../plugin_main.py" line="450"/>
         <source>IGN Services&apos; are down.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="443"/>
+        <location filename="../../plugin_main.py" line="456"/>
         <source>You are not connected to the Internet.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="449"/>
-        <source>Code error : {code}
-Go to
-{tracker}
-to report the issue.</source>
+        <location filename="../../plugin_main.py" line="462"/>
+        <source>Code error : {str(reply.error())}&lt;br&gt;Go to&lt;br&gt;&lt;a href={__uri_tracker__}&gt;FramaGit&lt;/a&gt;&lt;br&gt;to report the issue.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>RectangleDrawTool</name>
     <message>
-        <location filename="../../processing/rectangle_tool.py" line="131"/>
+        <location filename="../../processing/rectangle_tool.py" line="139"/>
         <source>Warning</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../processing/rectangle_tool.py" line="131"/>
+        <location filename="../../processing/rectangle_tool.py" line="139"/>
         <source>Drawned rectangle is very large (degraded performances)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../processing/rectangle_tool.py" line="144"/>
+        <location filename="../../processing/rectangle_tool.py" line="152"/>
         <source>Error</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../processing/rectangle_tool.py" line="144"/>
+        <location filename="../../processing/rectangle_tool.py" line="152"/>
         <source>Drawned rectangle is outside of the WFS&apos; extent.</source>
         <translation type="unfinished"></translation>
     </message>

@@ -4,42 +4,37 @@
 <context>
     <name>BdTopoExtractorPlugin</name>
     <message>
-        <location filename="../../plugin_main.py" line="109"/>
+        <location filename="../../plugin_main.py" line="101"/>
         <source>Help</source>
         <translation>Aide</translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="118"/>
+        <location filename="../../plugin_main.py" line="110"/>
         <source>Settings</source>
         <translation>Paramètres</translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="102"/>
-        <source>{} Extractor</source>
-        <translation>{} Extractor</translation>
-    </message>
-    <message>
-        <location filename="../../plugin_main.py" line="361"/>
+        <location filename="../../plugin_main.py" line="374"/>
         <source>Downloaded data : </source>
         <translation>Données téléchargées : </translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="385"/>
+        <location filename="../../plugin_main.py" line="398"/>
         <source>Informations</source>
         <translation>Informations</translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="385"/>
+        <location filename="../../plugin_main.py" line="398"/>
         <source>No data number : </source>
         <translation>Données absentes : </translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="385"/>
+        <location filename="../../plugin_main.py" line="398"/>
         <source>Data number : </source>
         <translation>Données récupérées : </translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="385"/>
+        <location filename="../../plugin_main.py" line="398"/>
         <source>Total data : </source>
         <translation>Données totales : </translation>
     </message>
@@ -47,51 +42,45 @@
 <context>
     <name>InternetChecker</name>
     <message>
-        <location filename="../../plugin_main.py" line="449"/>
+        <location filename="../../plugin_main.py" line="462"/>
         <source>Error</source>
         <translation>Erreur</translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="437"/>
+        <location filename="../../plugin_main.py" line="450"/>
         <source>IGN Services&apos; are down.</source>
-        <translation>Les services IGN&apos; sont injoignables.</translation>
+        <translation>Les services IGN' sont injoignables.</translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="443"/>
+        <location filename="../../plugin_main.py" line="456"/>
         <source>You are not connected to the Internet.</source>
         <translation>Non connecté à internet.</translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="449"/>
-        <source>Code error : {code}
-Go to
-{tracker}
-to report the issue.</source>
-        <translation>Code erreur : {code}
-        Rendez-vous ici
-        {tracker}
-        pour identifier le problème.</translation>
+        <location filename="../../plugin_main.py" line="462"/>
+        <source>Code error : {str(reply.error())}&lt;br&gt;Go to&lt;br&gt;&lt;a href={__uri_tracker__}&gt;FramaGit&lt;/a&gt;&lt;br&gt;to report the issue.</source>
+        <translation>Code erreur : {str(reply.error())}&lt;br&gt;Rendez-vous sur&lt;br&gt;&lt;a href={__uri_tracker__}&gt;FramaGit&lt;/a&gt;&lt;br&gt;pour faire remonter le problème.</translation>
     </message>
 </context>
 <context>
     <name>RectangleDrawTool</name>
     <message>
-        <location filename="../../processing/rectangle_tool.py" line="144"/>
+        <location filename="../../processing/rectangle_tool.py" line="152"/>
         <source>Drawned rectangle is outside of the WFS&apos; extent.</source>
         <translation>Le rectangle tracé est en dehors de l'emprise du WFS.</translation>
     </message>
     <message>
-        <location filename="../../processing/rectangle_tool.py" line="131"/>
+        <location filename="../../processing/rectangle_tool.py" line="139"/>
         <source>Warning</source>
         <translation>Attention</translation>
     </message>
     <message>
-        <location filename="../../processing/rectangle_tool.py" line="131"/>
+        <location filename="../../processing/rectangle_tool.py" line="139"/>
         <source>Drawned rectangle is very large (degraded performances)</source>
         <translation>Le rectangle tracé est trop grand (performances dégradées)</translation>
     </message>
     <message>
-        <location filename="../../processing/rectangle_tool.py" line="144"/>
+        <location filename="../../processing/rectangle_tool.py" line="152"/>
         <source>Error</source>
         <translation>Erreur</translation>
     </message>
