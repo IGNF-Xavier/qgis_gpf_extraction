@@ -1,0 +1,349 @@
+stages:
+  - 🐍 lint
+  - 🤞 test
+  - 📦 build
+  - 🚀 deploy
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_FOLDER/.cache/pip"
+  PROJECT_FOLDER: "bd_topo_extractor"
+  PACKAGE_REGISTRY_URL: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/${PROJECT_FOLDER}"
+  PRE_COMMIT_HOME: ${CI_PROJECT_DIR}/.cache/pre-commit
+  PYTHON_MINIMAL_VERSION: "3.9"
+
+cache:
+  key:
+    files:
+      - requirements/*.txt
+  paths:
+    - ${PIP_CACHE_DIR}
+
+
+# -- LINT JOBS -------------------------------------------------------------------------
+lint:git-hooks:
+  stage: 🐍 lint
+  image: python:${PYTHON_MINIMAL_VERSION}
+  tags:
+    - gitlab-org
+  variables:
+    PRE_COMMIT_HOME: ${CI_PROJECT_DIR}/.cache/pre-commit
+  cache:
+    paths:
+      - ${PRE_COMMIT_HOME}
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  before_script:
+    - apt install git
+    - python3 -m pip install -U pip
+    - python3 -m pip install -U setuptools wheel
+    - python3 -m pip install -U pre-commit
+    - pre-commit install
+    - git fetch origin
+  script:
+    - pre-commit run --from-ref "origin/$CI_DEFAULT_BRANCH" --to-ref "$CI_COMMIT_SHA";
+
+
+lint:flake8:
+  stage: 🐍 lint
+  image: python:${PYTHON_MINIMAL_VERSION}-slim-bookworm
+  tags:
+    - gitlab-org
+  rules:
+    - changes:
+      - "**/*.py"
+  before_script:
+    - python -m pip install -U flake8
+  script:
+    - flake8 $PROJECT_FOLDER --count --select=E9,F63,F7,F82 --show-source --statistics
+    - flake8 $PROJECT_FOLDER --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+lint:qt6:
+  stage: 🐍 lint
+  tags:
+    - gitlab-org
+  image: registry.gitlab.com/oslandia/qgis/pyqgis-4-checker/pyqgis-qt-checker:latest
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "$PROJECT_FOLDER/**/*.py"
+        - ".gitlab-ci.yml"
+      when: on_success
+    - when: never
+  script:
+    # just print the script help
+    # - pyqt5_to_pyqt6.py --help
+    # first, a dry run to get the log file
+    - pyqt5_to_pyqt6.py --dry_run --logfile pyqt6_checker.log $PROJECT_FOLDER/
+    # then running with edit enabled to
+    - pyqt5_to_pyqt6.py $PROJECT_FOLDER/
+  artifacts:
+    paths:
+      - pyqt6_checker.log
+    when: always
+    access: all
+    expire_in: 1 week
+
+
+# -- TEST JOBS --------------------------------------------------------------------------
+tests:unit:
+  stage: 🤞 test
+  image: python:${PYTHON_MINIMAL_VERSION}-slim-bookworm
+  tags:
+    - gitlab-org
+  rules:
+    - changes:
+      - "**/*.py"
+      - ".gitlab-ci.yml"
+  before_script:
+    - python3 -m pip install -U -r requirements/development.txt
+    - python3 -m pip install -U -r requirements/testing.txt
+  script:
+    - env PYTHONPATH=/usr/share/qgis/python:. pytest -p no:qgis tests/unit --junitxml=junit/test-results-unit.xml --cov-report=xml:coverage-reports/coverage-unit.xml
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+  artifacts:
+    paths:
+      - coverage-reports/coverage-unit.xml
+      - junit/test-results-unit.xml
+    reports:
+      junit: junit/test-results-unit.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage-reports/coverage-unit.xml
+    when: always
+
+tests:qgis:
+  stage: 🤞 test
+  image: qgis/qgis:3.40
+  tags:
+    - gitlab-org
+  rules:
+    - changes:
+      - "**/*.py"
+      - ".gitlab-ci.yml"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  before_script:
+    # Install pipx
+    - apt update && apt install -y pipx
+    # Install QGIS venv creator
+    - pipx run qgis-venv-creator --venv-name ".venv"
+    # Activate the virtual environment
+    - . .venv/bin/activate
+    # Install the requirements
+    - python3 -m pip install -U -r requirements/testing.txt
+  script:
+    # Activate the virtual environment
+    - . .venv/bin/activate
+    # quick test that everything is ok
+    - python3 -c "from qgis.core import Qgis; print(Qgis.QGIS_VERSION)"
+    - python3 -m pip list --local  # check that the requirements are installed
+    # Run the tests
+    # xvfb-run is used to run the tests in a virtual framebuffer
+    # This is necessary because QGIS requires a display to run
+    - xvfb-run python3 -m pytest tests/qgis --junitxml=junit/test-results-qgis.xml --cov-report=xml:coverage-reports/coverage-qgis.xml
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+  artifacts:
+    paths:
+      - coverage-reports/coverage-qgis.xml
+      - junit/test-results-qgis.xml
+    reports:
+      junit: junit/test-results-qgis.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage-reports/coverage-qgis.xml
+    when: always
+
+# -- BUILD JOBS -------------------------------------------------------------------------
+build:translation:
+  stage: 📦 build
+  image: python:${PYTHON_MINIMAL_VERSION}-slim-bookworm
+  tags:
+    - gitlab-org
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+  before_script:
+    - apt update
+    - apt install -y qt5-qmake qttools5-dev-tools
+    - python -m pip install -U pyqt5-tools
+  script:
+    - pylupdate5 -noobsolete -verbose $PROJECT_FOLDER/resources/i18n/plugin_translation.pro
+    - lrelease $PROJECT_FOLDER/resources/i18n/*.ts
+  artifacts:
+    name: ui-translation
+    paths:
+      - $PROJECT_FOLDER/resources/i18n/*qm
+    when: always
+
+build:plugin:
+  stage: 📦 build
+  image: python:${PYTHON_MINIMAL_VERSION}
+  tags:
+    - gitlab-org
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+  needs:
+    - build:translation
+  before_script:
+    - apt install git
+    - python -m pip install -U -r requirements/packaging.txt
+  script:
+    # Amend gitignore to include translation with qgis-plugin-ci
+    - sed -i "s|^*.qm.*| |" .gitignore
+    - git add $PROJECT_FOLDER/resources/i18n/*.qm
+
+    # Package the latest version listed in the changelog
+    - qgis-plugin-ci package latest --allow-uncommitted-changes --plugin-repo-url $CI_PAGES_URL/
+    - qgis-plugin-ci changelog latest >> RELEASE_DESCRIPTION.md
+  artifacts:
+    name: "$PROJECT_FOLDER_b$CI_COMMIT_REF_NAME-c$CI_COMMIT_SHORT_SHA-j$CI_JOB_ID"
+    paths:
+      - "${PROJECT_FOLDER}.*.zip"
+      - plugins.xml
+      - RELEASE_DESCRIPTION.md
+    expire_in: never
+
+build:documentation:
+  stage: 📦 build
+  image: python:${PYTHON_MINIMAL_VERSION}-slim-bookworm
+  tags:
+    - gitlab-org
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  before_script:
+    - python -m pip install -U -r requirements/documentation.txt
+  script:
+    - sphinx-build -b html docs target/docs
+  artifacts:
+    name: documentation
+    expose_as: "Built documentation static website"
+    paths:
+      - target/docs
+    when: always
+
+# -- DEPLOYMENT JOBS -------------------------------------------------------------------
+pages:
+  stage: 🚀 deploy
+  tags:
+    - gitlab-org
+  variables:
+    GIT_STRATEGY: none
+  rules:
+    - changes:
+      - "**/*.md"
+      - "**/*.rst"
+      - ".gitlab-ci.yml"
+      - "$PROJECT_FOLDER/**/*"
+      - requirements/documentation.txt
+      - requirements/packaging.txt
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  needs:
+    - job: build:plugin
+      artifacts: true
+    - job: build:documentation
+      artifacts: true
+
+  script:
+    - mkdir -p public
+    # copy generated plugin
+    - cp ${PROJECT_FOLDER}.*.zip public/
+    - cp plugins.xml public/
+    # copy HTML documentation
+    - cp -rf target/docs/* public/
+
+  artifacts:
+    paths:
+      - public
+    when: always
+
+release:upload:
+  stage: 🚀 deploy
+  image: curlimages/curl:latest
+  tags:
+    - gitlab-org
+  rules:
+    - if: $CI_COMMIT_TAG
+  needs:
+    - job: build:plugin
+      artifacts: true
+  script:
+    - |
+      PACKAGE_NAME=$(ls ${PROJECT_FOLDER}.*.zip)
+      curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file ${PACKAGE_NAME} ${PACKAGE_REGISTRY_URL}/${CI_COMMIT_TAG}/${PACKAGE_NAME}
+      echo "PACKAGE_NAME=$PACKAGE_NAME" >> release.env
+  artifacts:
+    reports:
+      dotenv: release.env
+
+release:prepare:
+  stage: 🚀 deploy
+  image:
+    name: alpine/git:latest
+    entrypoint: [""]
+  tags:
+    - gitlab-org
+  rules:
+    - if: '$CI_COMMIT_TAG'
+  allow_failure: true
+  needs:
+    - job: build:plugin
+      artifacts: true
+  script:
+    - echo -e '\n\n## Technical changelog\n' >> RELEASE_DESCRIPTION.md
+    - git tag -l -n9 $CI_COMMIT_TAG >> RELEASE_DESCRIPTION.md
+    - echo -e '\n### Merges\n' >> RELEASE_DESCRIPTION.md
+    - git log --merges --pretty="- %s (%h)" $(git tag --sort=-creatordate | head -2)...$(git tag --sort=-creatordate | head -1) >> RELEASE_DESCRIPTION.md
+    - echo -e '\n### AUTHORS\n' >> RELEASE_DESCRIPTION.md
+    - git log --pretty="- %an%n- %cn" $(git tag --sort=-creatordate | head -2)...$(git tag --sort=-creatordate | head -1) | sort | uniq >> RELEASE_DESCRIPTION.md
+  artifacts:
+    paths:
+      - RELEASE_DESCRIPTION.md
+
+release:publish:
+  stage: 🚀 deploy
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  tags:
+    - gitlab-org
+  variables:
+    GIT_STRATEGY: none
+  rules:
+    - if: '$CI_COMMIT_TAG'
+  needs:
+    - job: release:prepare
+      artifacts: true
+    - job: release:upload
+      artifacts: true
+  script:
+    - echo "Creating release from $CI_COMMIT_TAG"
+  release: # See https://docs.gitlab.com/ee/ci/yaml/#release for available properties
+    description: RELEASE_DESCRIPTION.md
+    name: $CI_COMMIT_TAG
+    tag_name: "$CI_COMMIT_TAG"
+    assets:
+      links:
+        - name: '${PACKAGE_NAME}'
+          url: '${PACKAGE_REGISTRY_URL}/${CI_COMMIT_TAG}/${PACKAGE_NAME}'
+
+deploy:qgis-repository:
+  stage: 🚀 deploy
+  image: python:3.11
+  tags:
+    - gitlab-org
+  rules:
+    - if: '$CI_COMMIT_TAG'
+  needs:
+    - job: build:translation
+      artifacts: true
+  before_script:
+    - apt install git
+    - python -m pip install -U -r requirements/packaging.txt
+  script:
+    - echo "Deploying the version ${CI_COMMIT_TAG} plugin to QGIS Plugins Repository with the user ${OSGEO_USER_NAME}"
+    - python ${PROJECT_FOLDER}/__about__.py
+    # Amend gitignore to include embedded libs with qgis-plugin-ci
+    - sed -i "s|^*.qm.*| |" .gitignore
+    # git tracks new files
+    - git add $PROJECT_FOLDER/resources/i18n/*.qm
+    - qgis-plugin-ci release ${CI_COMMIT_TAG}
+        --osgeo-username $OSGEO_USER_NAME
+        --osgeo-password $OSGEO_USER_PASSWORD
+        --allow-uncommitted-changes
