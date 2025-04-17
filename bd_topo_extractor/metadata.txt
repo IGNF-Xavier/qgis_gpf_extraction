@@ -11,9 +11,9 @@ tags=vector, france, bdtopo, ign, export, ign france
 # credits and contact
 author=Jules GRILLOT
 email=jules.grillot@gmail.com
-homepage=https://julesgrillot.github.io/plugin_bd_topo_extractor/
-repository=https://github.com/JulesGrillot/plugin_bd_topo_extractor
-tracker=https://github.com/JulesGrillot/plugin_bd_topo_extractor/issues
+homepage=https://julesgrillot.frama.io/plugin_bd_topo_extractor/
+repository=https://framagit.org/JulesGrillot/plugin_bd_topo_extractor
+tracker=https://framagit.org/JulesGrillot/plugin_bd_topo_extractor/issues
 
 # experimental flag
 deprecated=False

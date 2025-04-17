@@ -24,7 +24,7 @@
 | Author email | <jules.grillot@gmail.com> |
 | Minimum QGIS version | 3.10 |
 | Maximum QGIS version | 3.99 |
-| Git repository URL | <https://github.com/JulesGrillot/plugin_bd_topo_extractor> |
+| Git repository URL | <https://framagit.org/JulesGrillot/plugin_bd_topo_extractor> |
 | Git default branch | main |
 | License | None |
 | Python linter | None |
@@ -52,9 +52,9 @@ If you mean to deploy it to the [official QGIS plugins repository](https://plugi
 
 The documentation is generated using Sphinx and is automatically generated through the CI and published on Pages.
 
-- homepage: <https://julesgrillot.github.io/plugin_bd_topo_extractor/>
-- repository: <https://github.com/JulesGrillot/plugin_bd_topo_extractor>
-- tracker: <https://github.com/JulesGrillot/plugin_bd_topo_extractor/issues>
+- homepage: <https://julesgrillot.frama.io/plugin_bd_topo_extractor/>
+- repository: <https://framagit.org/JulesGrillot/plugin_bd_topo_extractor>
+- tracker: <https://framagit.org/JulesGrillot/plugin_bd_topo_extractor/issues>
 
 ----
 

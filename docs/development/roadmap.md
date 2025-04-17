@@ -1,6 +1,6 @@
 # Roadmap
 
-## Multiple geometry column 
+## Multiple geometry column
 Some WFS service has multiple geometry column name.
 Add `*` as variable in `metadata.txt` when it's the case.
 You can also add `*` when you don't know the geometry column name.

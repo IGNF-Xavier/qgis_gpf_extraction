@@ -9,17 +9,11 @@ from functools import partial
 from pathlib import Path
 
 # PyQGIS
-from qgis.core import (
-    QgsApplication,
-)
-from qgis.gui import (
-    QgsOptionsPageWidget,
-    QgsOptionsWidgetFactory,
-)
+from qgis.core import QgsApplication
+from qgis.gui import QgsOptionsPageWidget, QgsOptionsWidgetFactory
 from qgis.PyQt import uic
 from qgis.PyQt.Qt import QUrl
 from qgis.PyQt.QtGui import QDesktopServices, QIcon
-
 
 # project
 from bd_topo_extractor.__about__ import (
@@ -33,14 +27,11 @@ from bd_topo_extractor.__about__ import (
 from bd_topo_extractor.toolbelt import PlgLogger, PlgOptionsManager
 from bd_topo_extractor.toolbelt.preferences import PlgSettingsStructure
 
-
 # ############################################################################
 # ########## Globals ###############
 # ##################################
 
-FORM_CLASS, _ = uic.loadUiType(
-    Path(__file__).parent / "{}.ui".format(Path(__file__).stem)
-)
+FORM_CLASS, _ = uic.loadUiType(Path(__file__).parent / f"{Path(__file__).stem}.ui")
 
 
 # ############################################################################
@@ -58,31 +49,25 @@ class ConfigOptionsPage(FORM_CLASS, QgsOptionsPageWidget):
 
         # load UI and set objectName
         self.setupUi(self)
-        self.setObjectName("mOptionsPage{}".format(__title__))
+        self.setObjectName(f"mOptionsPage{__title__}")
 
         # header
-        self.lbl_title.setText(
-            f"{__wfs_name__} Extractor - Version {__version__}")
+        self.lbl_title.setText(f"{__wfs_name__} Extractor - Version {__version__}")
 
         # customization
-        self.btn_help.setIcon(
-            QIcon(QgsApplication.iconPath("mActionHelpContents.svg")))
+        self.btn_help.setIcon(QIcon(QgsApplication.iconPath("mActionHelpContents.svg")))
         self.btn_help.pressed.connect(
             partial(QDesktopServices.openUrl, QUrl(__uri_homepage__))
         )
 
         self.btn_report.setIcon(
-            QIcon(QgsApplication.iconPath(
-                "console/iconSyntaxErrorConsole.svg"))
+            QIcon(QgsApplication.iconPath("console/iconSyntaxErrorConsole.svg"))
         )
         self.btn_report.pressed.connect(
-            partial(
-                QDesktopServices.openUrl, QUrl(
-                    f"{__uri_tracker__}/new/choose"))
+            partial(QDesktopServices.openUrl, QUrl(f"{__uri_tracker__}/new/choose"))
         )
 
-        self.btn_reset.setIcon(
-            QIcon(QgsApplication.iconPath("mActionUndo.svg")))
+        self.btn_reset.setIcon(QIcon(QgsApplication.iconPath("mActionUndo.svg")))
         self.btn_reset.pressed.connect(self.reset_settings)
 
         # load previously saved settings
@@ -160,7 +145,7 @@ class PlgOptionsFactory(QgsOptionsWidgetFactory):
         :return: plugin title from about module
         :rtype: str
         """
-        return "{} Extractor".format(__wfs_name__)
+        return f"{__wfs_name__} Extractor"
 
     def helpId(self) -> str:
         """Returns plugin help URL.

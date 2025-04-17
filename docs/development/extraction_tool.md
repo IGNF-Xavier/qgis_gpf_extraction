@@ -26,4 +26,3 @@ But also some specific informations on the WFS service and the data targeted ins
 Modifying those will not change the way the plugin works but all the links and text specific to the BD TOPO®.
 
 ## Maximum modification
-

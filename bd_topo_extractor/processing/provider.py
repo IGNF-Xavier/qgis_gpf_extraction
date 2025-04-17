@@ -19,7 +19,7 @@ from bd_topo_extractor.__about__ import DIR_PLUGIN_ROOT, __version__
 
 class BdTopoExtractorProvider(QgsProcessingProvider):
     """
-        Processing provider class.
+    Processing provider class.
     """
 
     def loadAlgorithms(self):
@@ -64,8 +64,7 @@ class BdTopoExtractorProvider(QgsProcessingProvider):
         :return: provider icon
         :rtype: QIcon
         """
-        return QIcon(
-            str(DIR_PLUGIN_ROOT / "resources/images/default_icon.png"))
+        return QIcon(str(DIR_PLUGIN_ROOT / "resources/images/default_icon.png"))
 
     def tr(self, message: str) -> str:
         """Get the translation for a string using Qt translation API.

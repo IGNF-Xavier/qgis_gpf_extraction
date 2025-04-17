@@ -1,6 +1,6 @@
 # BD TOPO® Extractor
 
-[Documentation en français](https://github.com/JulesGrillot/plugin_bd_topo_extractor/blob/main/bd_topo_extractor/README_fr.md)
+[Documentation en français](https://framagit.org/JulesGrillot/plugin_bd_topo_extractor/blob/main/bd_topo_extractor/README_fr.md)
 
 ## Description
 

@@ -11,9 +11,10 @@ from qgis.gui import QgsMessageBar
 from qgis.PyQt.QtWidgets import QPushButton, QWidget
 from qgis.utils import iface
 
+import bd_topo_extractor.toolbelt.preferences as plg_prefs_hdlr
+
 # project package
 from bd_topo_extractor.__about__ import __title__
-import bd_topo_extractor.toolbelt.preferences as plg_prefs_hdlr
 
 # ############################################################################
 # ########## Classes ###############
@@ -145,8 +146,7 @@ class PlgLogger(logging.Handler):
                     mini_dlg = QgsMessageOutput.createMessageOutput()
                     mini_dlg.setTitle(application)
                     mini_dlg.setMessage(message, QgsMessageOutput.MessageText)
-                    widget_button.clicked.connect(
-                        partial(mini_dlg.showMessage, False))
+                    widget_button.clicked.connect(partial(mini_dlg.showMessage, False))
 
                 notification.layout().addWidget(widget_button)
                 msg_bar.pushWidget(
