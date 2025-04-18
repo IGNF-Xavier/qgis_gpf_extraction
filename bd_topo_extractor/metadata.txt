@@ -28,7 +28,7 @@ changelog=
     1.0.1 crs correction.
     1.0.2 crs correction for area calculation, adding a gif when export is loading
     1.1.0 add group by themes and style created by IGN.
-    1.1.1 correct internet checker
+    1.1.1 correct internet checker, add french translation, switch from Girhub to Framagit
 
 
 [wfs]

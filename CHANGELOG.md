@@ -33,4 +33,5 @@ Unreleased
 
 ## 1.1.1 - 2025-04-18
 - Correct Internet Checker
+- Add French Translation
 - Transfer Git repo to FramaGit

@@ -2,6 +2,124 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="fr_FR" sourcelanguage="en">
 <context>
+    <name>BdTopoExtractorDialog</name>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="101"/>
+        <source>Data provided by :</source>
+        <translation>Données fournies par :</translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="118"/>
+        <source>Documentation</source>
+        <translation>Documentation</translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="125"/>
+        <source>Metadata</source>
+        <translation>Métadonnées</translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="136"/>
+        <source>Draw an extent to extract data :</source>
+        <translation>Utiliser une emprise tracée pour l'extraction</translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="148"/>
+        <source>Draw an extent</source>
+        <translation>Tracer une emprise</translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="156"/>
+        <source>Use layer extent to extract data :</source>
+        <translation>Utiliser l'emprise d'une couche pour l'extraction</translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="180"/>
+        <source>Draw the extent on the map</source>
+        <translation>Dessiner l'emprise sur la carte</translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="190"/>
+        <source>Data extracted from </source>
+        <translation>Données extraites de</translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="196"/>
+        <source>Extract all data from </source>
+        <translation>Extraire toutes les données</translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="239"/>
+        <source>Keep data intersecting the extent</source>
+        <translation>Conserver les données intersectant l'emprise</translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="244"/>
+        <source>Clip data intersecting the extent</source>
+        <translation>Découper les données intersectant l'emprise</translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="250"/>
+        <source>Select outputs&apos; coordinate system :</source>
+        <translation>Sélectionner le système de projection des données en sortie</translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="260"/>
+        <source>Add exported data to the project</source>
+        <translation>Ajouter les données exportées au projet</translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="271"/>
+        <source>Add style to layers</source>
+        <translation>Ajouter un style aux données en sortie</translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="277"/>
+        <source>Save the results :</source>
+        <translation>Enregistrer les résultats</translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="307"/>
+        <source>Explore folders :</source>
+        <translation>Parcourir les dossiers :</translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="326"/>
+        <source>Ok</source>
+        <translation>Ok</translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="327"/>
+        <source>Cancel</source>
+        <translation>Annuler</translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="459"/>
+        <source>Warning</source>
+        <translation>Attention</translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="459"/>
+        <source>Selected layer is very large (degraded performance)</source>
+        <translation>L'emprise de la couche sélectionnée est très grande (performances dégradées)</translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="470"/>
+        <source>Error</source>
+        <translation>Erreur</translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="470"/>
+        <source>Selected layer is outside of the WFS&apos; extent.</source>
+        <translation>L'emprise de la couche sélectionnée se situe en dehors de l'emprise du WFS</translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="553"/>
+        <source>Select an output folder</source>
+        <translation>Sélectionner un dossier de sortie</translation>
+    </message>
+</context>
+<context>
     <name>BdTopoExtractorPlugin</name>
     <message>
         <location filename="../../plugin_main.py" line="100"/>
@@ -37,6 +155,19 @@
         <location filename="../../plugin_main.py" line="397"/>
         <source>Total data : </source>
         <translation>Données totales : </translation>
+    </message>
+</context>
+<context>
+    <name>BdTopoExtractorProvider</name>
+    <message>
+        <location filename="../../processing/provider.py" line="48"/>
+        <source>BdTopoExtractor</source>
+        <translation>BDTopoExtractor</translation>
+    </message>
+    <message>
+        <location filename="../../processing/provider.py" line="59"/>
+        <source>BD Topo Extractor - Tools</source>
+        <translation>BD Topo Extractor - Outils</translation>
     </message>
 </context>
 <context>

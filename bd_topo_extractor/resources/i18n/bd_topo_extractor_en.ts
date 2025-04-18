@@ -2,6 +2,124 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="en" sourcelanguage="en">
 <context>
+    <name>BdTopoExtractorDialog</name>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="101"/>
+        <source>Data provided by :</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="118"/>
+        <source>Documentation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="125"/>
+        <source>Metadata</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="136"/>
+        <source>Draw an extent to extract data :</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="148"/>
+        <source>Draw an extent</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="156"/>
+        <source>Use layer extent to extract data :</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="180"/>
+        <source>Draw the extent on the map</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="190"/>
+        <source>Data extracted from </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="196"/>
+        <source>Extract all data from </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="239"/>
+        <source>Keep data intersecting the extent</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="244"/>
+        <source>Clip data intersecting the extent</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="250"/>
+        <source>Select outputs&apos; coordinate system :</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="260"/>
+        <source>Add exported data to the project</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="271"/>
+        <source>Add style to layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="277"/>
+        <source>Save the results :</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="307"/>
+        <source>Explore folders :</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="326"/>
+        <source>Ok</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="327"/>
+        <source>Cancel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="459"/>
+        <source>Warning</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="459"/>
+        <source>Selected layer is very large (degraded performance)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="470"/>
+        <source>Error</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="470"/>
+        <source>Selected layer is outside of the WFS&apos; extent.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_main.py" line="553"/>
+        <source>Select an output folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>BdTopoExtractorPlugin</name>
     <message>
         <location filename="../../plugin_main.py" line="100"/>
@@ -36,6 +154,19 @@
     <message>
         <location filename="../../plugin_main.py" line="397"/>
         <source>No data number : </source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>BdTopoExtractorProvider</name>
+    <message>
+        <location filename="../../processing/provider.py" line="48"/>
+        <source>BdTopoExtractor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../processing/provider.py" line="59"/>
+        <source>BD Topo Extractor - Tools</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

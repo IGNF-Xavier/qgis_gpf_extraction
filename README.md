@@ -20,7 +20,6 @@
 | Plugin icon | default_icon.png |
 | Plugin with processing provider | yes |
 | Author name | Jules GRILLOT |
-| Author organization | Company |
 | Author email | <jules.grillot@fdn.fr> |
 | Minimum QGIS version | 3.10 |
 | Maximum QGIS version | 3.99 |
@@ -28,7 +27,7 @@
 | Git default branch | main |
 | License | None |
 | Python linter | None |
-| CI/CD platform | GitHub |
+| CI/CD platform | GitLab |
 | IDE | VSCode |
 
 ### Tooling
