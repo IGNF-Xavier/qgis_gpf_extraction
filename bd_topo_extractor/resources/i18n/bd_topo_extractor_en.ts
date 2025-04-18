@@ -4,37 +4,37 @@
 <context>
     <name>BdTopoExtractorPlugin</name>
     <message>
-        <location filename="../../plugin_main.py" line="101"/>
+        <location filename="../../plugin_main.py" line="100"/>
         <source>Help</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="110"/>
+        <location filename="../../plugin_main.py" line="109"/>
         <source>Settings</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="374"/>
+        <location filename="../../plugin_main.py" line="373"/>
         <source>Downloaded data : </source>
         <translation>Downloaded data : </translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="398"/>
+        <location filename="../../plugin_main.py" line="397"/>
         <source>Informations</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="398"/>
+        <location filename="../../plugin_main.py" line="397"/>
         <source>Data number : </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="398"/>
+        <location filename="../../plugin_main.py" line="397"/>
         <source>Total data : </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="398"/>
+        <location filename="../../plugin_main.py" line="397"/>
         <source>No data number : </source>
         <translation type="unfinished"></translation>
     </message>
@@ -42,22 +42,22 @@
 <context>
     <name>InternetChecker</name>
     <message>
-        <location filename="../../plugin_main.py" line="462"/>
+        <location filename="../../plugin_main.py" line="461"/>
         <source>Error</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="450"/>
+        <location filename="../../plugin_main.py" line="449"/>
         <source>IGN Services&apos; are down.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="456"/>
+        <location filename="../../plugin_main.py" line="455"/>
         <source>You are not connected to the Internet.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="462"/>
+        <location filename="../../plugin_main.py" line="461"/>
         <source>Code error : {str(reply.error())}&lt;br&gt;Go to&lt;br&gt;&lt;a href={__uri_tracker__}&gt;FramaGit&lt;/a&gt;&lt;br&gt;to report the issue.</source>
         <translation type="unfinished"></translation>
     </message>
