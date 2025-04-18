@@ -21,7 +21,7 @@
 | Plugin with processing provider | yes |
 | Author name | Jules GRILLOT |
 | Author organization | Company |
-| Author email | <jules.grillot@gmail.com> |
+| Author email | <jules.grillot@fdn.fr> |
 | Minimum QGIS version | 3.10 |
 | Maximum QGIS version | 3.99 |
 | Git repository URL | <https://framagit.org/JulesGrillot/plugin_bd_topo_extractor> |
