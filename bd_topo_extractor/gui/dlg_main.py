@@ -57,7 +57,10 @@ from bd_topo_extractor.__about__ import (
     __wfs_schema__,
     __wfs_style__,
 )
-from bd_topo_extractor.processing import GetCapabilitiesRequest, RectangleDrawTool
+from bd_topo_extractor.processing import (  # noqa: E501
+    GetCapabilitiesRequest,
+    RectangleDrawTool,
+)
 
 # ############################################################################
 # ########## Classes ###############
@@ -443,9 +446,7 @@ class BdTopoExtractorDialog(QDialog):
                 layer.crs(),
                 QgsCoordinateReferenceSystem("EPSG:" + str(__wfs_crs__)),
             )
-            if self.getcapabilities.max_bounding_box.intersects(
-                transformed_extent
-            ):  # noqa: E501
+            if self.getcapabilities.max_bounding_box.intersects(transformed_extent):
                 area = QgsDistanceArea()
                 ellipsoid = QgsCoordinateReferenceSystem(
                     "EPSG:" + str(__wfs_crs__)
@@ -454,14 +455,14 @@ class BdTopoExtractorDialog(QDialog):
                 if (
                     area.measureArea(QgsGeometry.fromRect(transformed_extent))
                     > 100000000
-                ):  # noqa: E501
+                ):
                     msg = QMessageBox()
                     msg.warning(
                         None,
                         self.tr("Warning"),
                         self.tr(
-                            "Selected layer is very large (degraded performance)"
-                        ),  # noqa: E501
+                            "Selected layer is very large (degraded performance)"  # noqa: E501
+                        ),
                     )
             else:
                 # If the layer is outside of the max extent,
@@ -610,7 +611,7 @@ class BdTopoExtractorDialog(QDialog):
                     + " ("
                     + str(layer.split(":")[0])
                     + ")"
-                )  # noqa: E501
+                )
             else:
                 text_with_spaces = layer.replace("_", " ")
             for elem in [" d ", " l ", " s "]:

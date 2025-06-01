@@ -30,7 +30,8 @@ class GetCapabilitiesRequest(QObject):
         url = QUrl(f"{self.url}?service=wfs&request=GetCapabilities")
         request = QNetworkRequest(url)
         request.setRawHeader(
-            b"User-Agent", bytes(__title__ + "/" + __version__, encoding="utf-8")
+            b"User-Agent",
+            bytes(__title__ + "/" + __version__, encoding="utf-8"),  # noqa: E501
         )
         self.reply = self.network_manager.get(request)
         self.reply.finished.connect(self.handle_finished)
@@ -40,8 +41,8 @@ class GetCapabilitiesRequest(QObject):
         self._pending_downloads -= 1
         if self.reply.error() != QNetworkReply.NoError:
             print(
-                f"code: {self.reply.error()} message: {self.reply.errorString()}"
-            )  # noqa: E501
+                f"code: {self.reply.error()} message: {self.reply.errorString()}"  # noqa: E501
+            )
         else:
             data = self.reply.readAll().data().decode()
             (
@@ -108,14 +109,7 @@ class GetCapabilitiesRequest(QObject):
                 elif self.schema == "*":
                     layers.append(layer.group(1))
                 else:
-                    print(
-                        "Error, schema specified in metadata.txt doesn't exist"
-                    )  # noqa: E501
-
-        print(extent_1)
-        print(extent_2)
-        print(extent_3)
-        print(extent_4)
+                    print("Error, schema specified in metadata.txt doesn't exist")
         max_bounding_box = QgsRectangle()
         max_bounding_box.setXMinimum(float(extent_1))
         max_bounding_box.setYMinimum(float(extent_2))

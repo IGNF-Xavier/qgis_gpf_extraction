@@ -97,9 +97,7 @@ class RectangleDrawTool(QgsMapTool):
             return None
         else:
             # Rectangle reprojection
-            if str(self.project.instance().crs().postgisSrid()) != str(
-                __wfs_crs__
-            ):  # noqa: E501
+            if str(self.project.instance().crs().postgisSrid()) != str(__wfs_crs__):
                 start_point = self.transform_geom(
                     QgsGeometry().fromPointXY(self.start_point),
                     self.project.instance().crs(),
@@ -125,7 +123,7 @@ class RectangleDrawTool(QgsMapTool):
                 area = QgsDistanceArea()
                 ellipsoid = QgsCoordinateReferenceSystem(
                     "EPSG:" + str(__wfs_crs__)
-                ).ellipsoidAcronym()  # noqa: E501
+                ).ellipsoidAcronym()
                 area.setEllipsoid(ellipsoid)
                 if (
                     area.measureArea(
@@ -134,7 +132,7 @@ class RectangleDrawTool(QgsMapTool):
                         )
                     )
                     > 100000000
-                ):  # noqa: E501
+                ):
                     msg = QMessageBox()
                     msg.warning(
                         None,
@@ -152,9 +150,7 @@ class RectangleDrawTool(QgsMapTool):
                 msg.critical(
                     None,
                     self.tr("Error"),
-                    self.tr(
-                        "Drawned rectangle is outside of the WFS' extent."
-                    ),  # noqa: E501
+                    self.tr("Drawned rectangle is outside of the WFS' extent."),
                 )
 
     def transform_geom(self, geom, input_crs, output_crs):

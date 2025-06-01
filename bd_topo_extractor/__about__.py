@@ -50,9 +50,7 @@ def plugin_metadata_as_dict() -> dict:
         config.read(PLG_METADATA_FILE.resolve(), encoding="UTF-8")
         return {s: dict(config.items(s)) for s in config.sections()}
     else:
-        raise OSError(
-            "Plugin metadata.txt not found at: %s" % PLG_METADATA_FILE
-        )  # noqa: E501
+        raise OSError("Plugin metadata.txt not found at: %s" % PLG_METADATA_FILE)
 
 
 # ############################################################################
@@ -65,17 +63,14 @@ __plugin_md__: dict = plugin_metadata_as_dict()
 __author__: str = __plugin_md__.get("general").get("author")
 __copyright__: str = f"2023 - {date.today().year}, {__author__}"
 __email__: str = __plugin_md__.get("general").get("email")
-__icon_path__: Path = DIR_PLUGIN_ROOT.resolve() / __plugin_md__.get(
-    "general"
-).get(  # noqa: E501
+__icon_path__: Path = DIR_PLUGIN_ROOT.resolve() / __plugin_md__.get("general").get(
     "icon"
 )
 __loading_gif__: Path = DIR_PLUGIN_ROOT.resolve() / __plugin_md__.get("general").get(
     "loading"
-)  # noqa: E501
+)
 __keywords__: list = [
-    t.strip()
-    for t in __plugin_md__.get("general").get("repository").split("tags")  # noqa: E501
+    t.strip() for t in __plugin_md__.get("general").get("repository").split("tags")
 ]
 __license__: str = "None"
 __summary__: str = "{}\n{}".format(

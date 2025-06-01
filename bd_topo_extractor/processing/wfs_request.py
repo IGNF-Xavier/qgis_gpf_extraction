@@ -171,7 +171,7 @@ class WfsRequest:
                     QgsCoordinateReferenceSystem("EPSG:" + str(__wfs_crs__)),
                     self.crs,
                     self.project.instance(),
-                )  # noqa: E501
+                )
                 options.ct = tr
                 options.layerName = str(self.export_name)
                 options.fileEncoding = new_layer.dataProvider().encoding()
@@ -181,9 +181,7 @@ class WfsRequest:
                     options.driverName = "GPKG"
                     # Check if the GeoPackage already exists,
                     # to know if it's need to be created or not
-                    if os.path.isfile(
-                        self.path + "/" + "bd_topo_extract.gpkg"
-                    ):  # noqa: E501
+                    if os.path.isfile(self.path + "/" + "bd_topo_extract.gpkg"):
                         options.actionOnExistingFile = (
                             QgsVectorFileWriter.CreateOrOverwriteLayer
                         )
