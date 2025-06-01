@@ -698,7 +698,7 @@ class BdTopoExtractorDialog(QDialog):
 
     def pointer(self):
         # Add the tool to draw a rectangle
-        # self.setVisible(False)
+        self.showMinimized()
         self.iface.mainWindow().activateWindow()
         self.canvas.setMapTool(self.rectangle_tool)
 

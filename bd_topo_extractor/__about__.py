@@ -108,9 +108,7 @@ __wfs_style__: str = __plugin_md__.get("wfs").get("style")
 __wfs_layer_order__: str = __plugin_md__.get("wfs").get("layer_order")
 __wfs_metadata__: str = __plugin_md__.get("wfs").get("metadata")
 __wfs_credit__: str = __plugin_md__.get("wfs").get("producer")
-__wfs_logo__: Path = DIR_PLUGIN_ROOT.resolve() / __plugin_md__.get("wfs").get(
-    "logo"
-)  # noqa: E501
+__wfs_logo__: Path = DIR_PLUGIN_ROOT.resolve() / __plugin_md__.get("wfs").get("logo")
 
 # #############################################################################
 # ##### Main #######################

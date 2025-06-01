@@ -35,3 +35,9 @@ Unreleased
 - Correct Internet Checker
 - Add French Translation
 - Transfer Git repo to FramaGit
+
+## 1.2.1 - 2025-05-25
+- Add style to saved layer
+- Correct group insertion bug
+- Correct minimize window when drawing an extent on linux
+- Minor translation correction

@@ -70,13 +70,18 @@ class BdTopoExtractorPlugin:
 
         # translation
         # initialize the locale
-        self.locale: str = QgsSettings().value("locale/userLocale", QLocale().name())[
+        self.locale: str = QgsSettings().value(
+            "locale/userLocale", QLocale().name()
+        )[  # noqa: E501
             0:2
         ]
         locale_path: Path = (
-            DIR_PLUGIN_ROOT / f"resources/i18n/{__title__.lower()}_{self.locale}.qm"
+            DIR_PLUGIN_ROOT
+            / f"resources/i18n/{__title__.lower()}_{self.locale}.qm"  # noqa: E501
         )
-        self.log(message=f"Translation: {self.locale}, {locale_path}", log_level=4)
+        self.log(
+            message=f"Translation: {self.locale}, {locale_path}", log_level=4
+        )  # noqa: E501
         if locale_path.exists():
             self.translator = QTranslator()
             self.translator.load(str(locale_path.resolve()))
@@ -112,13 +117,21 @@ class BdTopoExtractorPlugin:
             self.iface.mainWindow(),
         )
         self.action_settings.triggered.connect(
-            lambda: self.iface.showOptionsDialog(currentPage=f"mOptionsPage{__title__}")
+            lambda: self.iface.showOptionsDialog(
+                currentPage=f"mOptionsPage{__title__}"
+            )  # noqa: E501
         )
 
         # -- Menu
-        self.iface.addPluginToMenu(f"{__wfs_name__} Extractor", self.action_launch)
-        self.iface.addPluginToMenu(f"{__wfs_name__} Extractor", self.action_settings)
-        self.iface.addPluginToMenu(f"{__wfs_name__} Extractor", self.action_help)
+        self.iface.addPluginToMenu(
+            f"{__wfs_name__} Extractor", self.action_launch
+        )  # noqa: E501
+        self.iface.addPluginToMenu(
+            f"{__wfs_name__} Extractor", self.action_settings
+        )  # noqa: E501
+        self.iface.addPluginToMenu(
+            f"{__wfs_name__} Extractor", self.action_help
+        )  # noqa: E501
 
         # -- Processing
         self.initProcessing()
@@ -158,10 +171,16 @@ class BdTopoExtractorPlugin:
     def unload(self):
         """Cleans up when plugin is disabled/uninstalled."""
         # -- Clean up menu
-        self.iface.removePluginMenu(f"{__wfs_name__} Extractor", self.action_launch)
+        self.iface.removePluginMenu(
+            f"{__wfs_name__} Extractor", self.action_launch
+        )  # noqa: E501
         self.iface.removeToolBarIcon(self.action_launch)
-        self.iface.removePluginMenu(f"{__wfs_name__} Extractor", self.action_help)
-        self.iface.removePluginMenu(f"{__wfs_name__} Extractor", self.action_settings)
+        self.iface.removePluginMenu(
+            f"{__wfs_name__} Extractor", self.action_help
+        )  # noqa: E501
+        self.iface.removePluginMenu(
+            f"{__wfs_name__} Extractor", self.action_settings
+        )  # noqa: E501
 
         # -- Clean up preferences panel in QGIS settings
         self.iface.unregisterOptionsWidgetFactory(self.options_factory)
@@ -189,7 +208,9 @@ class BdTopoExtractorPlugin:
         """
         self.internet_checker = InternetChecker(None, self.manager)
         self.internet_checker.finished.connect(self.handle_finished)
-        self.internet_checker.ping(f"{self.url}?service=wfs&request=GetCapabilities")
+        self.internet_checker.ping(
+            f"{self.url}?service=wfs&request=GetCapabilities"
+        )  # noqa: E501
 
     def handle_finished(self):
         # Check if plugin is already launched
@@ -222,6 +243,55 @@ class BdTopoExtractorPlugin:
         # put back the window on top
         else:
             self.dlg.activateWindow()
+
+    def add_style(self, layer, group):
+        theme = None
+
+        # If styled layer are set to true in metadata.txt,
+        # a specific style is applied to every layer.
+        if self.dlg.style_checkbox.isChecked():
+            # style name is based on layer name in
+            # uppercase with underscore instead of spaces
+            # and single quotes
+            style_name = str(layer.name()).replace("'", "_").replace(" ", "_").upper()
+            layer_order_dict = json.loads(__wfs_layer_order__)
+            # the layer are ordered based on a dictionnary
+            # with theme as key.
+            for elem in layer_order_dict:
+                if style_name in list(layer_order_dict[elem].keys()):
+                    theme = group.findGroup(elem)
+                    # if the theme doesn't exists
+                    # it is created.
+                    if not theme:
+                        group.insertGroup(
+                            int(layer_order_dict["ORDER"][elem]),
+                            elem,
+                        )
+                        theme = group.findGroup(elem)
+
+            if not theme:
+                theme = group.findGroup("AUTRE")
+
+                if not theme:
+                    group.insertGroup(
+                        int(layer_order_dict["ORDER"]["AUTRE"]),
+                        "AUTRE",
+                    )
+                    theme = group.findGroup("AUTRE")
+                theme.addLayer(layer)
+            else:
+                theme.addLayer(layer)
+                style_name_ext = style_name + ".qml"
+                style_path: Path = (
+                    DIR_PLUGIN_ROOT / f'{"resources/styles"}' / f"{style_name_ext}"
+                )
+                # if the style exists it is added to the layer.
+                if os.path.isfile(style_path.__str__()):
+                    layer.loadNamedStyle(style_path.__str__())
+                else:
+                    print("ERROR : style " + str(style_name_ext) + " doesn't exists.")
+        else:
+            group.addLayer(layer)
 
     def processing(self):
         """Processing chain if the dialog is accepted
@@ -294,8 +364,9 @@ class BdTopoExtractorPlugin:
                 )
                 # If a layer is created and needs to be added to the project
                 if (
-                    request.final_layer and self.dlg.add_to_project_checkbox.isChecked()
-                ):  # noqa: E501
+                    request.final_layer
+                    and self.dlg.add_to_project_checkbox.isChecked()  # noqa: E501
+                ):
                     # If output format is a SHP or a GEOJSON or if the
                     # layers are not saved. Saved GPKG are processed
                     # differently.
@@ -308,62 +379,7 @@ class BdTopoExtractorPlugin:
                         # If styled layer are set to true in metadata.txt,
                         # a specific style is applied to every layer.
                         if __wfs_style__:
-                            if self.dlg.style_checkbox.isChecked():
-                                # style name is based on layer name in
-                                # uppercase with underscore instead of spaces
-                                # and single quotes
-                                style_name = (
-                                    str(request.final_layer.name())
-                                    .replace("'", "_")
-                                    .replace(" ", "_")
-                                    .upper()
-                                )  # noqa: E501
-                                layer_order_dict = json.loads(
-                                    __wfs_layer_order__
-                                )  # noqa: E501
-                                # the layer are ordered based on a dictionnary
-                                # with theme as key.
-                                for elem in layer_order_dict:
-                                    if style_name in list(
-                                        layer_order_dict[elem].keys()
-                                    ):  # noqa: E501
-                                        theme = (
-                                            self.project.instance()
-                                            .layerTreeRoot()
-                                            .findGroup(elem)
-                                        )  # noqa: E501
-                                        # if the theme doesn't exists
-                                        # it is created.
-                                        if not theme:
-                                            group.insertGroup(
-                                                int(layer_order_dict["ORDER"][elem]),
-                                                elem,
-                                            )  # noqa: E501
-                                            theme = (
-                                                self.project.instance()
-                                                .layerTreeRoot()
-                                                .findGroup(elem)
-                                            )  # noqa: E501
-                                theme.addLayer(request.final_layer)
-                                style_name_ext = style_name + ".qml"
-                                style_path: Path = (
-                                    DIR_PLUGIN_ROOT
-                                    / f'{"resources/styles"}'
-                                    / f"{style_name_ext}"
-                                )  # noqa: E501
-                                # if the style exists it is added to the layer.
-                                if os.path.isfile(style_path.__str__()):
-                                    request.final_layer.loadNamedStyle(
-                                        style_path.__str__()
-                                    )  # noqa: E501
-                                else:
-                                    print(
-                                        "ERROR : style "
-                                        + str(style_name_ext)
-                                        + " doesn't exists."
-                                    )  # noqa: E501
-                            else:
-                                group.addLayer(request.final_layer)
+                            self.add_style(request.final_layer, group)
                         else:
                             group.addLayer(request.final_layer)
 
@@ -382,6 +398,8 @@ class BdTopoExtractorPlugin:
             # added to the project
             if (len(good_list) / n) > 0:
                 gpkg = QgsVectorLayer(request.final_layer, "", "ogr")
+                print(gpkg)
+                print(gpkg.dataProvider())
                 layers = gpkg.dataProvider().subLayers()
                 for layer in layers:
                     name = layer.split("!!::!!")[1]
@@ -392,7 +410,12 @@ class BdTopoExtractorPlugin:
                     # Create layer
                     final_layer = QgsVectorLayer(uri, name, "ogr")
                     self.project.instance().addMapLayer(final_layer, False)
-                    group.addLayer(final_layer)
+                    # If styled layer are set to true in metadata.txt,
+                    # a specific style is applied to every layer.
+                    if __wfs_style__:
+                        self.add_style(final_layer, group)
+                    else:
+                        group.addLayer(final_layer)
         msg = QMessageBox()
         msg.information(
             None,
@@ -462,7 +485,7 @@ class InternetChecker(QObject):
                     None,
                     self.tr("Error"),
                     self.tr(
-                        f"Code error : {str(reply.error())}<br>Go to<br><a href={__uri_tracker__}>FramaGit</a><br>to report the issue."
+                        f"Code error : {str(reply.error())}<br>Go to<br><a href={__uri_tracker__}>FramaGit</a><br>to report the issue."  # noqa: E501
                     ),  # noqa: E501
                 )
         else:

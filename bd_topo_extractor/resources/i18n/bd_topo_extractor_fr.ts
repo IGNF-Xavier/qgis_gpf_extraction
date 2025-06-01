@@ -21,7 +21,7 @@
     <message>
         <location filename="../../gui/dlg_main.py" line="136"/>
         <source>Draw an extent to extract data :</source>
-        <translation>Utiliser une emprise tracée pour l'extraction</translation>
+        <translation>Utiliser une emprise tracée pour l'extraction :</translation>
     </message>
     <message>
         <location filename="../../gui/dlg_main.py" line="148"/>
@@ -31,7 +31,7 @@
     <message>
         <location filename="../../gui/dlg_main.py" line="156"/>
         <source>Use layer extent to extract data :</source>
-        <translation>Utiliser l'emprise d'une couche pour l'extraction</translation>
+        <translation>Utiliser l'emprise d'une couche pour l'extraction :</translation>
     </message>
     <message>
         <location filename="../../gui/dlg_main.py" line="180"/>
@@ -41,12 +41,12 @@
     <message>
         <location filename="../../gui/dlg_main.py" line="190"/>
         <source>Data extracted from </source>
-        <translation>Données extraites de</translation>
+        <translation>Données extraites de la </translation>
     </message>
     <message>
         <location filename="../../gui/dlg_main.py" line="196"/>
         <source>Extract all data from </source>
-        <translation>Extraire toutes les données</translation>
+        <translation>Extraire toutes les données de la </translation>
     </message>
     <message>
         <location filename="../../gui/dlg_main.py" line="239"/>
@@ -180,7 +180,7 @@
     <message>
         <location filename="../../plugin_main.py" line="449"/>
         <source>IGN Services&apos; are down.</source>
-        <translation>Les services IGN' sont injoignables.</translation>
+        <translation>Les services IGN sont injoignables.</translation>
     </message>
     <message>
         <location filename="../../plugin_main.py" line="455"/>

@@ -4,6 +4,8 @@ from qgis.core import QgsRectangle
 from qgis.PyQt.QtCore import QObject, QUrl, pyqtSignal
 from qgis.PyQt.QtNetwork import QNetworkReply, QNetworkRequest
 
+from bd_topo_extractor.__about__ import __title__, __version__
+
 
 class GetCapabilitiesRequest(QObject):
     finished_dl = pyqtSignal()
@@ -27,6 +29,9 @@ class GetCapabilitiesRequest(QObject):
     def download(self):
         url = QUrl(f"{self.url}?service=wfs&request=GetCapabilities")
         request = QNetworkRequest(url)
+        request.setRawHeader(
+            b"User-Agent", bytes(__title__ + "/" + __version__, encoding="utf-8")
+        )
         self.reply = self.network_manager.get(request)
         self.reply.finished.connect(self.handle_finished)
         self._pending_downloads += 1
