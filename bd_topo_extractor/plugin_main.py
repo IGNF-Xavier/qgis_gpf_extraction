@@ -386,9 +386,8 @@ class BdTopoExtractorPlugin:
                 # Increase the ProgressBar value
                 n = n + 1
                 self.dlg.thread.add_one()
-                self.dlg.select_progress_bar_label.setText(
-                    self.tr("Downloaded data : " + str(n) + "/" + str(max))
-                )
+                self.dlg.dl_progress_bar_label.setText(self.tr("Downloaded data : "))
+                self.dlg.select_progress_bar_label.setText(str(n) + "/" + str(max))
         # If the user wants to saved as GPKG
         if (
             self.dlg.output_format() == "gpkg"

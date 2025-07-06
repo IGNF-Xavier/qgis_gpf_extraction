@@ -342,9 +342,19 @@ class BdTopoExtractorDialog(QDialog):
         self.layout.addLayout(self.test_layout)
 
         # Progress Bar
+        # Progress Bar
+        progress_bar_labels_layout = QHBoxLayout()
+
+        self.dl_progress_bar_label = QLabel(self)
+        self.dl_progress_bar_label.setText("")
+        progress_bar_labels_layout.addWidget(self.dl_progress_bar_label)
+
         self.select_progress_bar_label = QLabel(self)
         self.select_progress_bar_label.setText("")
-        self.layout.addWidget(self.select_progress_bar_label)
+        progress_bar_labels_layout.addWidget(self.select_progress_bar_label)
+        progress_bar_labels_layout.addStretch(1)
+
+        self.layout.addLayout(progress_bar_labels_layout)
 
         self.progress_bar = QProgressBar(self)
         self.progress_bar.setValue(0)

@@ -22,7 +22,7 @@ qgisMinimumVersion=3.10
 qgisMaximumVersion=3.99
 
 # versioning
-version=1.2.1
+version=1.2.2
 changelog=
     1.0.0 sphinx documentation, add metadata variable for schema, geometry column and crs.
     1.0.1 crs correction.
@@ -30,6 +30,7 @@ changelog=
     1.1.0 add group by themes and style created by IGN.
     1.1.1 correct internet checker, add french translation, switch from Girhub to Framagit
     1.2.1 add style to saved layer, correct group insertion bug, correct minimize window when drawing an extent on linux, minor translation correction
+    1.2.2 minor translation correction
 
 
 [wfs]
