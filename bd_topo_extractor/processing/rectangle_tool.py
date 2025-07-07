@@ -63,7 +63,8 @@ class RectangleDrawTool(QgsMapTool):
                 # get the rectangle created from the click point and
                 # left mouse button release points
                 self.new_extent = self.rectangle()
-                self.signal.emit()
+                if self.new_extent:
+                    self.signal.emit()
         # toggle the flag, the left mouse button is no longer held down
         self.is_left_button_pressed = False
 

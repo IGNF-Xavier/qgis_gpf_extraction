@@ -218,7 +218,7 @@ class BdTopoExtractorPlugin:
             self.pluginIsActive = True
             # Open Dialog
             self.dlg = BdTopoExtractorDialog(
-                self.project, self.iface, self.url, self.manager
+                self.project, self.iface, self.url, self.manager, self.locale
             )
             self.dlg.show()
             # If there is no layers, an OSM layer is added

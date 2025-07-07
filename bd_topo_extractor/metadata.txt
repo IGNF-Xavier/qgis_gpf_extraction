@@ -31,6 +31,7 @@ changelog=
     1.1.1 correct internet checker, add french translation, switch from Girhub to Framagit
     1.2.1 add style to saved layer, correct group insertion bug, correct minimize window when drawing an extent on linux, minor translation correction
     1.2.2 minor translation correction
+    1.2.3 add rectangle tool improvement if the user click on end point as start point, add documentation
 
 
 [wfs]

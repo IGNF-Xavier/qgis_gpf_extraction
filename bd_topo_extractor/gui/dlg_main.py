@@ -68,7 +68,7 @@ from bd_topo_extractor.processing import (  # noqa: E501
 
 
 class BdTopoExtractorDialog(QDialog):
-    def __init__(self, project=None, iface=None, url=None, manager=None):
+    def __init__(self, project=None, iface=None, url=None, manager=None, locale=None):
         """Constructor.
         :param
         project: The current QGIS project instance
@@ -84,6 +84,7 @@ class BdTopoExtractorDialog(QDialog):
         self.project = project
         self.url = url
         self.manager = manager
+        self.locale = locale
         self.canvas = self.iface.mapCanvas()
 
         self.layer = None
@@ -117,7 +118,13 @@ class BdTopoExtractorDialog(QDialog):
         widget = QWidget()
         self.doc_layout = QVBoxLayout()
         self.documentation_button = QPushButton(self)
-        self.documentation_button.setObjectName(__uri_homepage__)
+        if self.locale == "fr":
+            doc_url = __uri_homepage__ + f"usage/{self.locale}_how_to_use.html"
+        else:
+            doc_url = __uri_homepage__ + "usage/{locale}_how_to_use.html".format(
+                locale="en"
+            )
+        self.documentation_button.setObjectName(doc_url)
         self.documentation_button.setText(self.tr("Documentation"))
         self.doc_layout.addWidget(self.documentation_button)
 
