@@ -109,7 +109,7 @@ class GetCapabilitiesRequest(QObject):
                 elif self.schema == "*":
                     layers.append(layer.group(1))
                 else:
-                    print("Error, schema specified in metadata.txt doesn't exist")
+                    pass
         max_bounding_box = QgsRectangle()
         max_bounding_box.setXMinimum(float(extent_1))
         max_bounding_box.setYMinimum(float(extent_2))

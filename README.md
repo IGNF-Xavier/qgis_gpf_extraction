@@ -25,7 +25,7 @@
 | Maximum QGIS version | 3.99 |
 | Git repository URL | <https://framagit.org/JulesGrillot/plugin_bd_topo_extractor> |
 | Git default branch | main |
-| License | None |
+| License | GPLv2+ |
 | Python linter | None |
 | CI/CD platform | GitLab |
 | IDE | VSCode |
