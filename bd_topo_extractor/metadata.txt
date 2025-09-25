@@ -6,7 +6,7 @@ hasProcessingProvider=yes
 description=This tool allows you to extract specific data from IGN's BD TOPO®. The extraction is based on either an extent drawned by the user on the map canvas or a layer's extent.
 icon=resources/images/default_icon.png
 loading=resources/images/loading.gif
-tags=vector, france, bdtopo, ign, export, ign france
+tags=vector, france, bdtopo, ign, export, ign france, géoplateforme, geoplateforme, WFS
 
 # credits and contact
 author=Jules GRILLOT
