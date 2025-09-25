@@ -157,6 +157,19 @@ class BdTopoExtractorPlugin:
         self.provider = BdTopoExtractorProvider()
         QgsApplication.processingRegistry().addProvider(self.provider)
 
+    def create_gpf_plugins_actions(self, parent: QWidget) -> list[QAction]:
+        """Create action to be inserted a Geoplateforme plugin
+
+        :param parent: parent widget
+        :type parent: QWidget
+        :return: list of action to add in Geoplateforme plugin
+        :rtype: list[QAction]
+        """
+        available_actions = []
+        available_actions.append(self.action_launch)
+
+        return available_actions
+
     def tr(self, message: str) -> str:
         """Get the translation for a string using Qt translation API.
 
