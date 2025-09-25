@@ -25,7 +25,7 @@ from qgis.PyQt.QtCore import (
 )
 from qgis.PyQt.QtGui import QDesktopServices, QIcon
 from qgis.PyQt.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
-from qgis.PyQt.QtWidgets import QAction, QMessageBox
+from qgis.PyQt.QtWidgets import QAction, QMessageBox, QWidget
 
 # project
 from bd_topo_extractor.__about__ import (
