@@ -83,4 +83,4 @@ L'extraction débute quand le bouton `OK` est préssé.
 
 ## Outils supplémentaires
 
-En cliquant sur le bouton IGN, une redirection vers leur site est effectué. En cliquant sur le bouton `Documentation`, une redirection vers cette page est effectué. En cliquant sur le bouton `Metadata`, une redirection vers la page de description de la BD TOPO®. Un fond de carte OpenStreetMAp est automatiquement ajouté au projet si il n'y a aucune couche d'information géographique présente.
+En cliquant sur le bouton IGN, une redirection vers leur site est effectué. En cliquant sur le bouton `Documentation`, une redirection vers cette page est effectué. En cliquant sur le bouton `Metadata`, une redirection vers la page de description de la BD TOPO®. Un fond de carte Plan IGN V2 est automatiquement ajouté au projet si il n'y a aucune couche d'information géographique présente.

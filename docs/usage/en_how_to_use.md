@@ -79,4 +79,4 @@ The extraction begin when you press the `OK` button.
 
 ## Additional tools
 
-By clicking the IGN button, you'll be redirected to IGN's website. By clicking the `Documentation` button, you'll be redirected to this page. By clicking the `Metadata` button, you'll be redirected to the description of the BD TOPO® by IGN. An OpenStreeMap basemap is automatically added to the project if there is no layer in it. So the user can draw a rectangle.
+By clicking the IGN button, you'll be redirected to IGN's website. By clicking the `Documentation` button, you'll be redirected to this page. By clicking the `Metadata` button, you'll be redirected to the description of the BD TOPO® by IGN. A Plan IGN V2 basemap is automatically added to the project if there is no layer in it. So the user can draw a rectangle.

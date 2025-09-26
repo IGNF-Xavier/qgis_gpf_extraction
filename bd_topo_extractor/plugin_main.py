@@ -234,17 +234,24 @@ class BdTopoExtractorPlugin:
                 self.project, self.iface, self.url, self.manager, self.locale
             )
             self.dlg.show()
-            # If there is no layers, an OSM layer is added
+            # If there is no layers, Plan IGN V2 is added
             # to simplify the rectangle drawing
             if len(self.project.instance().mapLayers()) == 0:
                 # Type of WMTS, url and name
-                type = "xyz"
-                url = "http://tile.openstreetmap.org/{z}/{x}/{y}.png"
-                name = "OpenStreetMap"
-                uri = "type=" + type + "&url=" + url
+
+                uri = "contextualWMSLegend=0&tileMatrixSet={tilematset}&tilePixelRatio=0&crs={crs}&dpiMode=7&featureCount=10&format={format}&layers={layers}&styles={styles}&url={url}".format(
+                    tilematset="PM",
+                    crs="EPSG:3857",
+                    format="image/png",
+                    layers="GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2",
+                    styles="normal",
+                    url="https://data.geopf.fr/wmts?SERVICE%3DWMTS%26REQUEST%3DGetCapabilities",
+                )
+                name = "Plan IGN V2"
+                provider = "wms"
 
                 # Add WMTS to the QgsProject
-                self.iface.addRasterLayer(uri, name, "wms")
+                self.iface.addRasterLayer(uri, name, provider)
             result = self.dlg.exec_()
             if result:
                 # If dialog is accepted, "OK" is pressed, the process is launch
