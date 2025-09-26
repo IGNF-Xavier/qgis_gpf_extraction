@@ -274,33 +274,11 @@ class BdTopoExtractorPlugin:
             # uppercase with underscore instead of spaces
             # and single quotes
             style_name = str(layer.name()).replace("'", "_").replace(" ", "_").upper()
-            layer_order_dict = json.loads(__wfs_layer_order__)
-            # the layer are ordered based on a dictionnary
-            # with theme as key.
-            for elem in layer_order_dict:
-                if style_name in list(layer_order_dict[elem].keys()):
-                    theme = group.findGroup(elem)
-                    # if the theme doesn't exists
-                    # it is created.
-                    if not theme:
-                        group.insertGroup(
-                            int(layer_order_dict["ORDER"][elem]),
-                            elem,
-                        )
-                        theme = group.findGroup(elem)
-
-            if not theme:
-                theme = group.findGroup("AUTRE")
-
-                if not theme:
-                    group.insertGroup(
-                        int(layer_order_dict["ORDER"]["AUTRE"]),
-                        "AUTRE",
-                    )
-                    theme = group.findGroup("AUTRE")
-                theme.addLayer(layer)
-            else:
-                theme.addLayer(layer)
+            if __wfs_layer_order__ == "":
+                # style name is based on layer name in uppercase with underscore instead of spaces and single quotes
+                style_name = (
+                    str(layer.name()).replace("'", "_").replace(" ", "_").upper()
+                )
                 style_name_ext = style_name + ".qml"
                 style_path: Path = (
                     DIR_PLUGIN_ROOT / f'{"resources/styles"}' / f"{style_name_ext}"
@@ -310,6 +288,47 @@ class BdTopoExtractorPlugin:
                     layer.loadNamedStyle(style_path.__str__())
                 else:
                     print("ERROR : style " + str(style_name_ext) + " doesn't exists.")
+
+                group.addLayer(layer)
+            else:
+                layer_order_dict = json.loads(__wfs_layer_order__)
+                # the layer are ordered based on a dictionnary
+                # with theme as key.
+                for elem in layer_order_dict:
+                    if style_name in list(layer_order_dict[elem].keys()):
+                        theme = group.findGroup(elem)
+                        # if the theme doesn't exists
+                        # it is created.
+                        if not theme:
+                            group.insertGroup(
+                                int(layer_order_dict["ORDER"][elem]),
+                                elem,
+                            )
+                            theme = group.findGroup(elem)
+
+                if not theme:
+                    theme = group.findGroup("AUTRE")
+
+                    if not theme:
+                        group.insertGroup(
+                            int(layer_order_dict["ORDER"]["AUTRE"]),
+                            "AUTRE",
+                        )
+                        theme = group.findGroup("AUTRE")
+                    theme.addLayer(layer)
+                else:
+                    theme.addLayer(layer)
+                    style_name_ext = style_name + ".qml"
+                    style_path: Path = (
+                        DIR_PLUGIN_ROOT / f'{"resources/styles"}' / f"{style_name_ext}"
+                    )
+                    # if the style exists it is added to the layer.
+                    if os.path.isfile(style_path.__str__()):
+                        layer.loadNamedStyle(style_path.__str__())
+                    else:
+                        print(
+                            "ERROR : style " + str(style_name_ext) + " doesn't exists."
+                        )
         else:
             group.addLayer(layer)
 
