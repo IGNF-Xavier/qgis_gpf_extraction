@@ -252,7 +252,7 @@ class BdTopoExtractorPlugin:
 
                 # Add WMTS to the QgsProject
                 self.iface.addRasterLayer(uri, name, provider)
-            result = self.dlg.exec_()
+            result = self.dlg.exec()
             if result:
                 # If dialog is accepted, "OK" is pressed, the process is launch
                 self.processing()

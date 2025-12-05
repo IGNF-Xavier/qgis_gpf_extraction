@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QDialog, QVBoxLayout
+from qgis.PyQt.QtWidgets import QDialog, QVBoxLayout
 
 # project
 from bd_topo_extractor.__about__ import __title__
