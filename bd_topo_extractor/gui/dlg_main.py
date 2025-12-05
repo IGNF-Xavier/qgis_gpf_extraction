@@ -22,8 +22,7 @@ from qgis.core import (
 from qgis.gui import QgsMapLayerComboBox, QgsProjectionSelectionWidget
 
 # PyQt
-from qgis.PyQt.Qt import QUrl
-from qgis.PyQt.QtCore import QSize, Qt, QThread, pyqtSignal
+from qgis.PyQt.QtCore import QSize, Qt, QThread, pyqtSignal, QUrl
 from qgis.PyQt.QtGui import QDesktopServices, QIcon, QMovie, QPixmap
 from qgis.PyQt.QtWidgets import (
     QButtonGroup,
