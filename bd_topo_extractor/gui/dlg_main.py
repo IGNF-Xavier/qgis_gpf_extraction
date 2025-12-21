@@ -130,10 +130,9 @@ class BdTopoExtractorDialog(QDialog):
         self.documentation_button = QPushButton(self)
         if self.locale == "fr":
             doc_page = f"usage/{self.locale}_how_to_use.html"
-            doc_url = __uri_homepage__ + doc_page
         else:
             doc_page = "usage/{lang}_how_to_use.html".format(lang="en")
-            doc_url = __uri_homepage__ + doc_page
+        doc_url = __uri_homepage__ + doc_page
         self.documentation_button.setObjectName(doc_url)
         self.documentation_button.setText(self.tr("Documentation"))
         self.doc_layout.addWidget(self.documentation_button)
