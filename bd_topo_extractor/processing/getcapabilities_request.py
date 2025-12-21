@@ -1,25 +1,37 @@
+# standard
 import re
 
+# PyQGIS
 from qgis.core import QgsRectangle
+
+# PyQt
 from qgis.PyQt.QtCore import QObject, QUrl, pyqtSignal
 from qgis.PyQt.QtNetwork import QNetworkReply, QNetworkRequest
 
+# project
 from bd_topo_extractor.__about__ import __title__, __version__
 
 
 class GetCapabilitiesRequest(QObject):
     finished_dl = pyqtSignal()
     """Get multiples informations from a getcapabilities request.
-    List all layers available, get the maximal extent of all the Wfs' data."""
+    List all layers available, get the maximal extent of all the Wfs' data.
+    :param
+        url: The wfs url
+        schema: The schema of the data in the wfs url
+        manager: a QgsNetworkManager to realize the network request
+        """
 
-    def __init__(self, parent=None, url=None, schema=None, manager=None):
-        super().__init__(parent)
+    def __init__(self, url=None, schema=None, manager=None):
+        super().__init__()
         self.url = url
         self.schema = schema
+        self.network_manager = manager
+
         self._pending_downloads = 0
         self.service_layers = []
         self.max_bounding_box = QgsRectangle()
-        self.network_manager = manager
+
         self.download()
 
     @property
@@ -52,7 +64,7 @@ class GetCapabilitiesRequest(QObject):
         if self.pending_downloads == 0:
             self.finished_dl.emit()
 
-    def list_layers(self, data):
+    def list_layers(self, data):  # TODO replace regex by xml.etree.ElementTree
         # Use regex to find the informations.
         name_string = "<Name>(.+?)</Name><Title>"
         extent_1_string = r"<ows:LowerCorner>([+-]?\d+(?:\.\d+)?)"

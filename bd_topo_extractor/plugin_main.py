@@ -24,7 +24,11 @@ from qgis.PyQt.QtCore import (
     pyqtSignal,
 )
 from qgis.PyQt.QtGui import QDesktopServices, QIcon
-from qgis.PyQt.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
+from qgis.PyQt.QtNetwork import (  # noqa: E501
+    QNetworkAccessManager,
+    QNetworkReply,
+    QNetworkRequest,
+)
 from qgis.PyQt.QtWidgets import QAction, QMessageBox, QWidget
 
 # project
@@ -239,13 +243,13 @@ class BdTopoExtractorPlugin:
             if len(self.project.instance().mapLayers()) == 0:
                 # Type of WMTS, url and name
 
-                uri = "contextualWMSLegend=0&tileMatrixSet={tilematset}&tilePixelRatio=0&crs={crs}&dpiMode=7&featureCount=10&format={format}&layers={layers}&styles={styles}&url={url}".format(
+                uri = "contextualWMSLegend=0&tileMatrixSet={tilematset}&tilePixelRatio=0&crs={crs}&dpiMode=7&featureCount=10&format={format}&layers={layers}&styles={styles}&url={url}".format(  # noqa: E501
                     tilematset="PM",
                     crs="EPSG:3857",
                     format="image/png",
                     layers="GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2",
                     styles="normal",
-                    url="https://data.geopf.fr/wmts?SERVICE%3DWMTS%26REQUEST%3DGetCapabilities",
+                    url="https://data.geopf.fr/wmts?SERVICE%3DWMTS%26REQUEST%3DGetCapabilities",  # noqa: E501
                 )
                 name = "Plan IGN V2"
                 provider = "wms"
@@ -273,21 +277,33 @@ class BdTopoExtractorPlugin:
             # style name is based on layer name in
             # uppercase with underscore instead of spaces
             # and single quotes
-            style_name = str(layer.name()).replace("'", "_").replace(" ", "_").upper()
+            style_name = (
+                str(layer.name()).replace("'", "_").replace(" ", "_").upper()
+            )  # noqa: E501
             if __wfs_layer_order__ == "":
-                # style name is based on layer name in uppercase with underscore instead of spaces and single quotes
+                # style name is based on layer name in uppercase with
+                # underscore instead of spaces and single quotes
                 style_name = (
-                    str(layer.name()).replace("'", "_").replace(" ", "_").upper()
+                    str(layer.name())
+                    .replace("'", "_")
+                    .replace(" ", "_")
+                    .upper()  # noqa: E501
                 )
                 style_name_ext = style_name + ".qml"
                 style_path: Path = (
-                    DIR_PLUGIN_ROOT / f'{"resources/styles"}' / f"{style_name_ext}"
+                    DIR_PLUGIN_ROOT
+                    / f'{"resources/styles"}'
+                    / f"{style_name_ext}"  # noqa: E501
                 )
                 # if the style exists it is added to the layer.
                 if os.path.isfile(style_path.__str__()):
                     layer.loadNamedStyle(style_path.__str__())
                 else:
-                    print("ERROR : style " + str(style_name_ext) + " doesn't exists.")
+                    print(
+                        "ERROR : style "
+                        + str(style_name_ext)
+                        + " doesn't exists."  # noqa: E501
+                    )
 
                 group.addLayer(layer)
             else:
@@ -320,14 +336,18 @@ class BdTopoExtractorPlugin:
                     theme.addLayer(layer)
                     style_name_ext = style_name + ".qml"
                     style_path: Path = (
-                        DIR_PLUGIN_ROOT / f'{"resources/styles"}' / f"{style_name_ext}"
+                        DIR_PLUGIN_ROOT
+                        / f'{"resources/styles"}'
+                        / f"{style_name_ext}"  # noqa: E501
                     )
                     # if the style exists it is added to the layer.
                     if os.path.isfile(style_path.__str__()):
                         layer.loadNamedStyle(style_path.__str__())
                     else:
                         print(
-                            "ERROR : style " + str(style_name_ext) + " doesn't exists."
+                            "ERROR : style "
+                            + str(style_name_ext)
+                            + " doesn't exists."  # noqa: E501
                         )
         else:
             group.addLayer(layer)
@@ -414,7 +434,9 @@ class BdTopoExtractorPlugin:
                         or self.dlg.output_format() == "gpkg"
                         and not self.dlg.save_result_checkbox.isChecked()
                     ):
-                        self.project.instance().addMapLayer(request.final_layer, False)
+                        self.project.instance().addMapLayer(
+                            request.final_layer, False  # noqa: E501
+                        )
                         # If styled layer are set to true in metadata.txt,
                         # a specific style is applied to every layer.
                         if __wfs_style__:
@@ -425,8 +447,12 @@ class BdTopoExtractorPlugin:
                 # Increase the ProgressBar value
                 n = n + 1
                 self.dlg.thread.add_one()
-                self.dlg.dl_progress_bar_label.setText(self.tr("Downloaded data : "))
-                self.dlg.select_progress_bar_label.setText(str(n) + "/" + str(max))
+                self.dlg.dl_progress_bar_label.setText(
+                    self.tr("Downloaded data : ")  # noqa: E501
+                )
+                self.dlg.select_progress_bar_label.setText(
+                    str(n) + "/" + str(max)
+                )  # noqa: E501
         # If the user wants to saved as GPKG
         if (
             self.dlg.output_format() == "gpkg"
@@ -503,28 +529,31 @@ class InternetChecker(QObject):
 
     def handle_finished(self, reply):
         if reply.error() != QNetworkReply.NoError:
-            # If the user does not have an internet connexion,
+            # If the user has an internet connexion issue,
             # the plugin does not launch.
             msg = QMessageBox()
+            # IGN is down
             if reply.error() == 403:
                 msg.critical(
                     None,
                     self.tr("Error"),
                     self.tr("IGN Services' are down."),
                 )
+            # No internet connexion
             elif reply.error() == 3:
                 msg.critical(
                     None,
                     self.tr("Error"),
                     self.tr("You are not connected to the Internet."),
                 )
+            # Else, might be a plugin issue
             else:
                 msg.critical(
                     None,
                     self.tr("Error"),
                     self.tr(
                         f"Code error : {str(reply.error())}<br>Go to<br><a href={__uri_tracker__}>FramaGit</a><br>to report the issue."  # noqa: E501
-                    ),  # noqa: E501
+                    ),
                 )
         else:
             self.finished.emit()

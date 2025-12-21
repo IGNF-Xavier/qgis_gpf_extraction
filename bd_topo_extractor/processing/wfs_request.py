@@ -113,7 +113,11 @@ class WfsRequest:
             if self.path:
                 # Creation of the output path used for SHP and GeoJSON.
                 output = (
-                    self.path + "/" + str(self.export_name) + "." + str(self.format)
+                    self.path
+                    + "/"
+                    + str(self.export_name)
+                    + "."
+                    + str(self.format)  # noqa: E501
                 )
             else:
                 # Output for a memory layer.
@@ -163,7 +167,9 @@ class WfsRequest:
                     "OVERLAY": clipping_layer,
                     "OUTPUT": "memory:" + str(self.export_name),
                 }
-                new_layer = processing.run("native:clip", clip_parameters)["OUTPUT"]
+                new_layer = processing.run("native:clip", clip_parameters)[
+                    "OUTPUT"
+                ]  # noqa: E501
             if self.path:
                 context = self.project.instance().transformContext()
                 options = QgsVectorFileWriter.SaveVectorOptions()
@@ -181,7 +187,9 @@ class WfsRequest:
                     options.driverName = "GPKG"
                     # Check if the GeoPackage already exists,
                     # to know if it's need to be created or not
-                    if os.path.isfile(self.path + "/" + "bd_topo_extract.gpkg"):
+                    if os.path.isfile(
+                        self.path + "/" + "bd_topo_extract.gpkg"
+                    ):  # noqa: E501
                         options.actionOnExistingFile = (
                             QgsVectorFileWriter.CreateOrOverwriteLayer
                         )

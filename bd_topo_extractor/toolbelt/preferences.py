@@ -78,10 +78,12 @@ class PlgOptionsManager:
         settings.beginGroup(__title__)
 
         try:
-            out_value = settings.value(key=key, defaultValue=default, type=exp_type)
+            out_value = settings.value(
+                key=key, defaultValue=default, type=exp_type
+            )  # noqa: E501
         except Exception as err:
             log_hdlr.PlgLogger.log(
-                message="Error occurred trying to get settings: {}.Trace: {}".format(
+                message="Error occurred trying to get settings: {}.Trace: {}".format(  # noqa: E501
                     key, err
                 )
             )
@@ -119,7 +121,7 @@ class PlgOptionsManager:
             out_value = True
         except Exception as err:
             log_hdlr.PlgLogger.log(
-                message="Error occurred trying to set settings: {}.Trace: {}".format(
+                message="Error occurred trying to set settings: {}.Trace: {}".format(  # noqa: E501
                     key, err
                 )
             )

@@ -31,7 +31,9 @@ from bd_topo_extractor.toolbelt.preferences import PlgSettingsStructure
 # ########## Globals ###############
 # ##################################
 
-FORM_CLASS, _ = uic.loadUiType(Path(__file__).parent / f"{Path(__file__).stem}.ui")
+FORM_CLASS, _ = uic.loadUiType(
+    Path(__file__).parent / f"{Path(__file__).stem}.ui"
+)  # noqa: E501
 
 
 # ############################################################################
@@ -52,22 +54,32 @@ class ConfigOptionsPage(FORM_CLASS, QgsOptionsPageWidget):
         self.setObjectName(f"mOptionsPage{__title__}")
 
         # header
-        self.lbl_title.setText(f"{__wfs_name__} Extractor - Version {__version__}")
+        self.lbl_title.setText(
+            f"{__wfs_name__} Extractor - Version {__version__}"
+        )  # noqa: E501
 
         # customization
-        self.btn_help.setIcon(QIcon(QgsApplication.iconPath("mActionHelpContents.svg")))
+        self.btn_help.setIcon(
+            QIcon(QgsApplication.iconPath("mActionHelpContents.svg"))
+        )  # noqa: E501
         self.btn_help.pressed.connect(
             partial(QDesktopServices.openUrl, QUrl(__uri_homepage__))
         )
 
         self.btn_report.setIcon(
-            QIcon(QgsApplication.iconPath("console/iconSyntaxErrorConsole.svg"))
+            QIcon(
+                QgsApplication.iconPath("console/iconSyntaxErrorConsole.svg")
+            )  # noqa: E501
         )
         self.btn_report.pressed.connect(
-            partial(QDesktopServices.openUrl, QUrl(f"{__uri_tracker__}/new/choose"))
+            partial(
+                QDesktopServices.openUrl, QUrl(f"{__uri_tracker__}/new/choose")
+            )  # noqa: E501
         )
 
-        self.btn_reset.setIcon(QIcon(QgsApplication.iconPath("mActionUndo.svg")))
+        self.btn_reset.setIcon(
+            QIcon(QgsApplication.iconPath("mActionUndo.svg"))
+        )  # noqa: E501
         self.btn_reset.pressed.connect(self.reset_settings)
 
         # load previously saved settings
