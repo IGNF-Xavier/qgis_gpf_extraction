@@ -195,12 +195,14 @@ class BdTopoExtractorDialog(QDialog):
         layout_row_count = layout_row_count + 2
 
         # Show WFS max data extent
-        # self.show_wfs_extent_checkbox = QCheckBox()
-        # self.show_wfs_extent_checkbox.setText(self.tr("Draw the extent on the map"))  # noqa: E501
-        # self.show_wfs_extent_checkbox.setChecked(False)
-        # self.extent_layout.addWidget(
-        #     self.show_wfs_extent_checkbox, layout_row_count, 0, 1, 2
-        # )
+        self.show_wfs_extent_checkbox = QCheckBox()
+        self.show_wfs_extent_checkbox.setText(
+            self.tr("Draw the max extent of the WFS on the map")
+        )  # noqa: E501
+        self.show_wfs_extent_checkbox.setChecked(False)
+        self.extent_layout.addWidget(
+            self.show_wfs_extent_checkbox, layout_row_count, 0, 1, 2
+        )
         self.layout.addLayout(self.extent_layout)
         self.layout.insertSpacing(50, 15)
 
@@ -428,9 +430,7 @@ class BdTopoExtractorDialog(QDialog):
             self.does_extent_exists  # noqa: E501
         )
         self.select_layer_checkbox.stateChanged.connect(self.check_layer_size)
-        # self.show_wfs_extent_checkbox.stateChanged.connect(
-        #     self.show_max_extent
-        # )
+        self.show_wfs_extent_checkbox.stateChanged.connect(self.show_max_extent)
 
         # Data selection signals
         self.select_all_checkbox.stateChanged.connect(self.select_all)
@@ -489,7 +489,10 @@ class BdTopoExtractorDialog(QDialog):
                 DIR_PLUGIN_ROOT / f'{"resources/styles/max_extent_style.qml"}'
             )
             self.max_extent_layer.loadNamedStyle(style_path.__str__())
-            self.project.instance().addMapLayer(self.max_extent_layer)
+            self.project.instance().addMapLayer(self.max_extent_layer, False)
+            self.project.instance().layerTreeRoot().insertLayer(
+                0, self.max_extent_layer
+            )  # noqa: E501
             self.canvas.refresh()
 
     def set_rectangle_tool(self):

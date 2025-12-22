@@ -1,5 +1,5 @@
 # standard
-import re
+import xml.etree.ElementTree as ET
 
 # PyQGIS
 from qgis.core import QgsRectangle
@@ -64,68 +64,65 @@ class GetCapabilitiesRequest(QObject):
         if self.pending_downloads == 0:
             self.finished_dl.emit()
 
-    def list_layers(self, data):  # TODO replace regex by xml.etree.ElementTree
-        # Use regex to find the informations.
-        name_string = "<Name>(.+?)</Name><Title>"
-        extent_1_string = r"<ows:LowerCorner>([+-]?\d+(?:\.\d+)?)"
-        extent_2_string = r"([+-]?\d+(?:\.\d+)?)</ows:LowerCorner>"
-        extent_3_string = r"<ows:UpperCorner>([+-]?\d+(?:\.\d+)?)"
-        extent_4_string = r"([+-]?\d+(?:\.\d+)?)</ows:UpperCorner>"
-        extent_1 = None
-        extent_2 = None
-        extent_3 = None
-        extent_4 = None
+    def list_layers(self, data):
+        # Use xml parser to find the informations.
+        max_bounding_box = QgsRectangle()
         layers = []
 
-        for word in data.split():
-            extent_1_re = re.search(extent_1_string, word)
-            extent_2_re = re.search(extent_2_string, word)
-            extent_3_re = re.search(extent_3_string, word)
-            extent_4_re = re.search(extent_4_string, word)
-            if extent_1_re is not None:
-                if float(extent_1_re.group(1)) > -180:
-                    if extent_1 is None:
-                        extent_1 = float(extent_1_re.group(1))
-                    else:
-                        if float(extent_1_re.group(1)) < float(extent_1):
-                            extent_1 = float(extent_1_re.group(1))
-            if extent_2_re is not None:
-                if float(extent_2_re.group(1)) > -90:
-                    if extent_2 is None:
-                        extent_2 = float(extent_2_re.group(1))
-                    else:
-                        if float(extent_2_re.group(1)) < float(extent_2):
-                            extent_2 = float(extent_2_re.group(1))
-            if extent_3_re is not None:
-                if float(extent_3_re.group(1)) < 180:
-                    if extent_3 is None:
-                        extent_3 = float(extent_3_re.group(1))
-                    else:
-                        if float(extent_3_re.group(1)) > float(extent_3):
-                            extent_3 = float(extent_3_re.group(1))
-            if extent_4_re is not None:
-                if float(extent_4_re.group(1)) < 90:
-                    if extent_4 is None:
-                        extent_4 = float(extent_4_re.group(1))
-                    else:
-                        if float(extent_4_re.group(1)) > float(extent_4):
-                            extent_4 = float(extent_4_re.group(1))
-
-            layer = re.search(name_string, word)
-            if layer is not None:
-                list_layer_name = layer.group(1).split(":")
-                if list_layer_name[0] == self.schema:
-                    list_layer_name.pop(0)
-                    layer_name = ":".join(list_layer_name)
-                    layers.append(layer_name)
-                elif self.schema == "*":
-                    layers.append(layer.group(1))
-                else:
-                    pass
-        max_bounding_box = QgsRectangle()
-        max_bounding_box.setXMinimum(float(extent_1))
-        max_bounding_box.setYMinimum(float(extent_2))
-        max_bounding_box.setXMaximum(float(extent_3))
-        max_bounding_box.setYMaximum(float(extent_4))
-
+        root = ET.fromstring(data)
+        # Get list of all layers in get capabilities
+        wfs = "{http://www.opengis.net/wfs/2.0}"
+        feature_type_list = root.find(wfs + "FeatureTypeList")
+        # Search layer in the selected schema
+        for feature_type in feature_type_list:
+            layer = feature_type.find(wfs + "Name").text
+            list_layer_name = layer.split(":")
+            # Add layer to the list and calculate the maximum extent of the WFS
+            if list_layer_name[0] == self.schema:
+                list_layer_name.pop(0)
+                layer_name = ":".join(list_layer_name)
+                layers.append(layer_name)
+                max_bounding_box = self.calculate_max_bounding_box(
+                    max_bounding_box, feature_type
+                )
+            elif self.schema == "*":
+                layers.append(layer)
+                max_bounding_box = self.calculate_max_bounding_box(
+                    max_bounding_box, feature_type
+                )
+            else:
+                pass
         return layers, max_bounding_box
+
+    def calculate_max_bounding_box(self, max_bounding_box, feature_type):
+        ows = "{http://www.opengis.net/ows/1.1}"
+        bbox = feature_type.find(ows + "WGS84BoundingBox")
+        lower_corner = bbox.find(ows + "LowerCorner").text
+        upper_corner = bbox.find(ows + "UpperCorner").text
+        xmin = float(lower_corner.split(" ")[0])
+        ymin = float(lower_corner.split(" ")[1])
+        xmax = float(upper_corner.split(" ")[0])
+        ymax = float(upper_corner.split(" ")[1])
+        if max_bounding_box.isNull():
+            max_bounding_box.setXMinimum(xmin)
+            max_bounding_box.setYMinimum(ymin)
+            max_bounding_box.setXMaximum(xmax)
+            max_bounding_box.setYMaximum(ymax)
+        else:
+            if max_bounding_box.xMinimum() > xmin:
+                max_bounding_box.setXMinimum(xmin)
+            else:
+                pass
+            if max_bounding_box.yMinimum() > ymin:
+                max_bounding_box.setYMinimum(ymin)
+            else:
+                pass
+            if max_bounding_box.xMaximum() < xmax:
+                max_bounding_box.setXMaximum(xmax)
+            else:
+                pass
+            if max_bounding_box.yMaximum() < ymax:
+                max_bounding_box.setYMaximum(ymax)
+            else:
+                pass
+        return max_bounding_box

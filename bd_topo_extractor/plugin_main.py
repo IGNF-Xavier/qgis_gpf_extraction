@@ -13,12 +13,21 @@ from functools import partial
 from pathlib import Path
 
 # PyQGIS
-from qgis.core import QgsApplication, QgsProject, QgsSettings, QgsVectorLayer
+from qgis.core import (
+    QgsApplication,
+    QgsCoordinateReferenceSystem,
+    QgsCoordinateTransform,
+    QgsGeometry,
+    QgsProject,
+    QgsSettings,
+    QgsVectorLayer,
+)
 from qgis.gui import QgisInterface
 from qgis.PyQt.QtCore import (
     QCoreApplication,
     QLocale,
     QObject,
+    QTimer,
     QTranslator,
     QUrl,
     pyqtSignal,
@@ -38,6 +47,7 @@ from bd_topo_extractor.__about__ import (
     __title__,
     __uri_homepage__,
     __uri_tracker__,
+    __wfs_crs__,
     __wfs_layer_order__,
     __wfs_name__,
     __wfs_style__,
@@ -256,6 +266,9 @@ class BdTopoExtractorPlugin:
 
                 # Add WMTS to the QgsProject
                 self.iface.addRasterLayer(uri, name, provider)
+            else:
+                pass
+            self.dlg.getcapabilities.finished_dl.connect(self.launch_zoom)
             result = self.dlg.exec()
             if result:
                 # If dialog is accepted, "OK" is pressed, the process is launch
@@ -267,6 +280,20 @@ class BdTopoExtractorPlugin:
         # put back the window on top
         else:
             self.dlg.activateWindow()
+
+    def launch_zoom(self):
+        # This timer is necessary in case there is no layer in the project
+        # Without the timer canvas extent does not change
+        QTimer.singleShot(250, self.zoom_to_extent)
+
+    def zoom_to_extent(self):
+        # Reproject the max bounding box of the wfs
+        transformed_extent = self.transform_crs(
+            self.dlg.getcapabilities.max_bounding_box,
+            QgsCoordinateReferenceSystem("EPSG:" + str(__wfs_crs__)),
+            self.project.crs(),
+        )
+        self.iface.mapCanvas().zoomToFeatureExtent(transformed_extent)
 
     def add_style(self, layer, group):
         theme = None
@@ -499,6 +526,15 @@ class BdTopoExtractorPlugin:
         self.dlg.thread.reset_value()
         self.dlg.close()
         self.pluginIsActive = False
+
+    def transform_crs(self, rectangle, input_crs, output_crs):
+        # Reproject a rectangle to the project crs
+        geom = QgsGeometry().fromRect(rectangle)
+        geom.transform(
+            QgsCoordinateTransform(input_crs, output_crs, self.project)  # noqa: E501
+        )
+        transformed_extent = geom.boundingBox()
+        return transformed_extent
 
 
 class InternetChecker(QObject):
