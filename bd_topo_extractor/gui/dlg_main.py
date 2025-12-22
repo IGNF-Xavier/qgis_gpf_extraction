@@ -15,13 +15,15 @@ from qgis.core import (
     QgsFeature,
     QgsGeometry,
     QgsMapLayerProxyModel,
+    QgsProject,
     QgsVectorLayer,
 )
-from qgis.gui import QgsMapLayerComboBox, QgsProjectionSelectionWidget
+from qgis.gui import QgisInterface, QgsMapLayerComboBox, QgsProjectionSelectionWidget
 
 # PyQt
 from qgis.PyQt.QtCore import QSize, Qt, QThread, QUrl, pyqtSignal
 from qgis.PyQt.QtGui import QDesktopServices, QIcon, QMovie, QPixmap
+from qgis.PyQt.QtNetwork import QNetworkAccessManager
 from qgis.PyQt.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -67,11 +69,11 @@ from bd_topo_extractor.processing import (  # noqa: E501
 class BdTopoExtractorDialog(QDialog):
     def __init__(
         self,
-        project=None,
-        iface=None,
-        url=None,
-        manager=None,
-        locale=None,
+        project: QgsProject = None,
+        iface: QgisInterface = None,
+        url: str = None,
+        manager: QNetworkAccessManager = None,
+        locale: str = None,
     ):
         """Main Dialog of the plugin, composed of 5 part :
         - header (documentation, credits and metadata)
@@ -430,7 +432,9 @@ class BdTopoExtractorDialog(QDialog):
             self.does_extent_exists  # noqa: E501
         )
         self.select_layer_checkbox.stateChanged.connect(self.check_layer_size)
-        self.show_wfs_extent_checkbox.stateChanged.connect(self.show_max_extent)
+        self.show_wfs_extent_checkbox.stateChanged.connect(
+            self.show_max_extent
+        )  # noqa: E501
 
         # Data selection signals
         self.select_all_checkbox.stateChanged.connect(self.select_all)

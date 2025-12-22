@@ -293,7 +293,10 @@ class BdTopoExtractorPlugin:
             QgsCoordinateReferenceSystem("EPSG:" + str(__wfs_crs__)),
             self.project.crs(),
         )
-        self.iface.mapCanvas().zoomToFeatureExtent(transformed_extent)
+        if transformed_extent.contains(self.iface.mapCanvas().extent()):
+            pass
+        else:
+            self.iface.mapCanvas().zoomToFeatureExtent(transformed_extent)
 
     def add_style(self, layer, group):
         theme = None

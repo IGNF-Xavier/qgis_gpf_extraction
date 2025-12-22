@@ -6,7 +6,7 @@ from qgis.core import QgsRectangle
 
 # PyQt
 from qgis.PyQt.QtCore import QObject, QUrl, pyqtSignal
-from qgis.PyQt.QtNetwork import QNetworkReply, QNetworkRequest
+from qgis.PyQt.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 
 # project
 from bd_topo_extractor.__about__ import __title__, __version__
@@ -22,7 +22,9 @@ class GetCapabilitiesRequest(QObject):
         manager: a QgsNetworkManager to realize the network request
         """
 
-    def __init__(self, url=None, schema=None, manager=None):
+    def __init__(
+        self, url: str = None, schema: str = None, manager: QNetworkAccessManager = None
+    ):
         super().__init__()
         self.url = url
         self.schema = schema
@@ -103,11 +105,13 @@ class GetCapabilitiesRequest(QObject):
         ymin = float(lower_corner.split(" ")[1])
         xmax = float(upper_corner.split(" ")[0])
         ymax = float(upper_corner.split(" ")[1])
+        # If the max bounding bos is not set
         if max_bounding_box.isNull():
             max_bounding_box.setXMinimum(xmin)
             max_bounding_box.setYMinimum(ymin)
             max_bounding_box.setXMaximum(xmax)
             max_bounding_box.setYMaximum(ymax)
+        # Else check if it needs to get bigger
         else:
             if max_bounding_box.xMinimum() > xmin:
                 max_bounding_box.setXMinimum(xmin)
