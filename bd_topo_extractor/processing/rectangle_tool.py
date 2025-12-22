@@ -4,10 +4,11 @@ from qgis.core import (
     QgsDistanceArea,
     QgsGeometry,
     QgsPointXY,
+    QgsProject,
     QgsRectangle,
     QgsWkbTypes,
 )
-from qgis.gui import QgsMapMouseEvent, QgsMapTool, QgsRubberBand
+from qgis.gui import QgsMapCanvas, QgsMapMouseEvent, QgsMapTool, QgsRubberBand
 from qgis.PyQt.QtCore import Qt, pyqtSignal
 from qgis.PyQt.QtGui import QColor
 from qgis.PyQt.QtWidgets import QMessageBox
@@ -19,7 +20,12 @@ from bd_topo_extractor.__about__ import __wfs_crs__
 class RectangleDrawTool(QgsMapTool):
     signal = pyqtSignal()
 
-    def __init__(self, project=None, canvas=None, max_extent=None):
+    def __init__(
+        self,
+        project: QgsProject = None,
+        canvas: QgsMapCanvas = None,
+        max_extent: QgsRectangle = None,
+    ):
         super().__init__(canvas)
 
         self.signal.connect(self.deactivate)
