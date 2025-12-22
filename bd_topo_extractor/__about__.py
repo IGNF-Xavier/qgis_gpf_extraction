@@ -78,6 +78,7 @@ __summary__: str = "{}\n{}".format(
     __plugin_md__.get("general").get("about"),
 )
 
+__plugin_name__: str = "{}".format(__plugin_md__.get("general").get("name"))
 __title__: str = "{}".format(__plugin_md__.get("wfs").get("plugin_name"))
 __title_clean__: str = "".join(e for e in __title__ if e.isalnum())
 

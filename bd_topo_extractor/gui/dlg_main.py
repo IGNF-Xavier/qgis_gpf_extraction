@@ -47,6 +47,7 @@ from qgis.PyQt.QtWidgets import (
 from bd_topo_extractor.__about__ import (
     DIR_PLUGIN_ROOT,
     __loading_gif__,
+    __plugin_name__,
     __uri_homepage__,
     __wfs_credit__,
     __wfs_crs__,
@@ -91,7 +92,7 @@ class BdTopoExtractorDialog(QDialog):
         locale: language settings of QGIS to know wich documentation open
         """
         super().__init__()
-        self.setObjectName(f"{__wfs_name__} Extractor")
+        self.setObjectName(f"{__plugin_name__}")
 
         self.iface = iface
         self.project = project
@@ -105,7 +106,7 @@ class BdTopoExtractorDialog(QDialog):
         self.checked = 0
         self.schema = __wfs_schema__
 
-        self.setWindowTitle(f"{__wfs_name__} Extractor")  # TODO change that
+        self.setWindowTitle(f"{__plugin_name__}")
 
         self.layout = QVBoxLayout()
         extent_check_group = QButtonGroup(self)

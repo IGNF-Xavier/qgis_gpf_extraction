@@ -79,13 +79,10 @@ class WfsRequest:
         Build the data source url to fetch features intersecting the extent
         """
         self.uri.setParam("url", self.service_url)
-        self.uri.setParam("service", "wfs")
         self.uri.setParam("version", "auto")
-        self.uri.setParam("request", "GetFeature")
         self.uri.setParam("typename", self.data)
-        self.uri.setParam("title", self.data)
         self.uri.setParam("table", "")
-        self.uri.setParam("srsName", "EPSG:" + str(__wfs_crs__))
+        self.uri.setParam("srsname", "EPSG:" + str(__wfs_crs__))
         sql = "SELECT * FROM \"{data}\" as t1 WHERE ST_Intersects(t1.{geometry_column}, ST_GeometryFromText('Polygon (({xmin} {ymin}, {xmax} {ymin}, {xmax} {ymax}, {xmin} {ymax}, {xmin} {ymin}))', {crs}))".format(  # noqa: E501
             data=self.data,
             geometry_column=str(__wfs_geometry__),
