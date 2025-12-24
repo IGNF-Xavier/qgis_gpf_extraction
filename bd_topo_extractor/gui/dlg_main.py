@@ -285,7 +285,10 @@ class BdTopoExtractorDialog(QDialog):
         )
         self.geom_layout.addWidget(select_crs_label, 1, 0)
         self.crs_selector = QgsProjectionSelectionWidget(self)
-        self.crs_selector.setCrs(self.project.crs())
+        # self.add_to_project_checkbox.setEnabled(False)  # TODO disable if no intersection and no saving, enable otherwise
+        self.crs_selector.setCrs(
+            self.project.crs()
+        )  # TODO set to 4326 if no intersection and no saving, else put the last crs selected
         self.geom_layout.addWidget(self.crs_selector, 1, 1)
         self.layout.addLayout(self.geom_layout)
 

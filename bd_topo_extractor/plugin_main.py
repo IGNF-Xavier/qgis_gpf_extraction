@@ -4,23 +4,28 @@
     Main plugin module.
 """
 
+# standard
 import datetime
 import json
 import os.path
-
-# standard
 from functools import partial
 from pathlib import Path
 
+import processing
+
 # PyQGIS
 from qgis.core import (
+    Qgis,
     QgsApplication,
     QgsCoordinateReferenceSystem,
     QgsCoordinateTransform,
+    QgsFeature,
     QgsGeometry,
     QgsProject,
     QgsSettings,
+    QgsVectorFileWriter,
     QgsVectorLayer,
+    QgsWkbTypes,
 )
 from qgis.gui import QgisInterface
 from qgis.PyQt.QtCore import (
@@ -451,31 +456,12 @@ class BdTopoExtractorPlugin:
                     error=error_list,
                     good=good_list,
                 )
-                # If a layer is created and needs to be added to the project
-                if (
-                    request.final_layer
-                    and self.dlg.add_to_project_checkbox.isChecked()  # noqa: E501
-                ):
-                    # If output format is a SHP or a GEOJSON or if the
-                    # layers are not saved. Saved GPKG are processed
-                    # differently.
-                    if (
-                        self.dlg.output_format() != "gpkg"
-                        or self.dlg.output_format() == "gpkg"
-                        and not self.dlg.save_result_checkbox.isChecked()
-                    ):
-                        self.project.instance().addMapLayer(
-                            request.final_layer, False  # noqa: E501
-                        )
-                        # If styled layer are set to true in metadata.txt,
-                        # a specific style is applied to every layer.
-                        if __wfs_style__:
-                            self.add_style(request.final_layer, group)
-                        else:
-                            group.addLayer(request.final_layer)
-
-                # Increase the ProgressBar value
                 n = n + 1
+                if request.wfs_layer and request.wfs_layer.featureCount() > 0:
+                    self.process_wfs_layer(
+                        request.wfs_layer, group, path, result_geometry
+                    )
+                # Increase the ProgressBar value
                 self.dlg.thread.add_one()
                 self.dlg.dl_progress_bar_label.setText(
                     self.tr("Downloaded data : ")  # noqa: E501
@@ -483,33 +469,6 @@ class BdTopoExtractorPlugin:
                 self.dlg.select_progress_bar_label.setText(
                     str(n) + "/" + str(max)
                 )  # noqa: E501
-        # If the user wants to saved as GPKG
-        if (
-            self.dlg.output_format() == "gpkg"
-            and self.dlg.save_result_checkbox.isChecked()
-        ):
-            # If a layer as been saved, the GPKG is opened and every layer are
-            # added to the project
-            if (len(good_list) / n) > 0:
-                gpkg = QgsVectorLayer(request.final_layer, "", "ogr")
-                print(gpkg)
-                print(gpkg.dataProvider())
-                layers = gpkg.dataProvider().subLayers()
-                for layer in layers:
-                    name = layer.split("!!::!!")[1]
-                    uri = "{}|layername={}".format(
-                        request.final_layer,
-                        name,
-                    )
-                    # Create layer
-                    final_layer = QgsVectorLayer(uri, name, "ogr")
-                    self.project.instance().addMapLayer(final_layer, False)
-                    # If styled layer are set to true in metadata.txt,
-                    # a specific style is applied to every layer.
-                    if __wfs_style__:
-                        self.add_style(final_layer, group)
-                    else:
-                        group.addLayer(final_layer)
         msg = QMessageBox()
         msg.information(
             None,
@@ -538,6 +497,163 @@ class BdTopoExtractorPlugin:
         )
         transformed_extent = geom.boundingBox()
         return transformed_extent
+
+    def process_wfs_layer(self, wfs_layer, group, path, result_geometry):
+        # Check if the layer needs to be clipped with the extent.
+        if result_geometry == "within":
+            # Output for a memory layer.
+            output = "memory:" + str(wfs_layer.name()) + "_memory"
+
+            # Check geometry type to create a memory layer to get
+            # all features from the WFS request.
+            geom_type = QgsWkbTypes.geometryDisplayString(
+                wfs_layer.getFeature(1).geometry().type()
+            )
+            if geom_type == "Line":
+                geom_type = "Linestring"
+            # Create a memory layer
+            memory_layer = QgsVectorLayer(
+                geom_type + "?crs=epsg:" + str(__wfs_crs__),
+                str(wfs_layer.name()),
+                "memory",
+            )
+            # Add all features to the memory layer
+            attr = wfs_layer.dataProvider().fields().toList()
+            memory_layer.dataProvider().addAttributes(attr)
+            memory_layer.startEditing()
+            for feature in wfs_layer.getFeatures():
+                memory_layer.dataProvider().addFeatures([feature])
+                memory_layer.updateExtents()
+            memory_layer.commitChanges()
+            memory_layer.triggerRepaint()
+            # Creation of a layer with the extent.
+            clipping_layer = QgsVectorLayer(
+                "Polygon?crs=epsg:" + str(__wfs_crs__), "clipper", "memory"
+            )
+            clipping_layer.startEditing()
+            new_geom = QgsGeometry().fromRect(self.dlg.extent)
+            new_feature = QgsFeature(clipping_layer.fields())
+            new_feature.setGeometry(new_geom)
+            clipping_layer.dataProvider().addFeatures([new_feature])
+            clipping_layer.updateExtents()
+            clipping_layer.commitChanges()
+            clipping_layer.triggerRepaint()
+
+            # Clip the layer with the extent.
+            clip_parameters = {
+                "INPUT": memory_layer,
+                "OVERLAY": clipping_layer,
+                "OUTPUT": "memory:" + str(wfs_layer.name()),
+            }
+            wfs_layer = processing.run("native:clip", clip_parameters)["OUTPUT"]
+
+        if not self.dlg.save_result_checkbox.isChecked():
+            if (
+                result_geometry == "within"
+                and self.dlg.crs_selector.crs() != QgsCoordinateReferenceSystem(4326)
+            ):
+                # Reproject the memory layer to the right crs
+                reproject_parameter = {
+                    "INPUT": wfs_layer,
+                    "TARGET_CRS": self.dlg.crs_selector.crs(),
+                    "OUTPUT": "memory:" + str(wfs_layer.name()),
+                }
+
+                wfs_layer = processing.run(
+                    "native:reprojectlayer", reproject_parameter
+                )["OUTPUT"]
+            self.project.instance().addMapLayer(wfs_layer, False)  # noqa: E501
+            # If styled layer are set to true in metadata.txt,
+            # a specific style is applied to every layer.
+            if __wfs_style__:
+                self.add_style(wfs_layer, group)
+            else:
+                group.addLayer(wfs_layer)
+        else:
+            context = self.project.instance().transformContext()
+            options = QgsVectorFileWriter.SaveVectorOptions()
+            tr = QgsCoordinateTransform(
+                QgsCoordinateReferenceSystem("EPSG:" + str(__wfs_crs__)),
+                self.dlg.crs_selector.crs(),
+                self.project.instance(),
+            )
+            options.ct = tr
+            options.layerName = str(wfs_layer.name())
+            options.fileEncoding = wfs_layer.dataProvider().encoding()
+            if self.dlg.output_format() == "gpkg":  # TODO save style in geopackage
+                # Specific procedure if the layer must be saved as a GPKG.
+                # Every data are saved in the same GeoPackage.
+                options.driverName = "GPKG"
+                # Check if the GeoPackage already exists,
+                # to know if it's need to be created or not
+                if os.path.isfile(path + "/" + "bd_topo_extract.gpkg"):  # noqa: E501
+                    options.actionOnExistingFile = (
+                        QgsVectorFileWriter.CreateOrOverwriteLayer
+                    )
+
+                if Qgis.QGIS_VERSION_INT > 32000:
+                    QgsVectorFileWriter.writeAsVectorFormatV3(
+                        wfs_layer,
+                        path + "/" + "bd_topo_extract.gpkg",
+                        context,
+                        options,
+                    )
+                else:
+                    QgsVectorFileWriter.writeAsVectorFormatV2(
+                        wfs_layer,
+                        path + "/" + "bd_topo_extract.gpkg",
+                        context,
+                        options,
+                    )
+                uri = "{}|layername={}".format(
+                    path + "/" + "bd_topo_extract.gpkg",
+                    wfs_layer.name(),
+                )
+                # Create layer
+                self.final_layer = QgsVectorLayer(uri, wfs_layer.name(), "ogr")
+            else:
+                # Creation of the output path used for SHP and GeoJSON.
+                output = (
+                    path
+                    + "/"
+                    + str(wfs_layer.name())
+                    + "."
+                    + str(self.dlg.output_format())  # noqa: E501
+                )
+                # For every other format, the procedure is the same.
+                if self.dlg.output_format() == "shp":
+                    options.driverName = "ESRI Shapefile"
+                elif self.dlg.output_format() == "geojson":
+                    options.driverName = "GeoJSON"
+                if Qgis.QGIS_VERSION_INT > 32000:
+                    QgsVectorFileWriter.writeAsVectorFormatV3(
+                        wfs_layer,
+                        output,
+                        context,
+                        options,
+                    )
+                else:
+                    QgsVectorFileWriter.writeAsVectorFormatV2(
+                        wfs_layer,
+                        output,
+                        context,
+                        options,
+                    )
+                self.final_layer = QgsVectorLayer(
+                    output,
+                    str(wfs_layer.name()),
+                    "ogr",
+                )
+            if self.dlg.add_to_project_checkbox.isChecked():
+                self.project.instance().addMapLayer(
+                    self.final_layer, False  # noqa: E501
+                )
+                # If styled layer are set to true in metadata.txt,
+                # a specific style is applied to every layer.
+                if __wfs_style__:
+                    self.add_style(self.final_layer, group)
+                else:
+                    group.addLayer(self.final_layer)
 
 
 class InternetChecker(QObject):
