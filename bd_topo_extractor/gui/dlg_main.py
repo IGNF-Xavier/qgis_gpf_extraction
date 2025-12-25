@@ -105,6 +105,7 @@ class BdTopoExtractorDialog(QDialog):
         self.rectangle = None
         self.checked = 0
         self.schema = __wfs_schema__
+        self.crs_history = self.project.crs()
 
         self.setWindowTitle(f"{__plugin_name__}")
 
@@ -260,36 +261,43 @@ class BdTopoExtractorDialog(QDialog):
 
         # Geom predicat
         self.geom_layout = QGridLayout()
+        geom_label = QLabel(self)
+        geom_label.setText(self.tr("Keep data :"))
+        self.geom_layout.addWidget(geom_label, 0, 0)
         self.geom_button_group = QButtonGroup(self)
         self.geom_button_group.setExclusive(True)
         self.intersect_checkbox = QCheckBox(self)
         self.intersect_checkbox.setAccessibleName("intersect")
         self.intersect_checkbox.setChecked(True)
         self.intersect_checkbox.setText(
-            self.tr("Keep data intersecting the extent")  # noqa: E501
+            self.tr("Intersecting the extent")  # noqa: E501
         )
-        self.geom_layout.addWidget(self.intersect_checkbox, 0, 0)
+        self.geom_layout.addWidget(self.intersect_checkbox, 1, 0)
         self.geom_button_group.addButton(self.intersect_checkbox)
         self.within_checkbox = QCheckBox(self)
         self.within_checkbox.setAccessibleName("within")
-        self.within_checkbox.setText(
-            self.tr("Clip data intersecting the extent")  # noqa: E501
-        )
-        self.geom_layout.addWidget(self.within_checkbox, 0, 1)
+        self.within_checkbox.setText(self.tr("within the extent"))  # noqa: E501
+        self.geom_layout.addWidget(self.within_checkbox, 1, 1)
         self.geom_button_group.addButton(self.within_checkbox)
+        self.within_layer_checkbox = QCheckBox(self)
+        self.within_layer_checkbox.setEnabled(False)
+        self.within_layer_checkbox.setAccessibleName("within_layer")
+        self.within_layer_checkbox.setText(self.tr("within the layer"))  # noqa: E501
+        self.geom_layout.addWidget(self.within_layer_checkbox, 1, 2)
+        self.geom_button_group.addButton(self.within_layer_checkbox)
 
         # Crs Selection
         select_crs_label = QLabel(self)
         select_crs_label.setText(
             self.tr("Select outputs' coordinate system :")  # noqa: E501
         )
-        self.geom_layout.addWidget(select_crs_label, 1, 0)
+        self.geom_layout.addWidget(select_crs_label, 2, 0)
         self.crs_selector = QgsProjectionSelectionWidget(self)
-        # self.add_to_project_checkbox.setEnabled(False)  # TODO disable if no intersection and no saving, enable otherwise
+        self.crs_selector.setEnabled(False)
         self.crs_selector.setCrs(
-            self.project.crs()
-        )  # TODO set to 4326 if no intersection and no saving, else put the last crs selected
-        self.geom_layout.addWidget(self.crs_selector, 1, 1)
+            QgsCoordinateReferenceSystem("EPSG:" + str(__wfs_crs__))
+        )
+        self.geom_layout.addWidget(self.crs_selector, 2, 1, 1, 2)
         self.layout.addLayout(self.geom_layout)
 
         # Add result to project
@@ -312,32 +320,39 @@ class BdTopoExtractorDialog(QDialog):
 
         # Output folder selection
         self.save_result_checkbox = QCheckBox(self)
-        self.save_result_checkbox.setText(self.tr("Save the results :"))
+        self.save_result_checkbox.setText(self.tr("Save the results"))
         self.result_layout.addWidget(self.save_result_checkbox, 1, 0)
 
         # Output format
         self.format_layout = QHBoxLayout()
         self.output_format_button_group = QButtonGroup(self)
         self.output_format_button_group.setExclusive(True)
+        self.wfs_checkbox = QCheckBox(self)
+        self.wfs_checkbox.setAccessibleName("wfs")
+        self.wfs_checkbox.setChecked(True)
+        self.wfs_checkbox.setEnabled(False)
+        self.wfs_checkbox.setText("WFS")
+        self.format_layout.addWidget(self.wfs_checkbox)
+        self.output_format_button_group.addButton(self.wfs_checkbox, 0)
         self.gpkg_checkbox = QCheckBox(self)
         self.gpkg_checkbox.setAccessibleName("gpkg")
-        self.gpkg_checkbox.setChecked(True)
+        self.gpkg_checkbox.setChecked(False)
         self.gpkg_checkbox.setEnabled(False)
         self.gpkg_checkbox.setText("GeoPackage")
         self.format_layout.addWidget(self.gpkg_checkbox)
-        self.output_format_button_group.addButton(self.gpkg_checkbox, 0)
+        self.output_format_button_group.addButton(self.gpkg_checkbox, 1)
         self.shp_checkbox = QCheckBox(self)
         self.shp_checkbox.setAccessibleName("shp")
         self.shp_checkbox.setEnabled(False)
         self.shp_checkbox.setText("Shapefile")
         self.format_layout.addWidget(self.shp_checkbox)
-        self.output_format_button_group.addButton(self.shp_checkbox, 1)
+        self.output_format_button_group.addButton(self.shp_checkbox, 2)
         self.geojson_checkbox = QCheckBox(self)
         self.geojson_checkbox.setAccessibleName("geojson")
         self.geojson_checkbox.setEnabled(False)
         self.geojson_checkbox.setText("GeoJSON")
         self.format_layout.addWidget(self.geojson_checkbox)
-        self.output_format_button_group.addButton(self.geojson_checkbox, 2)
+        self.output_format_button_group.addButton(self.geojson_checkbox, 3)
         self.result_layout.addLayout(self.format_layout, 2, 0, 1, 2)
 
         # Output path selection
@@ -416,7 +431,7 @@ class BdTopoExtractorDialog(QDialog):
             self.select_layer_combo_box.setDisabled
         )
         self.draw_rectangle_checkbox.stateChanged.connect(
-            self.button_box.setDisabled  # noqa: E501
+            self.is_param_valid  # noqa: E501
         )
         self.draw_rectangle_checkbox.stateChanged.connect(
             self.does_extent_exists  # noqa: E501
@@ -427,9 +442,12 @@ class BdTopoExtractorDialog(QDialog):
         self.select_layer_checkbox.stateChanged.connect(
             self.draw_rectangle_button.setDisabled
         )
+        self.select_layer_checkbox.stateChanged.connect(
+            self.within_layer_checkbox.setEnabled
+        )
 
         self.select_layer_checkbox.stateChanged.connect(
-            self.button_box.setEnabled  # noqa: E501
+            self.is_param_valid  # noqa: E501
         )
         self.select_layer_checkbox.stateChanged.connect(self.erase_rubber_band)
         self.select_layer_checkbox.stateChanged.connect(
@@ -444,9 +462,21 @@ class BdTopoExtractorDialog(QDialog):
         self.select_all_checkbox.stateChanged.connect(self.select_all)
         self.select_all_checkbox.stateChanged.connect(self.is_param_valid)
 
+        self.crs_selector.crsChanged.connect(self.historize_crs)
         # Saving results signals
         self.save_result_checkbox.stateChanged.connect(
             button_output_folder.setEnabled  # noqa: E501
+        )
+        self.save_result_checkbox.stateChanged.connect(
+            self.gpkg_checkbox.setChecked  # noqa: E501
+        )
+        self.save_result_checkbox.stateChanged.connect(self.crs_selector.setEnabled)
+        self.geom_button_group.buttonClicked.connect(self.is_param_valid)
+        self.add_to_project_checkbox.stateChanged.connect(
+            self.style_checkbox.setEnabled
+        )
+        self.add_to_project_checkbox.stateChanged.connect(
+            self.style_checkbox.setChecked
         )
         self.save_result_checkbox.stateChanged.connect(
             self.line_edit_output_folder.setEnabled
@@ -467,6 +497,10 @@ class BdTopoExtractorDialog(QDialog):
 
         # Check the selected path exists
         self.line_edit_output_folder.textEdited.connect(self.is_param_valid)
+
+    def historize_crs(self):
+        if not self.wfs_checkbox.isChecked():
+            self.crs_history = self.crs_selector.crs()
 
     def open_url(self):
         # Function to open the url of the buttons
@@ -657,9 +691,27 @@ class BdTopoExtractorDialog(QDialog):
             self.button_box.setEnabled(False)
         # If the result is saved as a temporary output,
         # the result is added to the project and is a GPKG
+
         if not self.save_result_checkbox.isChecked():
             self.add_to_project_checkbox.setChecked(True)
-            self.gpkg_checkbox.setChecked(True)
+            if self.intersect_checkbox.isChecked():
+                self.wfs_checkbox.setChecked(True)
+                self.crs_selector.setCrs(
+                    QgsCoordinateReferenceSystem("EPSG:" + str(__wfs_crs__))
+                )
+                self.crs_selector.setEnabled(False)
+            else:
+                self.crs_selector.setEnabled(True)
+                self.gpkg_checkbox.setChecked(True)
+                self.crs_selector.setCrs(self.crs_history)
+        else:
+            self.crs_selector.setEnabled(True)
+            self.crs_selector.setCrs(self.crs_history)
+        if (
+            self.within_layer_checkbox.isChecked()
+            and self.draw_rectangle_checkbox.isChecked()
+        ):
+            self.within_checkbox.setChecked(True)
 
     def select_all(self):
         # Check all Wfs' data checkbox

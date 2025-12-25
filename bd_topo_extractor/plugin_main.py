@@ -289,7 +289,7 @@ class BdTopoExtractorPlugin:
     def launch_zoom(self):
         # This timer is necessary in case there is no layer in the project
         # Without the timer canvas extent does not change
-        QTimer.singleShot(250, self.zoom_to_extent)
+        QTimer.singleShot(750, self.zoom_to_extent)
 
     def zoom_to_extent(self):
         # Reproject the max bounding box of the wfs
@@ -500,7 +500,7 @@ class BdTopoExtractorPlugin:
 
     def process_wfs_layer(self, wfs_layer, group, path, result_geometry):
         # Check if the layer needs to be clipped with the extent.
-        if result_geometry == "within":
+        if result_geometry != "intersect":
             # Output for a memory layer.
             output = "memory:" + str(wfs_layer.name()) + "_memory"
 
@@ -527,17 +527,20 @@ class BdTopoExtractorPlugin:
             memory_layer.commitChanges()
             memory_layer.triggerRepaint()
             # Creation of a layer with the extent.
-            clipping_layer = QgsVectorLayer(
-                "Polygon?crs=epsg:" + str(__wfs_crs__), "clipper", "memory"
-            )
-            clipping_layer.startEditing()
-            new_geom = QgsGeometry().fromRect(self.dlg.extent)
-            new_feature = QgsFeature(clipping_layer.fields())
-            new_feature.setGeometry(new_geom)
-            clipping_layer.dataProvider().addFeatures([new_feature])
-            clipping_layer.updateExtents()
-            clipping_layer.commitChanges()
-            clipping_layer.triggerRepaint()
+            if result_geometry == "within":
+                clipping_layer = QgsVectorLayer(
+                    "Polygon?crs=epsg:" + str(__wfs_crs__), "clipper", "memory"
+                )
+                clipping_layer.startEditing()
+                new_geom = QgsGeometry().fromRect(self.dlg.extent)
+                new_feature = QgsFeature(clipping_layer.fields())
+                new_feature.setGeometry(new_geom)
+                clipping_layer.dataProvider().addFeatures([new_feature])
+                clipping_layer.updateExtents()
+                clipping_layer.commitChanges()
+                clipping_layer.triggerRepaint()
+            else:
+                clipping_layer = self.dlg.select_layer_combo_box.currentLayer()
 
             # Clip the layer with the extent.
             clip_parameters = {
