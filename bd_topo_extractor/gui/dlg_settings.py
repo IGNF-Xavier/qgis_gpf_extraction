@@ -18,11 +18,11 @@ from qgis.PyQt.QtGui import QDesktopServices, QIcon
 # project
 from bd_topo_extractor.__about__ import (
     __icon_path__,
+    __plugin_name__,
     __title__,
     __uri_homepage__,
     __uri_tracker__,
     __version__,
-    __wfs_name__,
 )
 from bd_topo_extractor.toolbelt import PlgLogger, PlgOptionsManager
 from bd_topo_extractor.toolbelt.preferences import PlgSettingsStructure
@@ -55,7 +55,7 @@ class ConfigOptionsPage(FORM_CLASS, QgsOptionsPageWidget):
 
         # header
         self.lbl_title.setText(
-            f"{__wfs_name__} Extractor - Version {__version__}"
+            f"{__plugin_name__} - Version {__version__}"
         )  # noqa: E501
 
         # customization
@@ -157,7 +157,7 @@ class PlgOptionsFactory(QgsOptionsWidgetFactory):
         :return: plugin title from about module
         :rtype: str
         """
-        return f"{__wfs_name__} Extractor"
+        return f"{__plugin_name__}"
 
     def helpId(self) -> str:
         """Returns plugin help URL.

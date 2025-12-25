@@ -49,12 +49,12 @@ from qgis.PyQt.QtWidgets import QAction, QMessageBox, QWidget
 from bd_topo_extractor.__about__ import (
     DIR_PLUGIN_ROOT,
     __icon_path__,
+    __plugin_name__,
     __title__,
     __uri_homepage__,
     __uri_tracker__,
     __wfs_crs__,
     __wfs_layer_order__,
-    __wfs_name__,
     __wfs_style__,
     __wfs_uri__,
 )
@@ -116,7 +116,7 @@ class BdTopoExtractorPlugin:
         # -- Actions
         self.action_launch = QAction(
             QIcon(str(__icon_path__)),
-            f"{__wfs_name__} Extractor",
+            f"{__plugin_name__}",
             self.iface.mainWindow(),
         )
         self.iface.addToolBarIcon(self.action_launch)
@@ -143,14 +143,12 @@ class BdTopoExtractorPlugin:
 
         # -- Menu
         self.iface.addPluginToMenu(
-            f"{__wfs_name__} Extractor", self.action_launch
+            f"{__plugin_name__}", self.action_launch
         )  # noqa: E501
         self.iface.addPluginToMenu(
-            f"{__wfs_name__} Extractor", self.action_settings
+            f"{__plugin_name__}", self.action_settings
         )  # noqa: E501
-        self.iface.addPluginToMenu(
-            f"{__wfs_name__} Extractor", self.action_help
-        )  # noqa: E501
+        self.iface.addPluginToMenu(f"{__plugin_name__}", self.action_help)  # noqa: E501
 
         # -- Processing
         self.initProcessing()
@@ -161,7 +159,7 @@ class BdTopoExtractorPlugin:
         self.iface.pluginHelpMenu().addSeparator()
         self.action_help_plugin_menu_documentation = QAction(
             QIcon(str(__icon_path__)),
-            f"{__wfs_name__} Extractor - Documentation",
+            f"{__plugin_name__} - Documentation",
             self.iface.mainWindow(),
         )
         self.action_help_plugin_menu_documentation.triggered.connect(
@@ -204,14 +202,14 @@ class BdTopoExtractorPlugin:
         """Cleans up when plugin is disabled/uninstalled."""
         # -- Clean up menu
         self.iface.removePluginMenu(
-            f"{__wfs_name__} Extractor", self.action_launch
+            f"{__plugin_name__}", self.action_launch
         )  # noqa: E501
         self.iface.removeToolBarIcon(self.action_launch)
         self.iface.removePluginMenu(
-            f"{__wfs_name__} Extractor", self.action_help
+            f"{__plugin_name__}", self.action_help
         )  # noqa: E501
         self.iface.removePluginMenu(
-            f"{__wfs_name__} Extractor", self.action_settings
+            f"{__plugin_name__}", self.action_settings
         )  # noqa: E501
 
         # -- Clean up preferences panel in QGIS settings
