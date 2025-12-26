@@ -4,10 +4,11 @@ from qgis.core import (
     QgsDistanceArea,
     QgsGeometry,
     QgsPointXY,
+    QgsProject,
     QgsRectangle,
     QgsWkbTypes,
 )
-from qgis.gui import QgsMapMouseEvent, QgsMapTool, QgsRubberBand
+from qgis.gui import QgsMapCanvas, QgsMapMouseEvent, QgsMapTool, QgsRubberBand
 from qgis.PyQt.QtCore import Qt, pyqtSignal
 from qgis.PyQt.QtGui import QColor
 from qgis.PyQt.QtWidgets import QMessageBox
@@ -19,7 +20,12 @@ from bd_topo_extractor.__about__ import __wfs_crs__
 class RectangleDrawTool(QgsMapTool):
     signal = pyqtSignal()
 
-    def __init__(self, project=None, canvas=None, max_extent=None):
+    def __init__(
+        self,
+        project: QgsProject = None,
+        canvas: QgsMapCanvas = None,
+        max_extent: QgsRectangle = None,
+    ):
         super().__init__(canvas)
 
         self.signal.connect(self.deactivate)
@@ -35,13 +41,15 @@ class RectangleDrawTool(QgsMapTool):
         self.is_left_button_pressed = False
         # create a rubber line object
         # to display the geometry of the dragged object on the canvas
-        self.rubber_band = QgsRubberBand(self.canvas, QgsWkbTypes.PolygonGeometry)
+        self.rubber_band = QgsRubberBand(
+            self.canvas, QgsWkbTypes.PolygonGeometry
+        )  # noqa: E501
         self.rubber_band.setColor(QColor(255, 0, 0, 50))
         self.rubber_band.setWidth(2)
 
     # Mouse button pressed.
     def canvasPressEvent(self, event: QgsMapMouseEvent):
-        if event.button() == Qt.LeftButton:
+        if event.button() == Qt.MouseButton.LeftButton:
             self.start_point = self.toMapCoordinates(event.pos())
             self.end_point = self.start_point
             self.is_left_button_pressed = True
@@ -58,7 +66,7 @@ class RectangleDrawTool(QgsMapTool):
     # The mouse button is released.
     def canvasReleaseEvent(self, event: QgsMapMouseEvent):
         # if the left mouse button was released
-        if event.button() == Qt.LeftButton:
+        if event.button() == Qt.MouseButton.LeftButton:
             if event.type() == 3:
                 # get the rectangle created from the click point and
                 # left mouse button release points
@@ -98,7 +106,9 @@ class RectangleDrawTool(QgsMapTool):
             return None
         else:
             # Rectangle reprojection
-            if str(self.project.instance().crs().postgisSrid()) != str(__wfs_crs__):
+            if str(self.project.instance().crs().postgisSrid()) != str(
+                __wfs_crs__
+            ):  # noqa: E501
                 start_point = self.transform_geom(
                     QgsGeometry().fromPointXY(self.start_point),
                     self.project.instance().crs(),
@@ -151,7 +161,9 @@ class RectangleDrawTool(QgsMapTool):
                 msg.critical(
                     None,
                     self.tr("Error"),
-                    self.tr("Drawned rectangle is outside of the WFS' extent."),
+                    self.tr(
+                        "Drawned rectangle is outside of the WFS' extent."
+                    ),  # noqa: E501
                 )
 
     def transform_geom(self, geom, input_crs, output_crs):
@@ -164,10 +176,6 @@ class RectangleDrawTool(QgsMapTool):
             )
         )
         return geom
-
-    # def getExtent(self):
-    #     #
-    #     return self.new_extent
 
     def deactivate(self):
         # Signal to put the window on top when drawing the rectangle is over.

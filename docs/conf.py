@@ -24,7 +24,7 @@ on_rtd = environ.get("READTHEDOCS", None) == "True"
 author = __about__.__author__
 copyright = __about__.__copyright__
 description = __about__.__summary__
-project = __about__.__title__
+project = __about__.__plugin_name__
 version = release = __about__.__version__
 
 # -- General configuration ---------------------------------------------------

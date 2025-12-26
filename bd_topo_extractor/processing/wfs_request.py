@@ -1,18 +1,9 @@
-import os.path
-
-import processing
 from qgis.core import (
-    Qgis,
     QgsCoordinateReferenceSystem,
-    QgsCoordinateTransform,
     QgsDataSourceUri,
-    QgsFeature,
-    QgsGeometry,
     QgsProject,
     QgsRectangle,
-    QgsVectorFileWriter,
     QgsVectorLayer,
-    QgsWkbTypes,
 )
 from qgis.gui import QgisInterface
 
@@ -58,7 +49,6 @@ class WfsRequest:
         self.project = project
         self.iface = iface
         self.service_url = url
-        self.uri = QgsDataSourceUri()
         self.data = data
         self.crs = crs
         self.boundingbox = boundingbox
@@ -71,21 +61,19 @@ class WfsRequest:
 
         self.final_layer = None
 
-        self.build_url()
-        self.create_layer()
+        wfs_uri = self.build_url()
+        self.add_layer(wfs_uri)
 
     def build_url(self):
         """
         Build the data source url to fetch features intersecting the extent
         """
-        self.uri.setParam("url", self.service_url)
-        self.uri.setParam("service", "wfs")
-        self.uri.setParam("version", "auto")
-        self.uri.setParam("request", "GetFeature")
-        self.uri.setParam("typename", self.data)
-        self.uri.setParam("title", self.data)
-        self.uri.setParam("table", "")
-        self.uri.setParam("srsName", "EPSG:" + str(__wfs_crs__))
+        wfs_uri = QgsDataSourceUri()
+        wfs_uri.setParam("url", self.service_url)
+        wfs_uri.setParam("version", "auto")
+        wfs_uri.setParam("typename", self.data)
+        wfs_uri.setParam("table", "")
+        wfs_uri.setParam("srsname", "EPSG:" + str(__wfs_crs__))
         sql = "SELECT * FROM \"{data}\" as t1 WHERE ST_Intersects(t1.{geometry_column}, ST_GeometryFromText('Polygon (({xmin} {ymin}, {xmax} {ymin}, {xmax} {ymax}, {xmin} {ymax}, {xmin} {ymin}))', {crs}))".format(  # noqa: E501
             data=self.data,
             geometry_column=str(__wfs_geometry__),
@@ -95,148 +83,22 @@ class WfsRequest:
             xmax=str(self.boundingbox.xMaximum()),
             crs=str(__wfs_crs__),
         )
-        self.uri.setSql(sql)
+        wfs_uri.setSql(sql)
+        return wfs_uri
 
-    def create_layer(self):
+    def add_layer(self, wfs_uri):
         """
         Create a layer based on the WFS request.
         If needed, the layer will be clipped with the selected extent.
         The layer is then saved to the slected format and the selected CRS.
         """
+        if self.schema == "*":
+            export_name = self.data.replace(":", "_")
+        else:
+            export_name = self.data.split(self.schema + ":")[1]
+        self.wfs_layer = QgsVectorLayer(wfs_uri.uri(False), export_name, "WFS")
         # Check if the WFS request has any features
-        wfs_layer = QgsVectorLayer(self.uri.uri(False), self.data, "WFS")
-        if wfs_layer.featureCount() > 0:
-            if self.schema == "*":
-                self.export_name = self.data.replace(":", "_")
-            else:
-                self.export_name = self.data.split(self.schema + ":")[1]
-            if self.path:
-                # Creation of the output path used for SHP and GeoJSON.
-                output = (
-                    self.path + "/" + str(self.export_name) + "." + str(self.format)
-                )
-            else:
-                # Output for a memory layer.
-                output = "memory:" + str(self.export_name)
-
-            # Check geometry type to create a memory layer to get
-            # all features from the WFS request.
-            geom_type = QgsWkbTypes.geometryDisplayString(
-                wfs_layer.getFeature(1).geometry().type()
-            )
-            if geom_type == "Line":
-                geom_type = "Linestring"
-            # Create a memory layer
-            new_layer = QgsVectorLayer(
-                geom_type + "?crs=epsg:" + str(__wfs_crs__),
-                str(self.export_name),
-                "memory",
-            )
-            # Add all features to the memory layer
-            attr = wfs_layer.dataProvider().fields().toList()
-            new_layer.dataProvider().addAttributes(attr)
-            new_layer.startEditing()
-            for feature in wfs_layer.getFeatures():
-                new_layer.dataProvider().addFeatures([feature])
-                new_layer.updateExtents()
-            new_layer.commitChanges()
-            new_layer.triggerRepaint()
-
-            # Check if the layer needs to be clipped with the extent.
-            if self.geom == "within":
-                # Creation of a layer with the extent.
-                clipping_layer = QgsVectorLayer(
-                    "Polygon?crs=epsg:" + str(__wfs_crs__), "clipper", "memory"
-                )
-                clipping_layer.startEditing()
-                new_geom = QgsGeometry().fromRect(self.boundingbox)
-                new_feature = QgsFeature(clipping_layer.fields())
-                new_feature.setGeometry(new_geom)
-                clipping_layer.dataProvider().addFeatures([new_feature])
-                clipping_layer.updateExtents()
-                clipping_layer.commitChanges()
-                clipping_layer.triggerRepaint()
-
-                # Clip the layer with the extent.
-                clip_parameters = {
-                    "INPUT": new_layer,
-                    "OVERLAY": clipping_layer,
-                    "OUTPUT": "memory:" + str(self.export_name),
-                }
-                new_layer = processing.run("native:clip", clip_parameters)["OUTPUT"]
-            if self.path:
-                context = self.project.instance().transformContext()
-                options = QgsVectorFileWriter.SaveVectorOptions()
-                tr = QgsCoordinateTransform(
-                    QgsCoordinateReferenceSystem("EPSG:" + str(__wfs_crs__)),
-                    self.crs,
-                    self.project.instance(),
-                )
-                options.ct = tr
-                options.layerName = str(self.export_name)
-                options.fileEncoding = new_layer.dataProvider().encoding()
-                # Specific procedure if the layer must be saved as a GPKG.
-                # Every data are saved in the same GeoPackage.
-                if self.format == "gpkg":
-                    options.driverName = "GPKG"
-                    # Check if the GeoPackage already exists,
-                    # to know if it's need to be created or not
-                    if os.path.isfile(self.path + "/" + "bd_topo_extract.gpkg"):
-                        options.actionOnExistingFile = (
-                            QgsVectorFileWriter.CreateOrOverwriteLayer
-                        )
-
-                    if Qgis.QGIS_VERSION_INT > 32000:
-                        QgsVectorFileWriter.writeAsVectorFormatV3(
-                            new_layer,
-                            self.path + "/" + "bd_topo_extract.gpkg",
-                            context,
-                            options,
-                        )
-                    else:
-                        QgsVectorFileWriter.writeAsVectorFormatV2(
-                            new_layer,
-                            self.path + "/" + "bd_topo_extract.gpkg",
-                            context,
-                            options,
-                        )
-                    self.final_layer = self.path + "/" + "bd_topo_extract.gpkg"
-                else:
-                    # For every other format, the procedure is the same.
-                    if self.format == "shp":
-                        options.driverName = "ESRI Shapefile"
-                    elif self.format == "geojson":
-                        options.driverName = "GeoJSON"
-                    if Qgis.QGIS_VERSION_INT > 32000:
-                        QgsVectorFileWriter.writeAsVectorFormatV3(
-                            new_layer,
-                            output,
-                            context,
-                            options,
-                        )
-                    else:
-                        QgsVectorFileWriter.writeAsVectorFormatV2(
-                            new_layer,
-                            output,
-                            context,
-                            options,
-                        )
-                    self.final_layer = QgsVectorLayer(
-                        output,
-                        str(self.export_name),
-                        "ogr",
-                    )
-            else:
-                # Reproject the memory layer to the right crs
-                reproject_parameter = {
-                    "INPUT": new_layer,
-                    "TARGET_CRS": self.crs,
-                    "OUTPUT": "memory:" + str(self.export_name),
-                }
-
-                self.final_layer = processing.run(
-                    "native:reprojectlayer", reproject_parameter
-                )["OUTPUT"]
+        if self.wfs_layer.featureCount() > 0:
             self.exported.append(self.data)
         else:
             # If the WFS request has no features

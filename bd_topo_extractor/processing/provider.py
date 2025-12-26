@@ -64,7 +64,9 @@ class BdTopoExtractorProvider(QgsProcessingProvider):
         :return: provider icon
         :rtype: QIcon
         """
-        return QIcon(str(DIR_PLUGIN_ROOT / "resources/images/default_icon.png"))
+        return QIcon(
+            str(DIR_PLUGIN_ROOT / "resources/images/default_icon.png")
+        )  # noqa: E501
 
     def tr(self, message: str) -> str:
         """Get the translation for a string using Qt translation API.

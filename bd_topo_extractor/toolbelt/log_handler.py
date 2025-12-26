@@ -98,7 +98,9 @@ class PlgLogger(logging.Handler):
             log(message="Plugin loaded - TEST", log_level=4, push=0)
         """
         # if not debug mode and not push, let's ignore INFO, SUCCESS and TEST
-        debug_mode = plg_prefs_hdlr.PlgOptionsManager.get_plg_settings().debug_mode
+        debug_mode = (
+            plg_prefs_hdlr.PlgOptionsManager.get_plg_settings().debug_mode
+        )  # noqa: E501
         if not debug_mode and not push and (log_level < 1 or log_level > 2):
             return
 
@@ -107,7 +109,7 @@ class PlgLogger(logging.Handler):
             try:
                 message = str(message)
             except Exception as err:
-                err_msg = "Log message must be a string, not: {}. Trace: {}".format(
+                err_msg = "Log message must be a string, not: {}. Trace: {}".format(  # noqa: E501
                     type(message), err
                 )
                 logging.error(err_msg)
@@ -146,7 +148,9 @@ class PlgLogger(logging.Handler):
                     mini_dlg = QgsMessageOutput.createMessageOutput()
                     mini_dlg.setTitle(application)
                     mini_dlg.setMessage(message, QgsMessageOutput.MessageText)
-                    widget_button.clicked.connect(partial(mini_dlg.showMessage, False))
+                    widget_button.clicked.connect(
+                        partial(mini_dlg.showMessage, False)
+                    )  # noqa: E501
 
                 notification.layout().addWidget(widget_button)
                 msg_bar.pushWidget(

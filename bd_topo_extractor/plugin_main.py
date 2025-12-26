@@ -4,38 +4,57 @@
     Main plugin module.
 """
 
+# standard
 import datetime
 import json
 import os.path
-
-# standard
 from functools import partial
 from pathlib import Path
 
+import processing
+
 # PyQGIS
-from qgis.core import QgsApplication, QgsProject, QgsSettings, QgsVectorLayer
+from qgis.core import (
+    Qgis,
+    QgsApplication,
+    QgsCoordinateReferenceSystem,
+    QgsCoordinateTransform,
+    QgsFeature,
+    QgsGeometry,
+    QgsProject,
+    QgsSettings,
+    QgsVectorFileWriter,
+    QgsVectorLayer,
+    QgsWkbTypes,
+)
 from qgis.gui import QgisInterface
 from qgis.PyQt.QtCore import (
     QCoreApplication,
     QLocale,
     QObject,
+    QTimer,
     QTranslator,
     QUrl,
     pyqtSignal,
 )
 from qgis.PyQt.QtGui import QDesktopServices, QIcon
-from qgis.PyQt.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
+from qgis.PyQt.QtNetwork import (  # noqa: E501
+    QNetworkAccessManager,
+    QNetworkReply,
+    QNetworkRequest,
+)
 from qgis.PyQt.QtWidgets import QAction, QMessageBox, QWidget
 
 # project
 from bd_topo_extractor.__about__ import (
     DIR_PLUGIN_ROOT,
     __icon_path__,
+    __plugin_name__,
     __title__,
     __uri_homepage__,
     __uri_tracker__,
+    __wfs_crs__,
     __wfs_layer_order__,
-    __wfs_name__,
     __wfs_style__,
     __wfs_uri__,
 )
@@ -97,7 +116,7 @@ class BdTopoExtractorPlugin:
         # -- Actions
         self.action_launch = QAction(
             QIcon(str(__icon_path__)),
-            f"{__wfs_name__} Extractor",
+            f"{__plugin_name__}",
             self.iface.mainWindow(),
         )
         self.iface.addToolBarIcon(self.action_launch)
@@ -124,14 +143,12 @@ class BdTopoExtractorPlugin:
 
         # -- Menu
         self.iface.addPluginToMenu(
-            f"{__wfs_name__} Extractor", self.action_launch
+            f"{__plugin_name__}", self.action_launch
         )  # noqa: E501
         self.iface.addPluginToMenu(
-            f"{__wfs_name__} Extractor", self.action_settings
+            f"{__plugin_name__}", self.action_settings
         )  # noqa: E501
-        self.iface.addPluginToMenu(
-            f"{__wfs_name__} Extractor", self.action_help
-        )  # noqa: E501
+        self.iface.addPluginToMenu(f"{__plugin_name__}", self.action_help)  # noqa: E501
 
         # -- Processing
         self.initProcessing()
@@ -142,7 +159,7 @@ class BdTopoExtractorPlugin:
         self.iface.pluginHelpMenu().addSeparator()
         self.action_help_plugin_menu_documentation = QAction(
             QIcon(str(__icon_path__)),
-            f"{__wfs_name__} Extractor - Documentation",
+            f"{__plugin_name__} - Documentation",
             self.iface.mainWindow(),
         )
         self.action_help_plugin_menu_documentation.triggered.connect(
@@ -185,14 +202,14 @@ class BdTopoExtractorPlugin:
         """Cleans up when plugin is disabled/uninstalled."""
         # -- Clean up menu
         self.iface.removePluginMenu(
-            f"{__wfs_name__} Extractor", self.action_launch
+            f"{__plugin_name__}", self.action_launch
         )  # noqa: E501
         self.iface.removeToolBarIcon(self.action_launch)
         self.iface.removePluginMenu(
-            f"{__wfs_name__} Extractor", self.action_help
+            f"{__plugin_name__}", self.action_help
         )  # noqa: E501
         self.iface.removePluginMenu(
-            f"{__wfs_name__} Extractor", self.action_settings
+            f"{__plugin_name__}", self.action_settings
         )  # noqa: E501
 
         # -- Clean up preferences panel in QGIS settings
@@ -219,7 +236,7 @@ class BdTopoExtractorPlugin:
         Try to connect to internet, if successfull, the dialog appear.
         Else an error message appear.
         """
-        self.internet_checker = InternetChecker(None, self.manager)
+        self.internet_checker = InternetChecker(self.manager)
         self.internet_checker.finished.connect(self.handle_finished)
         self.internet_checker.ping(
             f"{self.url}?service=wfs&request=GetCapabilities"
@@ -239,19 +256,22 @@ class BdTopoExtractorPlugin:
             if len(self.project.instance().mapLayers()) == 0:
                 # Type of WMTS, url and name
 
-                uri = "contextualWMSLegend=0&tileMatrixSet={tilematset}&tilePixelRatio=0&crs={crs}&dpiMode=7&featureCount=10&format={format}&layers={layers}&styles={styles}&url={url}".format(
+                uri = "contextualWMSLegend=0&tileMatrixSet={tilematset}&tilePixelRatio=0&crs={crs}&dpiMode=7&featureCount=10&format={format}&layers={layers}&styles={styles}&url={url}".format(  # noqa: E501
                     tilematset="PM",
                     crs="EPSG:3857",
                     format="image/png",
                     layers="GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2",
                     styles="normal",
-                    url="https://data.geopf.fr/wmts?SERVICE%3DWMTS%26REQUEST%3DGetCapabilities",
+                    url="https://data.geopf.fr/wmts?SERVICE%3DWMTS%26REQUEST%3DGetCapabilities",  # noqa: E501
                 )
                 name = "Plan IGN V2"
                 provider = "wms"
 
                 # Add WMTS to the QgsProject
                 self.iface.addRasterLayer(uri, name, provider)
+            else:
+                pass
+            self.dlg.getcapabilities.finished_dl.connect(self.launch_zoom)
             result = self.dlg.exec()
             if result:
                 # If dialog is accepted, "OK" is pressed, the process is launch
@@ -264,6 +284,23 @@ class BdTopoExtractorPlugin:
         else:
             self.dlg.activateWindow()
 
+    def launch_zoom(self):
+        # This timer is necessary in case there is no layer in the project
+        # Without the timer canvas extent does not change
+        QTimer.singleShot(750, self.zoom_to_extent)
+
+    def zoom_to_extent(self):
+        # Reproject the max bounding box of the wfs
+        transformed_extent = self.transform_crs(
+            self.dlg.getcapabilities.max_bounding_box,
+            QgsCoordinateReferenceSystem("EPSG:" + str(__wfs_crs__)),
+            self.project.crs(),
+        )
+        if transformed_extent.contains(self.iface.mapCanvas().extent()):
+            pass
+        else:
+            self.iface.mapCanvas().zoomToFeatureExtent(transformed_extent)
+
     def add_style(self, layer, group):
         theme = None
 
@@ -273,21 +310,33 @@ class BdTopoExtractorPlugin:
             # style name is based on layer name in
             # uppercase with underscore instead of spaces
             # and single quotes
-            style_name = str(layer.name()).replace("'", "_").replace(" ", "_").upper()
+            style_name = (
+                str(layer.name()).replace("'", "_").replace(" ", "_").upper()
+            )  # noqa: E501
             if __wfs_layer_order__ == "":
-                # style name is based on layer name in uppercase with underscore instead of spaces and single quotes
+                # style name is based on layer name in uppercase with
+                # underscore instead of spaces and single quotes
                 style_name = (
-                    str(layer.name()).replace("'", "_").replace(" ", "_").upper()
+                    str(layer.name())
+                    .replace("'", "_")
+                    .replace(" ", "_")
+                    .upper()  # noqa: E501
                 )
                 style_name_ext = style_name + ".qml"
                 style_path: Path = (
-                    DIR_PLUGIN_ROOT / f'{"resources/styles"}' / f"{style_name_ext}"
+                    DIR_PLUGIN_ROOT
+                    / f'{"resources/styles"}'
+                    / f"{style_name_ext}"  # noqa: E501
                 )
                 # if the style exists it is added to the layer.
                 if os.path.isfile(style_path.__str__()):
                     layer.loadNamedStyle(style_path.__str__())
                 else:
-                    print("ERROR : style " + str(style_name_ext) + " doesn't exists.")
+                    print(
+                        "ERROR : style "
+                        + str(style_name_ext)
+                        + " doesn't exists."  # noqa: E501
+                    )
 
                 group.addLayer(layer)
             else:
@@ -320,14 +369,18 @@ class BdTopoExtractorPlugin:
                     theme.addLayer(layer)
                     style_name_ext = style_name + ".qml"
                     style_path: Path = (
-                        DIR_PLUGIN_ROOT / f'{"resources/styles"}' / f"{style_name_ext}"
+                        DIR_PLUGIN_ROOT
+                        / f'{"resources/styles"}'
+                        / f"{style_name_ext}"  # noqa: E501
                     )
                     # if the style exists it is added to the layer.
                     if os.path.isfile(style_path.__str__()):
                         layer.loadNamedStyle(style_path.__str__())
                     else:
                         print(
-                            "ERROR : style " + str(style_name_ext) + " doesn't exists."
+                            "ERROR : style "
+                            + str(style_name_ext)
+                            + " doesn't exists."  # noqa: E501
                         )
         else:
             group.addLayer(layer)
@@ -401,59 +454,19 @@ class BdTopoExtractorPlugin:
                     error=error_list,
                     good=good_list,
                 )
-                # If a layer is created and needs to be added to the project
-                if (
-                    request.final_layer
-                    and self.dlg.add_to_project_checkbox.isChecked()  # noqa: E501
-                ):
-                    # If output format is a SHP or a GEOJSON or if the
-                    # layers are not saved. Saved GPKG are processed
-                    # differently.
-                    if (
-                        self.dlg.output_format() != "gpkg"
-                        or self.dlg.output_format() == "gpkg"
-                        and not self.dlg.save_result_checkbox.isChecked()
-                    ):
-                        self.project.instance().addMapLayer(request.final_layer, False)
-                        # If styled layer are set to true in metadata.txt,
-                        # a specific style is applied to every layer.
-                        if __wfs_style__:
-                            self.add_style(request.final_layer, group)
-                        else:
-                            group.addLayer(request.final_layer)
-
-                # Increase the ProgressBar value
                 n = n + 1
-                self.dlg.thread.add_one()
-                self.dlg.dl_progress_bar_label.setText(self.tr("Downloaded data : "))
-                self.dlg.select_progress_bar_label.setText(str(n) + "/" + str(max))
-        # If the user wants to saved as GPKG
-        if (
-            self.dlg.output_format() == "gpkg"
-            and self.dlg.save_result_checkbox.isChecked()
-        ):
-            # If a layer as been saved, the GPKG is opened and every layer are
-            # added to the project
-            if (len(good_list) / n) > 0:
-                gpkg = QgsVectorLayer(request.final_layer, "", "ogr")
-                print(gpkg)
-                print(gpkg.dataProvider())
-                layers = gpkg.dataProvider().subLayers()
-                for layer in layers:
-                    name = layer.split("!!::!!")[1]
-                    uri = "{}|layername={}".format(
-                        request.final_layer,
-                        name,
+                if request.wfs_layer and request.wfs_layer.featureCount() > 0:
+                    self.process_wfs_layer(
+                        request.wfs_layer, group, path, result_geometry
                     )
-                    # Create layer
-                    final_layer = QgsVectorLayer(uri, name, "ogr")
-                    self.project.instance().addMapLayer(final_layer, False)
-                    # If styled layer are set to true in metadata.txt,
-                    # a specific style is applied to every layer.
-                    if __wfs_style__:
-                        self.add_style(final_layer, group)
-                    else:
-                        group.addLayer(final_layer)
+                # Increase the ProgressBar value
+                self.dlg.thread.add_one()
+                self.dlg.dl_progress_bar_label.setText(
+                    self.tr("Downloaded data : ")  # noqa: E501
+                )
+                self.dlg.select_progress_bar_label.setText(
+                    str(n) + "/" + str(max)
+                )  # noqa: E501
         msg = QMessageBox()
         msg.information(
             None,
@@ -474,6 +487,176 @@ class BdTopoExtractorPlugin:
         self.dlg.close()
         self.pluginIsActive = False
 
+    def transform_crs(self, rectangle, input_crs, output_crs):
+        # Reproject a rectangle to the project crs
+        geom = QgsGeometry().fromRect(rectangle)
+        geom.transform(
+            QgsCoordinateTransform(input_crs, output_crs, self.project)  # noqa: E501
+        )
+        transformed_extent = geom.boundingBox()
+        return transformed_extent
+
+    def process_wfs_layer(self, wfs_layer, group, path, result_geometry):
+        # Check if the layer needs to be clipped with the extent.
+        if result_geometry != "intersect":
+            # Output for a memory layer.
+            output = "memory:" + str(wfs_layer.name()) + "_memory"
+
+            # Check geometry type to create a memory layer to get
+            # all features from the WFS request.
+            geom_type = QgsWkbTypes.geometryDisplayString(
+                wfs_layer.getFeature(1).geometry().type()
+            )
+            if geom_type == "Line":
+                geom_type = "Linestring"
+            # Create a memory layer
+            memory_layer = QgsVectorLayer(
+                geom_type + "?crs=epsg:" + str(__wfs_crs__),
+                str(wfs_layer.name()),
+                "memory",
+            )
+            # Add all features to the memory layer
+            attr = wfs_layer.dataProvider().fields().toList()
+            memory_layer.dataProvider().addAttributes(attr)
+            memory_layer.startEditing()
+            for feature in wfs_layer.getFeatures():
+                memory_layer.dataProvider().addFeatures([feature])
+                memory_layer.updateExtents()
+            memory_layer.commitChanges()
+            memory_layer.triggerRepaint()
+            # Creation of a layer with the extent.
+            if result_geometry == "within":
+                clipping_layer = QgsVectorLayer(
+                    "Polygon?crs=epsg:" + str(__wfs_crs__), "clipper", "memory"
+                )
+                clipping_layer.startEditing()
+                new_geom = QgsGeometry().fromRect(self.dlg.extent)
+                new_feature = QgsFeature(clipping_layer.fields())
+                new_feature.setGeometry(new_geom)
+                clipping_layer.dataProvider().addFeatures([new_feature])
+                clipping_layer.updateExtents()
+                clipping_layer.commitChanges()
+                clipping_layer.triggerRepaint()
+            else:
+                clipping_layer = self.dlg.select_layer_combo_box.currentLayer()
+
+            # Clip the layer with the extent.
+            clip_parameters = {
+                "INPUT": memory_layer,
+                "OVERLAY": clipping_layer,
+                "OUTPUT": "memory:" + str(wfs_layer.name()),
+            }
+            wfs_layer = processing.run("native:clip", clip_parameters)["OUTPUT"]
+
+        if not self.dlg.save_result_checkbox.isChecked():
+            if (
+                result_geometry == "within"
+                and self.dlg.crs_selector.crs()
+                != QgsCoordinateReferenceSystem("EPSG:" + str(__wfs_crs__))
+            ):
+                # Reproject the memory layer to the right crs
+                reproject_parameter = {
+                    "INPUT": wfs_layer,
+                    "TARGET_CRS": self.dlg.crs_selector.crs(),
+                    "OUTPUT": "memory:" + str(wfs_layer.name()),
+                }
+
+                wfs_layer = processing.run(
+                    "native:reprojectlayer", reproject_parameter
+                )["OUTPUT"]
+            self.project.instance().addMapLayer(wfs_layer, False)  # noqa: E501
+            # If styled layer are set to true in metadata.txt,
+            # a specific style is applied to every layer.
+            if __wfs_style__:
+                self.add_style(wfs_layer, group)
+            else:
+                group.addLayer(wfs_layer)
+        else:
+            context = self.project.instance().transformContext()
+            options = QgsVectorFileWriter.SaveVectorOptions()
+            tr = QgsCoordinateTransform(
+                QgsCoordinateReferenceSystem("EPSG:" + str(__wfs_crs__)),
+                self.dlg.crs_selector.crs(),
+                self.project.instance(),
+            )
+            options.ct = tr
+            options.layerName = str(wfs_layer.name())
+            options.fileEncoding = wfs_layer.dataProvider().encoding()
+            if self.dlg.output_format() == "gpkg":  # TODO save style in geopackage
+                # Specific procedure if the layer must be saved as a GPKG.
+                # Every data are saved in the same GeoPackage.
+                options.driverName = "GPKG"
+                # Check if the GeoPackage already exists,
+                # to know if it's need to be created or not
+                if os.path.isfile(path + "/" + "bd_topo_extract.gpkg"):  # noqa: E501
+                    options.actionOnExistingFile = (
+                        QgsVectorFileWriter.CreateOrOverwriteLayer
+                    )
+
+                if Qgis.QGIS_VERSION_INT > 32000:
+                    QgsVectorFileWriter.writeAsVectorFormatV3(
+                        wfs_layer,
+                        path + "/" + "bd_topo_extract.gpkg",
+                        context,
+                        options,
+                    )
+                else:
+                    QgsVectorFileWriter.writeAsVectorFormatV2(
+                        wfs_layer,
+                        path + "/" + "bd_topo_extract.gpkg",
+                        context,
+                        options,
+                    )
+                uri = "{}|layername={}".format(
+                    path + "/" + "bd_topo_extract.gpkg",
+                    wfs_layer.name(),
+                )
+                # Create layer
+                self.final_layer = QgsVectorLayer(uri, wfs_layer.name(), "ogr")
+            else:
+                # Creation of the output path used for SHP and GeoJSON.
+                output = (
+                    path
+                    + "/"
+                    + str(wfs_layer.name())
+                    + "."
+                    + str(self.dlg.output_format())  # noqa: E501
+                )
+                # For every other format, the procedure is the same.
+                if self.dlg.output_format() == "shp":
+                    options.driverName = "ESRI Shapefile"
+                elif self.dlg.output_format() == "geojson":
+                    options.driverName = "GeoJSON"
+                if Qgis.QGIS_VERSION_INT > 32000:
+                    QgsVectorFileWriter.writeAsVectorFormatV3(
+                        wfs_layer,
+                        output,
+                        context,
+                        options,
+                    )
+                else:
+                    QgsVectorFileWriter.writeAsVectorFormatV2(
+                        wfs_layer,
+                        output,
+                        context,
+                        options,
+                    )
+                self.final_layer = QgsVectorLayer(
+                    output,
+                    str(wfs_layer.name()),
+                    "ogr",
+                )
+            if self.dlg.add_to_project_checkbox.isChecked():
+                self.project.instance().addMapLayer(
+                    self.final_layer, False  # noqa: E501
+                )
+                # If styled layer are set to true in metadata.txt,
+                # a specific style is applied to every layer.
+                if __wfs_style__:
+                    self.add_style(self.final_layer, group)
+                else:
+                    group.addLayer(self.final_layer)
+
 
 class InternetChecker(QObject):
     """Constructor.
@@ -484,8 +667,8 @@ class InternetChecker(QObject):
 
     finished = pyqtSignal()
 
-    def __init__(self, parent=None, manager=None):
-        super().__init__(parent)
+    def __init__(self, manager: QNetworkAccessManager = None):
+        super().__init__()
         self._manager = manager
         self.manager.finished.connect(self.handle_finished)
 
@@ -503,28 +686,31 @@ class InternetChecker(QObject):
 
     def handle_finished(self, reply):
         if reply.error() != QNetworkReply.NoError:
-            # If the user does not have an internet connexion,
+            # If the user has an internet connexion issue,
             # the plugin does not launch.
             msg = QMessageBox()
+            # IGN is down
             if reply.error() == 403:
                 msg.critical(
                     None,
                     self.tr("Error"),
                     self.tr("IGN Services' are down."),
                 )
-            elif reply.error() == 3:
+            # No internet connexion
+            elif reply.error() == 3 or reply.error() == 4:
                 msg.critical(
                     None,
                     self.tr("Error"),
                     self.tr("You are not connected to the Internet."),
                 )
+            # Else, might be a plugin issue
             else:
                 msg.critical(
                     None,
                     self.tr("Error"),
                     self.tr(
                         f"Code error : {str(reply.error())}<br>Go to<br><a href={__uri_tracker__}>FramaGit</a><br>to report the issue."  # noqa: E501
-                    ),  # noqa: E501
+                    ),
                 )
         else:
             self.finished.emit()
