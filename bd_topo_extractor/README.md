@@ -6,7 +6,7 @@
 
 ### What's the point
 
-This tool allows you to extract specific data from IGN's BD TOPO®. The extraction is based on either an extent drawned by the user on the map canvas or a layer's extent.
+This tool allows you to extract specific data from IGN's BD TOPO®. The extraction is based on either an extent drawned by the user on the map canvas or a layer's extent. The data is based on the WFS service published by IGN with the [Géoplateforme](https://www.ign.fr/geoplateforme).
 
 ### How to use it
 
@@ -30,52 +30,62 @@ This is the plugin's User Interface :
 
 You can either draw a rectangle on the map (default) or select a layer in your project and use it's extent.
 
-First you need to check the right checkbox :
+#### Choose your weapon
+
+2 checkboxes allow you to select how you want to get the extent used for the data extraction :
 
 - `Draw an extent to extract data :` if you want to use a drawned extent. Then you have to click the `Draw an extent` button and create a rectangle on the map.
 
-- `Use a layer to extract data :` if you want to use a layer's extent. Check it and then use the combobox to select the layer you want to use.
+- `Use a layer to extract data :` if you want to use a layer's extent or a layer' boundary. Check it and then use the combobox to select the layer you want to use.
 
-2 error message can appear :
+#### Error messages
 
-1. The selected layer or the drawned rectangle is outside of the total extent of the WFS data.
+The selected layer or the drawned rectangle is outside of the total extent of the WFS data.
 
 ![outside_wfs_error](resources/images/outside_wfs_error.png)
 
-2. The drawned rectangle is too big, the process can take a long time.
+You can use the checkbox `Draw the max extent of the WFS on the map` to add a layer in your project to show the extent of the WFS.
+
+The drawned rectangle or the selected layer is too big, the process can take a long time.
 
 ![extent_too_big_error](resources/images/extent_too_big_error.png)
 
-The max extent of the WFS data can be added to the map with the checkbox `Draw the extent on the map`.
-
 ### Select data to export
 
-All data in the WFS are listed in the middle part of the UI.
-You can either select all of the data with the checkbox `Extract all data from BD TOPO®` or select only the wanted data by checking their respectives checkboxes.
+All data in the WFS are listed in the middle part of the UI. You can either select all of the data with the checkbox `Extract all data from BD TOPO®` or select only the wanted data by checking their respectives checkboxes.
 
 ### Select output geometry
 
-You can extract all features intersecting the extent (default) by checking `Keep data intersecting the extent` or choose to clip all features with the extent by checking `Clip data intersecting the extent`.
+You can extract all features intersecting the extent (default) by checking `Intersecting the extent` or choose to clip all features with the extent by checking `within the extent`. Finally if you choose to use a layer to extract data, you can clip all features within the layer by cheching `within the layer`.
 
 ### Select output format
 
-If you don't want to save the extracted data as layers (default) you only have to select the output crs with the combobox.
+#### Save result as temporary layer
+
+If you don't want to save the extracted data as layers (default) you only have to select the output crs with the combobox. If the output format is a WFS, the CRS is automatically `4326 - WGS 84`, it's the crs of the source WFS.
+
+#### Save result as layer
 
 If you want to save the extracted data as layers you have to :
 
 - select the output crs with the combobox.
-- check the `Save the results :` checkbox.
+- check the `Save the results` checkbox.
 - select if you want to add the exported data to the project (default) or not.
-- select the output format, `GeoPackage` (default), `Shapefile` or `GeoJSon`.
+- select the output format, `GeoPackage`, `Shapefile` or `GeoJSon`.
 - select the output folder to save the new layers inside a folder called `BDTopoExport_yyyymmdd_HHMM`.
 
 If GeoPackage format is selected, only one file is created inside the folder with all layers inside.
 
+If you don't want to save the result, the output format is by default :
+
+- `WFS` if the user selected to only keep the data intersecting the extent.
+- `GeoPackage` (as memory layer) if the user selected to keep the data within the extent.
+- `GeoPackage` (as memory layer) if the user selected to keep the data within the layer.
+
+### Launch the extraction
+
 The extraction begin when you press the `OK` button.
 
-### Additional tools
+## Additional tools
 
-By clicking the IGN button, you'll be redirected to [IGN's website](https://www.ign.fr/).
-By clicking the `Documentation` button, you'll be redirected to this page.
-By clicking the `Metadata` button, you'll be redirected to the [description of the BD TOPO® by IGN](https://geoservices.ign.fr/bdtopo).
-A Plan IGN V2 basemap is automatically added to the project if there is no layer in it. So the user can draw a rectangle.
+By clicking the IGN button, you'll be redirected to IGN's website. By clicking the `Documentation` button, you'll be redirected to this page. By clicking the `Metadata` button, you'll be redirected to the description of the BD TOPO® by IGN. A Plan IGN V2 basemap is automatically added to the project if there is no layer in it. So the user can draw a rectangle.
