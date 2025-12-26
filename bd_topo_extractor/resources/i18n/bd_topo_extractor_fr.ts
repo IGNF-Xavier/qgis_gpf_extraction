@@ -30,8 +30,8 @@
     </message>
     <message>
         <location filename="../../gui/dlg_main.py" line="179"/>
-        <source>Use layer extent to extract data :</source>
-        <translation>Utiliser l'emprise d'une couche pour l'extraction :</translation>
+        <source>Use a layer to extract data :</source>
+        <translation>Utiliser une couche pour l'extraction :</translation>
     </message>
     <message>
         <location filename="../../gui/dlg_main.py" line="215"/>

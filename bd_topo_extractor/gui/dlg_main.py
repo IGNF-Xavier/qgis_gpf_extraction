@@ -88,7 +88,7 @@ class BdTopoExtractorDialog(QDialog):
         provides the hook by which you can manipulate the QGIS application \
         at run time.
         url: The wfs url
-        manager: a QgsNetworkManager to realize the network request
+        manager: a QNetworkAccessManager to realize the network request
         locale: language settings of QGIS to know wich documentation open
         """
         super().__init__()
@@ -176,9 +176,7 @@ class BdTopoExtractorDialog(QDialog):
 
         # Select layer tool
         self.select_layer_checkbox = QCheckBox(self)
-        self.select_layer_checkbox.setText(
-            self.tr("Use layer extent to extract data :")
-        )
+        self.select_layer_checkbox.setText(self.tr("Use a layer to extract data :"))
         self.select_layer_checkbox.setChecked(False)
         extent_check_group.addButton(self.select_layer_checkbox)
         self.extent_layout.addWidget(

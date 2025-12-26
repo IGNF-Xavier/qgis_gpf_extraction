@@ -30,7 +30,7 @@
     </message>
     <message>
         <location filename="../../gui/dlg_main.py" line="179"/>
-        <source>Use layer extent to extract data :</source>
+        <source>Use a layer to extract data :</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

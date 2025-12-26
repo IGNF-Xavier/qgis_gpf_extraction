@@ -19,7 +19,7 @@ class GetCapabilitiesRequest(QObject):
     :param
         url: The wfs url
         schema: The schema of the data in the wfs url
-        manager: a QgsNetworkManager to realize the network request
+        manager: a QNetworkAccessManager to realize the network request
         """
 
     def __init__(

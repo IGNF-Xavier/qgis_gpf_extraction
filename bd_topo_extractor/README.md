@@ -34,7 +34,7 @@ First you need to check the right checkbox :
 
 - `Draw an extent to extract data :` if you want to use a drawned extent. Then you have to click the `Draw an extent` button and create a rectangle on the map.
 
-- `Use layer extent to extract data :` if you want to use a layer's extent. Check it and then use the combobox to select the layer you want to use.
+- `Use a layer to extract data :` if you want to use a layer's extent. Check it and then use the combobox to select the layer you want to use.
 
 2 error message can appear :
 
