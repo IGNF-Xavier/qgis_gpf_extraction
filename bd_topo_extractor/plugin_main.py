@@ -236,7 +236,7 @@ class BdTopoExtractorPlugin:
         Try to connect to internet, if successfull, the dialog appear.
         Else an error message appear.
         """
-        self.internet_checker = InternetChecker(None, self.manager)
+        self.internet_checker = InternetChecker(self.manager)
         self.internet_checker.finished.connect(self.handle_finished)
         self.internet_checker.ping(
             f"{self.url}?service=wfs&request=GetCapabilities"
@@ -551,7 +551,8 @@ class BdTopoExtractorPlugin:
         if not self.dlg.save_result_checkbox.isChecked():
             if (
                 result_geometry == "within"
-                and self.dlg.crs_selector.crs() != QgsCoordinateReferenceSystem(4326)
+                and self.dlg.crs_selector.crs()
+                != QgsCoordinateReferenceSystem("EPSG:" + str(__wfs_crs__))
             ):
                 # Reproject the memory layer to the right crs
                 reproject_parameter = {
@@ -666,8 +667,8 @@ class InternetChecker(QObject):
 
     finished = pyqtSignal()
 
-    def __init__(self, parent=None, manager=None):
-        super().__init__(parent)
+    def __init__(self, manager: QNetworkAccessManager = None):
+        super().__init__()
         self._manager = manager
         self.manager.finished.connect(self.handle_finished)
 
@@ -696,7 +697,7 @@ class InternetChecker(QObject):
                     self.tr("IGN Services' are down."),
                 )
             # No internet connexion
-            elif reply.error() == 3:
+            elif reply.error() == 3 or reply.error() == 4:
                 msg.critical(
                     None,
                     self.tr("Error"),
