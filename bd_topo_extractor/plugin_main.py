@@ -89,18 +89,12 @@ class BdTopoExtractorPlugin:
 
         # translation
         # initialize the locale
-        self.locale: str = QgsSettings().value(
-            "locale/userLocale", QLocale().name()
-        )[  # noqa: E501
+        self.locale: str = QgsSettings().value("locale/userLocale", QLocale().name())[
             0:2
         ]
-        locale_path: Path = (
-            DIR_PLUGIN_ROOT
-            / f"resources/i18n/{__title__.lower()}_{self.locale}.qm"  # noqa: E501
-        )
-        self.log(
-            message=f"Translation: {self.locale}, {locale_path}", log_level=4
-        )  # noqa: E501
+        locale_file = f"resources/i18n/{__title__.lower()}_{self.locale}.qm"
+        locale_path: Path = DIR_PLUGIN_ROOT / locale_file
+        self.log(message=f"Translation: {self.locale}, {locale_path}", log_level=4)
         if locale_path.exists():
             self.translator = QTranslator()
             self.translator.load(str(locale_path.resolve()))
@@ -546,7 +540,8 @@ class BdTopoExtractorPlugin:
                 "OVERLAY": clipping_layer,
                 "OUTPUT": "memory:" + str(wfs_layer.name()),
             }
-            wfs_layer = processing.run("native:clip", clip_parameters)["OUTPUT"]
+            process = processing.run("native:clip", clip_parameters)
+            wfs_layer = process["OUTPUT"]
 
         if not self.dlg.save_result_checkbox.isChecked():
             if (
@@ -582,7 +577,7 @@ class BdTopoExtractorPlugin:
             options.ct = tr
             options.layerName = str(wfs_layer.name())
             options.fileEncoding = wfs_layer.dataProvider().encoding()
-            if self.dlg.output_format() == "gpkg":  # TODO save style in geopackage
+            if self.dlg.output_format() == "gpkg":  # TODO save style in gpkg
                 # Specific procedure if the layer must be saved as a GPKG.
                 # Every data are saved in the same GeoPackage.
                 options.driverName = "GPKG"

@@ -46,7 +46,7 @@
     <message>
         <location filename="../../gui/dlg_main.py" line="295"/>
         <source>Select outputs&apos; coordinate system :</source>
-        <translation>Sélectionner le système de projection des données en sortie</translation>
+        <translation>Sélectionner le SCR en sortie :</translation>
     </message>
     <message>
         <location filename="../../gui/dlg_main.py" line="310"/>
