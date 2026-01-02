@@ -680,7 +680,7 @@ class InternetChecker(QObject):
         self.manager.get(qrequest)
 
     def handle_finished(self, reply):
-        if reply.error() != QNetworkReply.NoError:
+        if reply.error() != QNetworkReply.NetworkError.NoError:
             # If the user has an internet connexion issue,
             # the plugin does not launch.
             msg = QMessageBox()

@@ -53,7 +53,7 @@ class GetCapabilitiesRequest(QObject):
 
     def handle_finished(self):
         self._pending_downloads -= 1
-        if self.reply.error() != QNetworkReply.NoError:
+        if self.reply.error() != QNetworkReply.NetworkError.NoError:
             print(
                 f"code: {self.reply.error()} message: {self.reply.errorString()}"  # noqa: E501
             )

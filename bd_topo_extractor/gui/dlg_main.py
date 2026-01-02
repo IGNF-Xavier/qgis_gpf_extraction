@@ -376,10 +376,10 @@ class BdTopoExtractorDialog(QDialog):
         self.button_box = QDialogButtonBox(self)
         self.button_box.setEnabled(False)
         self.button_box.addButton(
-            self.tr("Ok"), QDialogButtonBox.AcceptRole  # noqa: E501
+            self.tr("Ok"), QDialogButtonBox.ButtonRole.AcceptRole  # noqa: E501
         )
         self.button_box.addButton(
-            self.tr("Cancel"), QDialogButtonBox.RejectRole  # noqa: E501
+            self.tr("Cancel"), QDialogButtonBox.ButtonRole.RejectRole  # noqa: E501
         )
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
@@ -832,9 +832,9 @@ class BdTopoExtractorDialog(QDialog):
         self.iface.mainWindow().activateWindow()
         self.canvas.setMapTool(self.rectangle_tool)
 
-    def activate_window(self):  # TODO something to update on Windows OS
+    def activate_window(self):
         # Put the dialog on top once the rectangle is drawn
-        self.activateWindow()
+        self.setWindowState(Qt.WindowActive)
         self.rectangle = True
         self.is_param_valid()
 
