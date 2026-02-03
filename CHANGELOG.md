@@ -41,3 +41,10 @@ Unreleased
 - Correct group insertion bug
 - Correct minimize window when drawing an extent on linux
 - Minor translation correction
+
+## 2.0.1 - 2026-01-02
+- PyQT 6 compatibility
+- Allow the user to extract WFS data
+
+## 2.0.2 - 2026-02-03
+- Add log after extraction to have more detail on what's missing
