@@ -58,6 +58,7 @@ from bd_topo_extractor.__about__ import (
     __wfs_style__,
     __wfs_uri__,
 )
+from bd_topo_extractor.gui.dlg_log_message import LogMessageDialog
 from bd_topo_extractor.gui.dlg_main import BdTopoExtractorDialog
 from bd_topo_extractor.gui.dlg_settings import PlgOptionsFactory
 from bd_topo_extractor.processing import BdTopoExtractorProvider, WfsRequest
@@ -461,19 +462,8 @@ class BdTopoExtractorPlugin:
                 self.dlg.select_progress_bar_label.setText(
                     str(n) + "/" + str(max)
                 )  # noqa: E501
-        msg = QMessageBox()
-        msg.information(
-            None,
-            self.tr("Informations"),
-            self.tr("No data number : ")
-            + str(len(error_list))
-            + "\n"
-            + self.tr("Data number : ")
-            + str(len(good_list))
-            + "\n"
-            + self.tr("Total data : ")
-            + str(n),
-        )
+        msg = LogMessageDialog(error_list=error_list, good_list=good_list, total_data=n)
+        msg.exec()
         # Once it's finished, the ProgressBar is set back to 0
         self.dlg.thread.finish()
         self.dlg.select_progress_bar_label.setText("")

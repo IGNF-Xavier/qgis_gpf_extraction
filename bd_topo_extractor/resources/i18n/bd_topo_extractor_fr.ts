@@ -4,117 +4,117 @@
 <context>
     <name>BdTopoExtractorDialog</name>
     <message>
-        <location filename="../../gui/dlg_main.py" line="120"/>
+        <location filename="../../gui/dlg_main.py" line="124"/>
         <source>Data provided by :</source>
         <translation>Données fournies par :</translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="141"/>
+        <location filename="../../gui/dlg_main.py" line="145"/>
         <source>Documentation</source>
         <translation>Documentation</translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="148"/>
+        <location filename="../../gui/dlg_main.py" line="152"/>
         <source>Metadata</source>
         <translation>Métadonnées</translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="159"/>
+        <location filename="../../gui/dlg_main.py" line="163"/>
         <source>Draw an extent to extract data :</source>
         <translation>Utiliser une emprise tracée pour l'extraction :</translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="171"/>
+        <location filename="../../gui/dlg_main.py" line="175"/>
         <source>Draw an extent</source>
         <translation>Tracer une emprise</translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="179"/>
+        <location filename="../../gui/dlg_main.py" line="183"/>
         <source>Use a layer to extract data :</source>
         <translation>Utiliser une couche pour l'extraction :</translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="215"/>
+        <location filename="../../gui/dlg_main.py" line="217"/>
         <source>Data extracted from </source>
         <translation>Données extraites de la </translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="221"/>
+        <location filename="../../gui/dlg_main.py" line="223"/>
         <source>Extract all data from </source>
         <translation>Extraire toutes les données de la </translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="295"/>
+        <location filename="../../gui/dlg_main.py" line="293"/>
         <source>Select outputs&apos; coordinate system :</source>
         <translation>Sélectionner le SCR en sortie :</translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="310"/>
+        <location filename="../../gui/dlg_main.py" line="308"/>
         <source>Add exported data to the project</source>
         <translation>Ajouter les données exportées au projet</translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="321"/>
+        <location filename="../../gui/dlg_main.py" line="319"/>
         <source>Add style to layers</source>
         <translation>Ajouter un style aux données en sortie</translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="365"/>
+        <location filename="../../gui/dlg_main.py" line="363"/>
         <source>Explore folders :</source>
         <translation>Parcourir les dossiers :</translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="384"/>
+        <location filename="../../gui/dlg_main.py" line="382"/>
         <source>Ok</source>
         <translation>Ok</translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="387"/>
+        <location filename="../../gui/dlg_main.py" line="385"/>
         <source>Cancel</source>
         <translation>Annuler</translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="577"/>
+        <location filename="../../gui/dlg_main.py" line="573"/>
         <source>Warning</source>
         <translation>Attention</translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="577"/>
+        <location filename="../../gui/dlg_main.py" line="573"/>
         <source>Selected layer is very large (degraded performance)</source>
         <translation>L'emprise de la couche sélectionnée est très grande (performances dégradées)</translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="588"/>
+        <location filename="../../gui/dlg_main.py" line="584"/>
         <source>Error</source>
         <translation>Erreur</translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="588"/>
+        <location filename="../../gui/dlg_main.py" line="584"/>
         <source>Selected layer is outside of the WFS&apos; extent.</source>
         <translation>L'emprise de la couche sélectionnée se situe en dehors de l'emprise du WFS</translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="671"/>
+        <location filename="../../gui/dlg_main.py" line="667"/>
         <source>Select an output folder</source>
         <translation>Sélectionner un dossier de sortie</translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="203"/>
+        <location filename="../../gui/dlg_main.py" line="205"/>
         <source>Draw the max extent of the WFS on the map</source>
         <translation>Ajouter l'étendue maximale du WFS sur la carte</translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="265"/>
+        <location filename="../../gui/dlg_main.py" line="267"/>
         <source>Keep data :</source>
         <translation>Conserver les données :</translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="272"/>
+        <location filename="../../gui/dlg_main.py" line="274"/>
         <source>Intersecting the extent</source>
         <translation>Intersectant l'emprise</translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="279"/>
+        <location filename="../../gui/dlg_main.py" line="281"/>
         <source>within the extent</source>
         <translation>à l'intérieur de l'emprise</translation>
     </message>
@@ -124,7 +124,7 @@
         <translation>à l'intérieur de la couche</translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="327"/>
+        <location filename="../../gui/dlg_main.py" line="325"/>
         <source>Save the results</source>
         <translation>Sauvegarder le résultat</translation>
     </message>
@@ -132,39 +132,19 @@
 <context>
     <name>BdTopoExtractorPlugin</name>
     <message>
-        <location filename="../../plugin_main.py" line="124"/>
+        <location filename="../../plugin_main.py" line="119"/>
         <source>Help</source>
         <translation>Aide</translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="133"/>
+        <location filename="../../plugin_main.py" line="128"/>
         <source>Settings</source>
         <translation>Paramètres</translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="466"/>
+        <location filename="../../plugin_main.py" line="459"/>
         <source>Downloaded data : </source>
         <translation>Données téléchargées : </translation>
-    </message>
-    <message>
-        <location filename="../../plugin_main.py" line="473"/>
-        <source>Informations</source>
-        <translation>Informations</translation>
-    </message>
-    <message>
-        <location filename="../../plugin_main.py" line="473"/>
-        <source>No data number : </source>
-        <translation>Données absentes : </translation>
-    </message>
-    <message>
-        <location filename="../../plugin_main.py" line="473"/>
-        <source>Data number : </source>
-        <translation>Données récupérées : </translation>
-    </message>
-    <message>
-        <location filename="../../plugin_main.py" line="473"/>
-        <source>Total data : </source>
-        <translation>Données totales : </translation>
     </message>
 </context>
 <context>
@@ -183,24 +163,62 @@
 <context>
     <name>InternetChecker</name>
     <message>
-        <location filename="../../plugin_main.py" line="709"/>
+        <location filename="../../plugin_main.py" line="696"/>
         <source>Error</source>
         <translation>Erreur</translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="695"/>
+        <location filename="../../plugin_main.py" line="682"/>
         <source>IGN Services&apos; are down.</source>
         <translation>Les services IGN sont injoignables.</translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="702"/>
+        <location filename="../../plugin_main.py" line="689"/>
         <source>You are not connected to the Internet.</source>
         <translation>Non connecté à internet.</translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="709"/>
+        <location filename="../../plugin_main.py" line="696"/>
         <source>Code error : {str(reply.error())}&lt;br&gt;Go to&lt;br&gt;&lt;a href={__uri_tracker__}&gt;FramaGit&lt;/a&gt;&lt;br&gt;to report the issue.</source>
         <translation>Code erreur : {str(reply.error())}&lt;br&gt;Rendez-vous sur&lt;br&gt;&lt;a href={__uri_tracker__}&gt;FramaGit&lt;/a&gt;&lt;br&gt;pour faire remonter le problème.</translation>
+    </message>
+</context>
+<context>
+    <name>LogMessageDialog</name>
+    <message>
+        <location filename="../../gui/dlg_log_message.py" line="39"/>
+        <source>Information</source>
+        <translation>Information</translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_log_message.py" line="48"/>
+        <source>No data number : </source>
+        <translation>Données manquantes : </translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_log_message.py" line="48"/>
+        <source>Data number : </source>
+        <translation>Données extraites : </translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_log_message.py" line="48"/>
+        <source>Total data : </source>
+        <translation>Données totales : </translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_log_message.py" line="59"/>
+        <source>Ok</source>
+        <translation>Ok</translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_log_message.py" line="70"/>
+        <source>MISSING :</source>
+        <translation>MANQUANTES :</translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_log_message.py" line="70"/>
+        <source>EXTRACTED :</source>
+        <translation>EXTRAITES :</translation>
     </message>
 </context>
 <context>

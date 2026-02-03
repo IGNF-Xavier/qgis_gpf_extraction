@@ -4,117 +4,117 @@
 <context>
     <name>BdTopoExtractorDialog</name>
     <message>
-        <location filename="../../gui/dlg_main.py" line="120"/>
+        <location filename="../../gui/dlg_main.py" line="124"/>
         <source>Data provided by :</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="141"/>
+        <location filename="../../gui/dlg_main.py" line="145"/>
         <source>Documentation</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="148"/>
+        <location filename="../../gui/dlg_main.py" line="152"/>
         <source>Metadata</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="159"/>
+        <location filename="../../gui/dlg_main.py" line="163"/>
         <source>Draw an extent to extract data :</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="171"/>
+        <location filename="../../gui/dlg_main.py" line="175"/>
         <source>Draw an extent</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="179"/>
+        <location filename="../../gui/dlg_main.py" line="183"/>
         <source>Use a layer to extract data :</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="215"/>
+        <location filename="../../gui/dlg_main.py" line="217"/>
         <source>Data extracted from </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="221"/>
+        <location filename="../../gui/dlg_main.py" line="223"/>
         <source>Extract all data from </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="295"/>
+        <location filename="../../gui/dlg_main.py" line="293"/>
         <source>Select outputs&apos; coordinate system :</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="310"/>
+        <location filename="../../gui/dlg_main.py" line="308"/>
         <source>Add exported data to the project</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="321"/>
+        <location filename="../../gui/dlg_main.py" line="319"/>
         <source>Add style to layers</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="365"/>
+        <location filename="../../gui/dlg_main.py" line="363"/>
         <source>Explore folders :</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="384"/>
+        <location filename="../../gui/dlg_main.py" line="382"/>
         <source>Ok</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="387"/>
+        <location filename="../../gui/dlg_main.py" line="385"/>
         <source>Cancel</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="577"/>
+        <location filename="../../gui/dlg_main.py" line="573"/>
         <source>Warning</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="577"/>
+        <location filename="../../gui/dlg_main.py" line="573"/>
         <source>Selected layer is very large (degraded performance)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="588"/>
+        <location filename="../../gui/dlg_main.py" line="584"/>
         <source>Error</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="588"/>
+        <location filename="../../gui/dlg_main.py" line="584"/>
         <source>Selected layer is outside of the WFS&apos; extent.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="671"/>
+        <location filename="../../gui/dlg_main.py" line="667"/>
         <source>Select an output folder</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="203"/>
+        <location filename="../../gui/dlg_main.py" line="205"/>
         <source>Draw the max extent of the WFS on the map</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="265"/>
+        <location filename="../../gui/dlg_main.py" line="267"/>
         <source>Keep data :</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="272"/>
+        <location filename="../../gui/dlg_main.py" line="274"/>
         <source>Intersecting the extent</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="279"/>
+        <location filename="../../gui/dlg_main.py" line="281"/>
         <source>within the extent</source>
         <translation type="unfinished"></translation>
     </message>
@@ -124,7 +124,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../gui/dlg_main.py" line="327"/>
+        <location filename="../../gui/dlg_main.py" line="325"/>
         <source>Save the results</source>
         <translation type="unfinished"></translation>
     </message>
@@ -132,39 +132,19 @@
 <context>
     <name>BdTopoExtractorPlugin</name>
     <message>
-        <location filename="../../plugin_main.py" line="124"/>
+        <location filename="../../plugin_main.py" line="119"/>
         <source>Help</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="133"/>
+        <location filename="../../plugin_main.py" line="128"/>
         <source>Settings</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="466"/>
+        <location filename="../../plugin_main.py" line="459"/>
         <source>Downloaded data : </source>
         <translation>Downloaded data : </translation>
-    </message>
-    <message>
-        <location filename="../../plugin_main.py" line="473"/>
-        <source>Informations</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../plugin_main.py" line="473"/>
-        <source>Data number : </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../plugin_main.py" line="473"/>
-        <source>Total data : </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../plugin_main.py" line="473"/>
-        <source>No data number : </source>
-        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -183,23 +163,61 @@
 <context>
     <name>InternetChecker</name>
     <message>
-        <location filename="../../plugin_main.py" line="709"/>
+        <location filename="../../plugin_main.py" line="696"/>
         <source>Error</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="695"/>
+        <location filename="../../plugin_main.py" line="682"/>
         <source>IGN Services&apos; are down.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="702"/>
+        <location filename="../../plugin_main.py" line="689"/>
         <source>You are not connected to the Internet.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../plugin_main.py" line="709"/>
+        <location filename="../../plugin_main.py" line="696"/>
         <source>Code error : {str(reply.error())}&lt;br&gt;Go to&lt;br&gt;&lt;a href={__uri_tracker__}&gt;FramaGit&lt;/a&gt;&lt;br&gt;to report the issue.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>LogMessageDialog</name>
+    <message>
+        <location filename="../../gui/dlg_log_message.py" line="39"/>
+        <source>Information</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_log_message.py" line="48"/>
+        <source>No data number : </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_log_message.py" line="48"/>
+        <source>Data number : </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_log_message.py" line="48"/>
+        <source>Total data : </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_log_message.py" line="59"/>
+        <source>Ok</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_log_message.py" line="70"/>
+        <source>MISSING :</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../gui/dlg_log_message.py" line="70"/>
+        <source>EXTRACTED :</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
