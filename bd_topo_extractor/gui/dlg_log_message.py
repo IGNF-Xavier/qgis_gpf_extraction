@@ -38,7 +38,7 @@ class LogMessageDialog(QMessageBox):
         super().__init__()
         self.setWindowTitle(self.tr("Information"))
 
-        self.setIcon(QMessageBox.Information)
+        self.setIcon(QMessageBox.Icon.Information)
 
         logs = self.create_logs(
             error_list,
@@ -56,7 +56,7 @@ class LogMessageDialog(QMessageBox):
             + str(total_data),
         )
         self.setDetailedText(logs)
-        self.addButton(self.tr("Ok"), QMessageBox.AcceptRole)
+        self.addButton(self.tr("Ok"), QMessageBox.ButtonRole.AcceptRole)
 
     def create_logs(self, error_list, good_list, total_data):
         error_logs = ""

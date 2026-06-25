@@ -23,7 +23,7 @@ qgisMaximumVersion=4.99
 supportsQt6=True
 
 # versioning
-version=2.0.2
+version=2.1.0
 changelog=
     1.0.0 sphinx documentation, add metadata variable for schema, geometry column and crs.
     1.0.1 crs correction.
@@ -37,6 +37,7 @@ changelog=
     2.0.0 add functionnality such as WFS format as a result, intersect within the selected layer, correct wfs max extent layer, improve ui with all those functionnality, qt6 compatible, documentation, code improvement and commenting
     2.0.1 minor qt6 correction, improve dialog activation for windows user
     2.0.2 add extraction logs in the final message box
+    2.1.0 correct last bug for QGIS4, save style if layer is not added to the project
 
 [wfs]
 plugin_name=BD_TOPO_Extractor

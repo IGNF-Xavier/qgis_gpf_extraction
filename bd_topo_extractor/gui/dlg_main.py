@@ -18,7 +18,11 @@ from qgis.core import (
     QgsProject,
     QgsVectorLayer,
 )
-from qgis.gui import QgisInterface, QgsMapLayerComboBox, QgsProjectionSelectionWidget
+from qgis.gui import (
+    QgisInterface,
+    QgsMapLayerComboBox,
+    QgsProjectionSelectionWidget
+)
 
 # PyQt
 from qgis.PyQt.QtCore import QSize, Qt, QThread, QUrl, pyqtSignal
@@ -109,7 +113,7 @@ class BdTopoExtractorDialog(QDialog):
 
         self.setWindowTitle(f"{__plugin_name__}")
 
-        self.layout = QVBoxLayout()
+        self.layout = QVBoxLayout(self)
         extent_check_group = QButtonGroup(self)
         extent_check_group.setExclusive(True)
         layout_row_count = 0
@@ -176,7 +180,9 @@ class BdTopoExtractorDialog(QDialog):
 
         # Select layer tool
         self.select_layer_checkbox = QCheckBox(self)
-        self.select_layer_checkbox.setText(self.tr("Use a layer to extract data :"))
+        self.select_layer_checkbox.setText(
+            self.tr("Use a layer to extract data :")
+        )
         self.select_layer_checkbox.setChecked(False)
         extent_check_group.addButton(self.select_layer_checkbox)
         self.extent_layout.addWidget(
@@ -413,7 +419,7 @@ class BdTopoExtractorDialog(QDialog):
         self.layout.addWidget(self.progress_bar)
 
         # Add layout
-        self.setLayout(self.layout)
+        # self.setLayout(self.layout)
 
         # Ui signals
         # Header signals
@@ -468,14 +474,10 @@ class BdTopoExtractorDialog(QDialog):
         self.save_result_checkbox.stateChanged.connect(
             self.gpkg_checkbox.setChecked  # noqa: E501
         )
-        self.save_result_checkbox.stateChanged.connect(self.crs_selector.setEnabled)
+        self.save_result_checkbox.stateChanged.connect(
+            self.crs_selector.setEnabled
+        )
         self.geom_button_group.buttonClicked.connect(self.is_param_valid)
-        self.add_to_project_checkbox.stateChanged.connect(
-            self.style_checkbox.setEnabled
-        )
-        self.add_to_project_checkbox.stateChanged.connect(
-            self.style_checkbox.setChecked
-        )
         self.save_result_checkbox.stateChanged.connect(
             self.line_edit_output_folder.setEnabled
         )
@@ -664,7 +666,7 @@ class BdTopoExtractorDialog(QDialog):
             self,
             self.tr("Select an output folder"),
             "",
-            QFileDialog.ShowDirsOnly,
+            QFileDialog.Option.ShowDirsOnly,
         )
         self.line_edit_output_folder.setText(my_dir)
         self.is_param_valid()
@@ -834,7 +836,8 @@ class BdTopoExtractorDialog(QDialog):
 
     def activate_window(self):
         # Put the dialog on top once the rectangle is drawn
-        self.setWindowState(Qt.WindowActive)
+        self.showNormal()
+        self.activateWindow()
         self.rectangle = True
         self.is_param_valid()
 

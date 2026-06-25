@@ -309,14 +309,6 @@ class BdTopoExtractorPlugin:
                 str(layer.name()).replace("'", "_").replace(" ", "_").upper()
             )  # noqa: E501
             if __wfs_layer_order__ == "":
-                # style name is based on layer name in uppercase with
-                # underscore instead of spaces and single quotes
-                style_name = (
-                    str(layer.name())
-                    .replace("'", "_")
-                    .replace(" ", "_")
-                    .upper()  # noqa: E501
-                )
                 style_name_ext = style_name + ".qml"
                 style_path: Path = (
                     DIR_PLUGIN_ROOT
@@ -350,17 +342,7 @@ class BdTopoExtractorPlugin:
                             )
                             theme = group.findGroup(elem)
 
-                if not theme:
-                    theme = group.findGroup("AUTRE")
-
-                    if not theme:
-                        group.insertGroup(
-                            int(layer_order_dict["ORDER"]["AUTRE"]),
-                            "AUTRE",
-                        )
-                        theme = group.findGroup("AUTRE")
-                    theme.addLayer(layer)
-                else:
+                if theme is not None:
                     theme.addLayer(layer)
                     style_name_ext = style_name + ".qml"
                     style_path: Path = (
@@ -377,6 +359,16 @@ class BdTopoExtractorPlugin:
                             + str(style_name_ext)
                             + " doesn't exists."  # noqa: E501
                         )
+                else:
+                    theme = group.findGroup("AUTRE")
+
+                    if not theme:
+                        group.insertGroup(
+                            int(layer_order_dict["ORDER"]["AUTRE"]),
+                            "AUTRE",
+                        )
+                        theme = group.findGroup("AUTRE")
+                    theme.addLayer(layer)
         else:
             group.addLayer(layer)
 
@@ -418,6 +410,8 @@ class BdTopoExtractorPlugin:
         if self.dlg.add_to_project_checkbox.isChecked():
             self.project.instance().layerTreeRoot().insertGroup(0, folder)
             group = self.project.instance().layerTreeRoot().findGroup(folder)
+        else:
+            group = None
         # Fetch if the results must be clipped or kept full
         for button in self.dlg.geom_button_group.buttons():
             if button.isChecked():
@@ -462,7 +456,9 @@ class BdTopoExtractorPlugin:
                 self.dlg.select_progress_bar_label.setText(
                     str(n) + "/" + str(max)
                 )  # noqa: E501
-        msg = LogMessageDialog(error_list=error_list, good_list=good_list, total_data=n)
+        msg = LogMessageDialog(
+            error_list=error_list, good_list=good_list, total_data=n
+        )
         msg.exec()
         # Once it's finished, the ProgressBar is set back to 0
         self.dlg.thread.finish()
@@ -567,7 +563,7 @@ class BdTopoExtractorPlugin:
             options.ct = tr
             options.layerName = str(wfs_layer.name())
             options.fileEncoding = wfs_layer.dataProvider().encoding()
-            if self.dlg.output_format() == "gpkg":  # TODO save style in gpkg
+            if self.dlg.output_format() == "gpkg":
                 # Specific procedure if the layer must be saved as a GPKG.
                 # Every data are saved in the same GeoPackage.
                 options.driverName = "GPKG"
@@ -641,6 +637,38 @@ class BdTopoExtractorPlugin:
                     self.add_style(self.final_layer, group)
                 else:
                     group.addLayer(self.final_layer)
+            else:
+                if self.dlg.style_checkbox.isChecked():
+                    # style name is based on layer name in
+                    # uppercase with underscore instead of spaces
+                    # and single quotes
+                    style_name = (
+                        str(self.final_layer.name())
+                        .replace("'", "_")
+                        .replace(" ", "_").upper()
+                    )
+                    style_name_ext = style_name + ".qml"
+                    style_path: Path = (
+                        DIR_PLUGIN_ROOT
+                        / f'{"resources/styles"}'
+                        / f"{style_name_ext}"  # noqa: E501
+                    )
+                    # if the style exists it is added to the layer.
+                    if os.path.isfile(style_path.__str__()):
+                        self.final_layer.loadNamedStyle(style_path.__str__())
+                        if self.dlg.output_format() == "gpkg":
+                            if Qgis.QGIS_VERSION_INT > 40000:
+                                self.final_layer.saveStyleToDatabaseV2(str(self.final_layer.name()), '', True, "")
+                            else:
+                                self.final_layer.saveStyleToDatabase(str(self.final_layer.name()), '', True, "")
+                        else:
+                            uri = "{}/{}.qml".format(
+                                path,
+                                str(self.final_layer.name()),
+                            )
+                            self.final_layer.saveNamedStyle(uri)
+                else:
+                    pass
 
 
 class InternetChecker(QObject):
@@ -699,3 +727,4 @@ class InternetChecker(QObject):
                 )
         else:
             self.finished.emit()
+        reply.deleteLater()
