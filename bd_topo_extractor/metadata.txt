@@ -11,9 +11,9 @@ tags=vector, france, bdtopo, ign, export, ign france, géoplateforme, geoplatefo
 # credits and contact
 author=Jules GRILLOT
 email=jules.grillot@fdn.fr
-homepage=https://julesgrillot.frama.io/plugin_bd_topo_extractor/
+homepage=https://plugin-bd-topo-extractor-220867.frama.io/
 repository=https://framagit.org/JulesGrillot/plugin_bd_topo_extractor
-tracker=https://framagit.org/JulesGrillot/plugin_bd_topo_extractor/issues
+tracker=https://framagit.org/JulesGrillot/plugin_bd_topo_extractor/-/work_items
 
 # experimental flag
 deprecated=False
