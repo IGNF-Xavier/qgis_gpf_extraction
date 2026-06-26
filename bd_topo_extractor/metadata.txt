@@ -18,7 +18,7 @@ tracker=https://framagit.org/JulesGrillot/plugin_bd_topo_extractor/-/work_items
 # experimental flag
 deprecated=False
 experimental=False
-qgisMinimumVersion=3.10
+qgisMinimumVersion=3.16
 qgisMaximumVersion=4.99
 
 # versioning
