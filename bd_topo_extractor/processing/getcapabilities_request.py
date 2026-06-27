@@ -63,6 +63,7 @@ class GetCapabilitiesRequest(QObject):
                 self.service_layers,
                 self.max_bounding_box,
             ) = self.list_layers(data)
+        self.reply.deleteLater()
         if self.pending_downloads == 0:
             self.finished_dl.emit()
 
@@ -71,7 +72,7 @@ class GetCapabilitiesRequest(QObject):
         max_bounding_box = QgsRectangle()
         layers = []
 
-        root = ET.fromstring(data)  # nosec B405
+        root = ET.fromstring(data)
         # Get list of all layers in get capabilities
         wfs = "{http://www.opengis.net/wfs/2.0}"
         feature_type_list = root.find(wfs + "FeatureTypeList")

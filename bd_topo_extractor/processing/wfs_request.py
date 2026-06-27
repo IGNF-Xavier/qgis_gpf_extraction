@@ -82,7 +82,7 @@ class WfsRequest:
             ymax=str(self.boundingbox.yMaximum()),
             xmax=str(self.boundingbox.xMaximum()),
             crs=str(__wfs_crs__),
-        )  # nosec B608
+        )
         wfs_uri.setSql(sql)
         return wfs_uri
 
