@@ -42,7 +42,7 @@ class RectangleDrawTool(QgsMapTool):
         # create a rubber line object
         # to display the geometry of the dragged object on the canvas
         self.rubber_band = QgsRubberBand(
-            self.canvas, QgsWkbTypes.PolygonGeometry
+            self.canvas, QgsWkbTypes.GeometryType.PolygonGeometry
         )  # noqa: E501
         self.rubber_band.setColor(QColor(255, 0, 0, 50))
         self.rubber_band.setWidth(2)
@@ -78,7 +78,7 @@ class RectangleDrawTool(QgsMapTool):
 
     def showRect(self, startPoint, endPoint):
         # Reset the last rectangle
-        self.rubber_band.reset(QgsWkbTypes.PolygonGeometry)
+        self.rubber_band.reset(QgsWkbTypes.GeometryType.PolygonGeometry)
         # Only a rectangle can be used
         if startPoint.x() == endPoint.x() or startPoint.y() == endPoint.y():
             return

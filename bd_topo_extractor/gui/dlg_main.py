@@ -18,11 +18,7 @@ from qgis.core import (
     QgsProject,
     QgsVectorLayer,
 )
-from qgis.gui import (
-    QgisInterface,
-    QgsMapLayerComboBox,
-    QgsProjectionSelectionWidget
-)
+from qgis.gui import QgisInterface, QgsMapLayerComboBox, QgsProjectionSelectionWidget
 
 # PyQt
 from qgis.PyQt.QtCore import QSize, Qt, QThread, QUrl, pyqtSignal
@@ -180,9 +176,7 @@ class BdTopoExtractorDialog(QDialog):
 
         # Select layer tool
         self.select_layer_checkbox = QCheckBox(self)
-        self.select_layer_checkbox.setText(
-            self.tr("Use a layer to extract data :")
-        )
+        self.select_layer_checkbox.setText(self.tr("Use a layer to extract data :"))
         self.select_layer_checkbox.setChecked(False)
         extent_check_group.addButton(self.select_layer_checkbox)
         self.extent_layout.addWidget(
@@ -191,9 +185,9 @@ class BdTopoExtractorDialog(QDialog):
 
         self.select_layer_combo_box = QgsMapLayerComboBox(self)
         self.select_layer_combo_box.setFilters(
-            QgsMapLayerProxyModel.PolygonLayer
-            | QgsMapLayerProxyModel.LineLayer
-            | QgsMapLayerProxyModel.RasterLayer
+            QgsMapLayerProxyModel.Filter.PolygonLayer
+            | QgsMapLayerProxyModel.Filter.LineLayer
+            | QgsMapLayerProxyModel.Filter.RasterLayer
         )
         self.select_layer_combo_box.layerChanged.connect(self.check_layer_size)
         self.select_layer_combo_box.setEnabled(False)
@@ -474,9 +468,7 @@ class BdTopoExtractorDialog(QDialog):
         self.save_result_checkbox.stateChanged.connect(
             self.gpkg_checkbox.setChecked  # noqa: E501
         )
-        self.save_result_checkbox.stateChanged.connect(
-            self.crs_selector.setEnabled
-        )
+        self.save_result_checkbox.stateChanged.connect(self.crs_selector.setEnabled)
         self.geom_button_group.buttonClicked.connect(self.is_param_valid)
         self.save_result_checkbox.stateChanged.connect(
             self.line_edit_output_folder.setEnabled

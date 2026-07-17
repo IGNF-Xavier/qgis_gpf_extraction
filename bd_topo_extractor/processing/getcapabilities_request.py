@@ -1,5 +1,5 @@
 # standard
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # nosec B405
 
 # PyQGIS
 from qgis.core import QgsRectangle

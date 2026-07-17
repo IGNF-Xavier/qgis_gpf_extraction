@@ -111,8 +111,8 @@ __wfs_logo__: Path = DIR_PLUGIN_ROOT.resolve() / __plugin_md__.get("wfs").get("l
 # ##################################
 if __name__ == "__main__":
     plugin_md = plugin_metadata_as_dict()
-    assert isinstance(plugin_md, dict)
-    assert (
+    assert isinstance(plugin_md, dict)  # nosec B101
+    assert (  # nosec B101
         "{}".format(
             __plugin_md__.get("wfs").get("plugin_name"),
         )

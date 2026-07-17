@@ -456,9 +456,7 @@ class BdTopoExtractorPlugin:
                 self.dlg.select_progress_bar_label.setText(
                     str(n) + "/" + str(max)
                 )  # noqa: E501
-        msg = LogMessageDialog(
-            error_list=error_list, good_list=good_list, total_data=n
-        )
+        msg = LogMessageDialog(error_list=error_list, good_list=good_list, total_data=n)
         msg.exec()
         # Once it's finished, the ProgressBar is set back to 0
         self.dlg.thread.finish()
@@ -571,7 +569,7 @@ class BdTopoExtractorPlugin:
                 # to know if it's need to be created or not
                 if os.path.isfile(path + "/" + "bd_topo_extract.gpkg"):  # noqa: E501
                     options.actionOnExistingFile = (
-                        QgsVectorFileWriter.CreateOrOverwriteLayer
+                        QgsVectorFileWriter.ActionOnExistingFile.CreateOrOverwriteLayer
                     )
 
                 if Qgis.QGIS_VERSION_INT > 32000:
@@ -645,7 +643,8 @@ class BdTopoExtractorPlugin:
                     style_name = (
                         str(self.final_layer.name())
                         .replace("'", "_")
-                        .replace(" ", "_").upper()
+                        .replace(" ", "_")
+                        .upper()
                     )
                     style_name_ext = style_name + ".qml"
                     style_path: Path = (
@@ -658,9 +657,13 @@ class BdTopoExtractorPlugin:
                         self.final_layer.loadNamedStyle(style_path.__str__())
                         if self.dlg.output_format() == "gpkg":
                             if Qgis.QGIS_VERSION_INT > 40000:
-                                self.final_layer.saveStyleToDatabaseV2(str(self.final_layer.name()), '', True, "")
+                                self.final_layer.saveStyleToDatabaseV2(
+                                    str(self.final_layer.name()), "", True, ""
+                                )
                             else:
-                                self.final_layer.saveStyleToDatabase(str(self.final_layer.name()), '', True, "")
+                                self.final_layer.saveStyleToDatabase(
+                                    str(self.final_layer.name()), "", True, ""
+                                )
                         else:
                             uri = "{}/{}.qml".format(
                                 path,
