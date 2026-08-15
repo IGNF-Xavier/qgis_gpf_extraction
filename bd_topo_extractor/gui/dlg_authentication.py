@@ -76,21 +76,11 @@ class AuthenticationDialog(QDialog):
         explanation.setWordWrap(True)
         layout.addWidget(explanation)
 
-        self.btn_log_in = QPushButton(
-            self.tr("Se connecter avec mon compte cartes.gouv.fr")
-        )
-        self.btn_log_in.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_log_in.clicked.connect(self._connect_new)
-        layout.addWidget(self.btn_log_in)
-
-        separator = QFrame(self)
-        separator.setFrameShape(QFrame.Shape.HLine)
-        layout.addWidget(separator)
-
         reuse_label = QLabel(
             self.tr(
-                "Ou réutiliser une configuration d'authentification existante "
-                "(par exemple celle du plugin Géoplateforme, si installé) :"
+                "Réutiliser une configuration d'authentification existante "
+                "(par exemple celle créée par le plugin officiel QGIS Géoplateforme, "
+                "si installé et connecté) :"
             )
         )
         reuse_label.setWordWrap(True)
@@ -103,6 +93,43 @@ class AuthenticationDialog(QDialog):
         self.btn_use_existing.clicked.connect(self._use_existing)
         reuse_layout.addWidget(self.btn_use_existing)
         layout.addLayout(reuse_layout)
+
+        separator = QFrame(self)
+        separator.setFrameShape(QFrame.Shape.HLine)
+        layout.addWidget(separator)
+
+        self.btn_log_in = QPushButton(
+            self.tr("Se connecter avec mon compte cartes.gouv.fr")
+        )
+        self.btn_log_in.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_log_in.clicked.connect(self._connect_new)
+        # Désactivé : le client OAuth2 public "gpf-swagger" (utilisé par le
+        # Swagger officiel du service) n'autorise, côté Keycloak, que sa
+        # propre page de redirection — pas de callback local (127.0.0.1).
+        # Une connexion autonome nécessite qu'un client OAuth2 dédié soit
+        # enregistré auprès de la Géoplateforme (comme pour le plugin
+        # officiel QGIS Géoplateforme, dont le client_id/secret sont
+        # injectés à la publication). En attendant, utilisez la
+        # réutilisation d'une configuration existante ci-dessus.
+        self.btn_log_in.setEnabled(False)
+        self.btn_log_in.setToolTip(
+            self.tr(
+                "Indisponible pour le moment : nécessite un client OAuth2 dédié "
+                "enregistré auprès de la Géoplateforme (comme pour le plugin "
+                "officiel QGIS Géoplateforme). Utilisez la réutilisation d'une "
+                "configuration existante ci-dessus."
+            )
+        )
+        layout.addWidget(self.btn_log_in)
+        note_log_in = QLabel(
+            self.tr(
+                "⚠ Connexion autonome indisponible pour l'instant (nécessite un "
+                "client OAuth2 dédié enregistré auprès de la Géoplateforme)."
+            )
+        )
+        note_log_in.setWordWrap(True)
+        note_log_in.setStyleSheet("color: #8a6d3b;")
+        layout.addWidget(note_log_in)
 
         layout.addStretch(1)
 
