@@ -79,7 +79,7 @@ __summary__: str = "{}\n{}".format(
 )
 
 __plugin_name__: str = "{}".format(__plugin_md__.get("general").get("name"))
-__title__: str = "{}".format(__plugin_md__.get("wfs").get("plugin_name"))
+__title__: str = "BD_TOPO_Extractor"
 __title_clean__: str = "".join(e for e in __title__ if e.isalnum())
 
 __uri_homepage__: str = __plugin_md__.get("general").get("homepage")
@@ -95,29 +95,12 @@ __version_info__: tuple = tuple(
     ]
 )
 
-__wfs_name__: str = __plugin_md__.get("wfs").get("name")
-__wfs_uri__: str = __plugin_md__.get("wfs").get("uri")
-__wfs_schema__: str = __plugin_md__.get("wfs").get("schema")
-__wfs_crs__: str = __plugin_md__.get("wfs").get("crs")
-__wfs_geometry__: str = __plugin_md__.get("wfs").get("geometry")
-__wfs_style__: str = __plugin_md__.get("wfs").get("style")
-__wfs_layer_order__: str = __plugin_md__.get("wfs").get("layer_order")
-__wfs_metadata__: str = __plugin_md__.get("wfs").get("metadata")
-__wfs_credit__: str = __plugin_md__.get("wfs").get("producer")
-__wfs_logo__: Path = DIR_PLUGIN_ROOT.resolve() / __plugin_md__.get("wfs").get("logo")
-
 # #############################################################################
 # ##### Main #######################
 # ##################################
 if __name__ == "__main__":
     plugin_md = plugin_metadata_as_dict()
     assert isinstance(plugin_md, dict)  # nosec B101
-    assert (  # nosec B101
-        "{}".format(
-            __plugin_md__.get("wfs").get("plugin_name"),
-        )
-        == __title__
-    )
     print(f"Plugin: {__title__}")
     print(f"By: {__author__}")
     print(f"Version: {__version__}")

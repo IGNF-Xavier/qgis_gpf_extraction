@@ -9,22 +9,30 @@ from qgis.core import (
     QgsWkbTypes,
 )
 from qgis.gui import QgsMapCanvas, QgsMapMouseEvent, QgsMapTool, QgsRubberBand
-from qgis.PyQt.QtCore import Qt, pyqtSignal
+from qgis.PyQt.QtCore import QCoreApplication, Qt, pyqtSignal
 from qgis.PyQt.QtGui import QColor
 from qgis.PyQt.QtWidgets import QMessageBox
 
 # project
-from bd_topo_extractor.__about__ import __wfs_crs__
+from bd_topo_extractor.core.constants import DEFAULT_WORKING_CRS
 
 
 class RectangleDrawTool(QgsMapTool):
+    """Outil de dessin d'une emprise rectangulaire (BBox) sur le canevas.
+
+    Contrairement à la version historique du plugin (liée au WFS anonyme de
+    l'IGN), cet outil ne dépend plus d'une emprise maximale issue d'un
+    `GetCapabilities` : seule une taille excessive de la BBox déclenche un
+    avertissement (dégradation possible des performances côté service).
+    """
+
     signal = pyqtSignal()
 
     def __init__(
         self,
         project: QgsProject = None,
         canvas: QgsMapCanvas = None,
-        max_extent: QgsRectangle = None,
+        target_crs: str = DEFAULT_WORKING_CRS,
     ):
         super().__init__(canvas)
 
@@ -32,7 +40,7 @@ class RectangleDrawTool(QgsMapTool):
 
         self.project = project
         self.canvas = canvas
-        self.max_extent = max_extent
+        self.target_crs = target_crs
         self.start_point = None
         self.end_point = None
         self.new_extent = None
@@ -46,6 +54,9 @@ class RectangleDrawTool(QgsMapTool):
         )  # noqa: E501
         self.rubber_band.setColor(QColor(255, 0, 0, 50))
         self.rubber_band.setWidth(2)
+
+    def tr(self, message: str) -> str:
+        return QCoreApplication.translate(self.__class__.__name__, message)
 
     # Mouse button pressed.
     def canvasPressEvent(self, event: QgsMapMouseEvent):
@@ -105,14 +116,12 @@ class RectangleDrawTool(QgsMapTool):
         ):
             return None
         else:
-            # Rectangle reprojection
-            if str(self.project.instance().crs().postgisSrid()) != str(
-                __wfs_crs__
-            ):  # noqa: E501
+            # Rectangle reprojection to the target CRS
+            if str(self.project.instance().crs().authid()) != str(self.target_crs):
                 start_point = self.transform_geom(
                     QgsGeometry().fromPointXY(self.start_point),
                     self.project.instance().crs(),
-                    QgsCoordinateReferenceSystem("EPSG:" + str(__wfs_crs__)),
+                    QgsCoordinateReferenceSystem(self.target_crs),
                 )
                 self.start_point = QgsPointXY(
                     start_point.asPoint().x(), start_point.asPoint().y()
@@ -120,51 +129,31 @@ class RectangleDrawTool(QgsMapTool):
                 end_point = self.transform_geom(
                     QgsGeometry().fromPointXY(self.end_point),
                     self.project.instance().crs(),
-                    QgsCoordinateReferenceSystem("EPSG:" + str(__wfs_crs__)),
+                    QgsCoordinateReferenceSystem(self.target_crs),
                 )
                 self.end_point = QgsPointXY(
                     end_point.asPoint().x(), end_point.asPoint().y()
                 )
 
-            # Rectangle must be in the max extent of the WFS layer
-            if self.max_extent.intersects(
-                QgsRectangle(self.start_point, self.end_point)
-            ):
-                # If the drawn rectangle is too big, an error message appear
-                area = QgsDistanceArea()
-                ellipsoid = QgsCoordinateReferenceSystem(
-                    "EPSG:" + str(__wfs_crs__)
-                ).ellipsoidAcronym()
-                area.setEllipsoid(ellipsoid)
-                if (
-                    area.measureArea(
-                        QgsGeometry().fromRect(
-                            QgsRectangle(self.start_point, self.end_point)
-                        )
-                    )
-                    > 100000000
-                ):
-                    msg = QMessageBox()
-                    msg.warning(
-                        None,
-                        self.tr("Warning"),
-                        self.tr(
-                            "Drawned rectangle is very large (degraded performances)"  # noqa: E501
-                        ),
-                    )
+            rectangle = QgsRectangle(self.start_point, self.end_point)
 
-                return QgsRectangle(self.start_point, self.end_point)
-            else:
-                # If the drawn rectangle is outside of the max extent,
-                # an error message appear
+            # If the drawn rectangle is too big, an error message appear
+            area = QgsDistanceArea()
+            ellipsoid = QgsCoordinateReferenceSystem(
+                self.target_crs
+            ).ellipsoidAcronym()
+            area.setEllipsoid(ellipsoid)
+            if area.measureArea(QgsGeometry().fromRect(rectangle)) > 100000000:
                 msg = QMessageBox()
-                msg.critical(
+                msg.warning(
                     None,
-                    self.tr("Error"),
+                    self.tr("Warning"),
                     self.tr(
-                        "Drawned rectangle is outside of the WFS' extent."
+                        "Drawned rectangle is very large (degraded performances)"
                     ),  # noqa: E501
                 )
+
+            return rectangle
 
     def transform_geom(self, geom, input_crs, output_crs):
         # Function used to reproject a geometry

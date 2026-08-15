@@ -6,6 +6,7 @@
 
 # standard
 from dataclasses import asdict, dataclass, fields
+from typing import Optional
 
 # PyQGIS
 from qgis.core import QgsSettings
@@ -13,6 +14,10 @@ from qgis.core import QgsSettings
 # package
 import bd_topo_extractor.toolbelt.log_handler as log_hdlr
 from bd_topo_extractor.__about__ import __title__, __version__
+from bd_topo_extractor.core.constants import (
+    DEFAULT_API_BASE,
+    DEFAULT_STATUS_CHECK_SLEEP,
+)
 
 # ############################################################################
 # ########## Classes ###############
@@ -27,8 +32,38 @@ class PlgSettingsStructure:
     debug_mode: bool = False
     version: str = __version__
 
+    # network and authentication
+    api_base: str = DEFAULT_API_BASE
+    qgis_auth_id: Optional[str] = None
+
+    # extraction jobs
+    status_check_sleep: int = DEFAULT_STATUS_CHECK_SLEEP
+    last_output_dir: str = ""
+
 
 class PlgOptionsManager:
+    @staticmethod
+    def disconnect(delete_config: bool = False) -> None:
+        """Déconnecte l'utilisateur en oubliant la configuration d'authentification
+        utilisée.
+
+        :param delete_config: si True, supprime aussi la configuration
+            d'authentification de QGIS. À ne faire que si elle a été créée
+            par ce plugin (une configuration réutilisée, par ex. celle du
+            plugin officiel Géoplateforme, ne doit jamais être supprimée
+            depuis ici), defaults to False.
+        :type delete_config: bool, optional
+        """
+        from qgis.core import QgsApplication
+
+        plg_settings = PlgOptionsManager.get_plg_settings()
+        if delete_config and plg_settings.qgis_auth_id:
+            QgsApplication.authManager().removeAuthenticationConfig(
+                plg_settings.qgis_auth_id
+            )
+        plg_settings.qgis_auth_id = None
+        PlgOptionsManager.save_from_object(plg_settings)
+
     @staticmethod
     def get_plg_settings() -> PlgSettingsStructure:
         """Load and return plugin settings as a dictionary. \
@@ -47,9 +82,16 @@ class PlgOptionsManager:
         # map settings values to preferences object
         li_settings_values = []
         for i in settings_fields:
-            li_settings_values.append(
-                settings.value(key=i.name, defaultValue=i.default, type=i.type)
-            )
+            try:
+                li_settings_values.append(
+                    settings.value(key=i.name, defaultValue=i.default, type=i.type)
+                )
+            except TypeError:
+                # occurs for typing constructs QgsSettings can't coerce to
+                # (e.g. Optional[str]) : fall back to an untyped read.
+                li_settings_values.append(
+                    settings.value(key=i.name, defaultValue=i.default)
+                )
 
         # instanciate new settings object
         options = PlgSettingsStructure(*li_settings_values)

@@ -1,70 +1,56 @@
 #! python3  # noqa: E265
 
 """
-    Main plugin dialog to launch process.
+    Main plugin dialog: authentification, choix de l'emprise (BBox ou
+    administrative), choix du produit (processus d'extraction) et de ses
+    paramètres, puis lancement du job d'extraction.
 """
+
+from __future__ import annotations
+
 # standard
 import os
-from pathlib import Path
+from functools import partial
 
 # PyQGIS
-from qgis.core import (
-    QgsCoordinateReferenceSystem,
-    QgsCoordinateTransform,
-    QgsDistanceArea,
-    QgsFeature,
-    QgsGeometry,
-    QgsMapLayerProxyModel,
-    QgsProject,
-    QgsVectorLayer,
-)
-from qgis.gui import QgisInterface, QgsMapLayerComboBox, QgsProjectionSelectionWidget
-
-# PyQt
-from qgis.PyQt.QtCore import QSize, Qt, QThread, QUrl, pyqtSignal
-from qgis.PyQt.QtGui import QDesktopServices, QIcon, QMovie, QPixmap
-from qgis.PyQt.QtNetwork import QNetworkAccessManager
+from qgis.core import Qgis, QgsProject, QgsRectangle
+from qgis.gui import QgisInterface
+from qgis.PyQt.QtCore import QCoreApplication, Qt, QTimer, QUrl
+from qgis.PyQt.QtGui import QDesktopServices
 from qgis.PyQt.QtWidgets import (
     QButtonGroup,
     QCheckBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
-    QGridLayout,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QMessageBox,
-    QProgressBar,
     QPushButton,
-    QScrollArea,
-    QToolButton,
     QVBoxLayout,
-    QWidget,
 )
 
 # project
-from bd_topo_extractor.__about__ import (
-    DIR_PLUGIN_ROOT,
-    __loading_gif__,
-    __plugin_name__,
-    __uri_homepage__,
-    __wfs_credit__,
-    __wfs_crs__,
-    __wfs_logo__,
-    __wfs_metadata__,
-    __wfs_name__,
-    __wfs_schema__,
-    __wfs_style__,
-)
-from bd_topo_extractor.processing import (  # noqa: E501
-    GetCapabilitiesRequest,
-    RectangleDrawTool,
-)
+from bd_topo_extractor.__about__ import __plugin_name__, __uri_homepage__
+from bd_topo_extractor.core.admin_boundary import AdminBoundaryClient
+from bd_topo_extractor.core.constants import DEFAULT_WORKING_CRS
+from bd_topo_extractor.core.exceptions import AdminBoundaryNotFoundError, ApiRequestError
+from bd_topo_extractor.core.extraction_api_client import ExtractionApiClient
+from bd_topo_extractor.gui.dlg_authentication import AuthenticationDialog
+from bd_topo_extractor.gui.dlg_job_monitor import JobMonitorDialog
+from bd_topo_extractor.gui.wdg_process_params import ProcessParamsWidget
+from bd_topo_extractor.processing.rectangle_tool import RectangleDrawTool
+from bd_topo_extractor.toolbelt import PlgLogger, PlgOptionsManager
 
 # ############################################################################
 # ########## Classes ###############
 # ##################################
+
+_BDTOPO_HINTS = ("bdtopo", "bd topo", "bd_topo")
 
 
 class BdTopoExtractorDialog(QDialog):
@@ -72,790 +58,413 @@ class BdTopoExtractorDialog(QDialog):
         self,
         project: QgsProject = None,
         iface: QgisInterface = None,
-        url: str = None,
-        manager: QNetworkAccessManager = None,
         locale: str = None,
+        parent=None,
     ):
-        """Main Dialog of the plugin, composed of 5 part :
-        - header (documentation, credits and metadata)
-        - extent selection (drawning tool, layer selection)
-        - data selection (find and select wich data you want to extract)
-        - export selection (style selection, layer format and output folder)
-        - footer (valid or cancel process and loading element)
-        :param
-        project: The current QGIS project instance
-        iface: An interface instance that will be passed to this class which \
-        provides the hook by which you can manipulate the QGIS application \
-        at run time.
-        url: The wfs url
-        manager: a QNetworkAccessManager to realize the network request
-        locale: language settings of QGIS to know wich documentation open
-        """
-        super().__init__()
+        super().__init__(parent)
         self.setObjectName(f"{__plugin_name__}")
+        self.setWindowTitle(f"{__plugin_name__}")
+        self.setMinimumSize(560, 640)
 
         self.iface = iface
         self.project = project
-        self.url = url
-        self.manager = manager
         self.locale = locale
+        self.canvas = self.iface.mapCanvas() if self.iface else None
 
-        self.canvas = self.iface.mapCanvas()
-        self.layer = None
-        self.rectangle = None
-        self.checked = 0
-        self.schema = __wfs_schema__
-        self.crs_history = self.project.crs()
+        self.log = PlgLogger().log
+        self.plg_settings_mngr = PlgOptionsManager()
 
-        self.setWindowTitle(f"{__plugin_name__}")
-
-        self.layout = QVBoxLayout(self)
-        extent_check_group = QButtonGroup(self)
-        extent_check_group.setExclusive(True)
-        layout_row_count = 0
-
-        # Source and credit
-        self.header_layout = QGridLayout()
-        credit_label = QLabel(self)
-        credit_label.setText(self.tr("Data provided by :"))
-        self.layout.addWidget(credit_label)
-
-        pixmap = QPixmap(str(__wfs_logo__))
-        self.producer_label = QToolButton(self)
-        self.producer_label.setObjectName(__wfs_credit__)
-        icon = QIcon()
-        icon.addPixmap(pixmap)
-        self.producer_label.setIcon(icon)
-        self.producer_label.setIconSize(QSize(60, 60))
-        self.header_layout.addWidget(self.producer_label, 0, 0, 3, 3)
-
-        widget = QWidget()
-        self.doc_layout = QVBoxLayout()
-        self.documentation_button = QPushButton(self)
-        if self.locale == "fr":
-            doc_page = f"usage/{self.locale}_how_to_use.html"
-        else:
-            doc_page = "usage/{lang}_how_to_use.html".format(lang="en")
-        doc_url = __uri_homepage__ + doc_page
-        self.documentation_button.setObjectName(doc_url)
-        self.documentation_button.setText(self.tr("Documentation"))
-        self.doc_layout.addWidget(self.documentation_button)
-
-        self.doc_layout.addStretch()
-
-        self.metadata_button = QPushButton(self)
-        self.metadata_button.setObjectName(__wfs_metadata__)
-        self.metadata_button.setText(self.tr("Metadata"))
-        self.doc_layout.addWidget(self.metadata_button)
-        widget.setLayout(self.doc_layout)
-        self.header_layout.addWidget(widget, 0, 2, 1, -1)
-
-        self.layout.addLayout(self.header_layout)
-
-        # Draw rectangle tool
-        self.extent_layout = QGridLayout()
-        layout_row_count = 0
-        self.draw_rectangle_checkbox = QCheckBox(self)
-        self.draw_rectangle_checkbox.setText(
-            self.tr("Draw an extent to extract data :")
+        self.client: ExtractionApiClient | None = None
+        self.rectangle_tool = (
+            RectangleDrawTool(self.project, self.canvas, DEFAULT_WORKING_CRS)
+            if self.canvas
+            else None
         )
-        self.draw_rectangle_checkbox.setChecked(True)
-        extent_check_group.addButton(self.draw_rectangle_checkbox)
-        self.extent_layout.addWidget(
-            self.draw_rectangle_checkbox, layout_row_count, 0, 1, 2
-        )
-
-        self.draw_rectangle_button = QPushButton(self)
-        self.draw_rectangle_button.setEnabled(False)
-        self.draw_rectangle_button.clicked.connect(self.rectangle_drawner)
-        self.draw_rectangle_button.setText(self.tr("Draw an extent"))
-        self.extent_layout.addWidget(
-            self.draw_rectangle_button, layout_row_count, 2, 1, 3
-        )
-        layout_row_count = layout_row_count + 1
-
-        # Select layer tool
-        self.select_layer_checkbox = QCheckBox(self)
-        self.select_layer_checkbox.setText(self.tr("Use a layer to extract data :"))
-        self.select_layer_checkbox.setChecked(False)
-        extent_check_group.addButton(self.select_layer_checkbox)
-        self.extent_layout.addWidget(
-            self.select_layer_checkbox, layout_row_count, 0, 2, 2
-        )
-
-        self.select_layer_combo_box = QgsMapLayerComboBox(self)
-        self.select_layer_combo_box.setFilters(
-            QgsMapLayerProxyModel.Filter.PolygonLayer
-            | QgsMapLayerProxyModel.Filter.LineLayer
-            | QgsMapLayerProxyModel.Filter.RasterLayer
-        )
-        self.select_layer_combo_box.layerChanged.connect(self.check_layer_size)
-        self.select_layer_combo_box.setEnabled(False)
-        self.extent_layout.addWidget(
-            self.select_layer_combo_box, layout_row_count, 2, 1, 3
-        )
-        layout_row_count = layout_row_count + 2
-
-        # Show WFS max data extent
-        self.show_wfs_extent_checkbox = QCheckBox()
-        self.show_wfs_extent_checkbox.setText(
-            self.tr("Draw the max extent of the WFS on the map")
-        )  # noqa: E501
-        self.show_wfs_extent_checkbox.setChecked(False)
-        self.extent_layout.addWidget(
-            self.show_wfs_extent_checkbox, layout_row_count, 0, 1, 2
-        )
-        self.layout.addLayout(self.extent_layout)
-        self.layout.insertSpacing(50, 15)
-
-        # Select data to extract from WFS
-        select_data_to_extract_label = QLabel(self)
-        select_data_to_extract_label.setText(
-            self.tr("Data extracted from ") + str(__wfs_name__)
-        )
-        self.layout.addWidget(select_data_to_extract_label)
-
-        self.select_all_checkbox = QCheckBox(self)
-        self.select_all_checkbox.setText(
-            self.tr("Extract all data from ") + str(__wfs_name__)
-        )
-        self.layout.addWidget(self.select_all_checkbox)
-
-        # Text edition to filter WFS data
-        self.text_data_filter = QLineEdit(self)
-        self.text_data_filter.setEnabled(False)
-        self.text_data_filter.textChanged.connect(
-            lambda: self.filter_by_text(self.text_data_filter.text())
-        )
-        self.layout.addWidget(self.text_data_filter)
-
-        # Special layout with all data checkboxes
-        self.scroll_area = QScrollArea(self)
-        self.scroll_area.setVerticalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAsNeeded
-        )  # noqa: E501
-        self.scroll_area.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAsNeeded
-        )  # noqa: E501
-        self.scroll_area.setMinimumHeight(180)
-        self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setMinimumWidth(460)
-
-        self.scroll_area_content = QWidget()
-        self.layer_check_group = QButtonGroup(self)
-        self.layer_check_group.setExclusive(False)
-        self.scroll_area.setWidget(self.scroll_area_content)
-        self.checkbox_layout = QGridLayout(self.scroll_area_content)
-        self.layout.addWidget(self.scroll_area)
-        self.layout.insertSpacing(50, 15)
-
-        self.getcapabilities = GetCapabilitiesRequest(
-            self.url, self.schema, self.manager
-        )
-        self.getcapabilities.finished_dl.connect(
-            lambda: self.add_layers(self.getcapabilities.service_layers)
-        )
-        self.getcapabilities.finished_dl.connect(self.set_rectangle_tool)
-
-        # Geom predicat
-        self.geom_layout = QGridLayout()
-        geom_label = QLabel(self)
-        geom_label.setText(self.tr("Keep data :"))
-        self.geom_layout.addWidget(geom_label, 0, 0)
-        self.geom_button_group = QButtonGroup(self)
-        self.geom_button_group.setExclusive(True)
-        self.intersect_checkbox = QCheckBox(self)
-        self.intersect_checkbox.setAccessibleName("intersect")
-        self.intersect_checkbox.setChecked(True)
-        self.intersect_checkbox.setText(
-            self.tr("Intersecting the extent")  # noqa: E501
-        )
-        self.geom_layout.addWidget(self.intersect_checkbox, 1, 0)
-        self.geom_button_group.addButton(self.intersect_checkbox)
-        self.within_checkbox = QCheckBox(self)
-        self.within_checkbox.setAccessibleName("within")
-        self.within_checkbox.setText(self.tr("within the extent"))  # noqa: E501
-        self.geom_layout.addWidget(self.within_checkbox, 1, 1)
-        self.geom_button_group.addButton(self.within_checkbox)
-        self.within_layer_checkbox = QCheckBox(self)
-        self.within_layer_checkbox.setEnabled(False)
-        self.within_layer_checkbox.setAccessibleName("within_layer")
-        self.within_layer_checkbox.setText(self.tr("within the layer"))  # noqa: E501
-        self.geom_layout.addWidget(self.within_layer_checkbox, 1, 2)
-        self.geom_button_group.addButton(self.within_layer_checkbox)
-
-        # Crs Selection
-        select_crs_label = QLabel(self)
-        select_crs_label.setText(
-            self.tr("Select outputs' coordinate system :")  # noqa: E501
-        )
-        self.geom_layout.addWidget(select_crs_label, 2, 0)
-        self.crs_selector = QgsProjectionSelectionWidget(self)
-        self.crs_selector.setEnabled(False)
-        self.crs_selector.setCrs(
-            QgsCoordinateReferenceSystem("EPSG:" + str(__wfs_crs__))
-        )
-        self.geom_layout.addWidget(self.crs_selector, 2, 1, 1, 2)
-        self.layout.addLayout(self.geom_layout)
-
-        # Add result to project
-        self.result_layout = QGridLayout()
-        self.add_to_project_checkbox = QCheckBox(self)
-        self.add_to_project_checkbox.setText(
-            self.tr("Add exported data to the project")
-        )
-        self.add_to_project_checkbox.setChecked(True)
-        self.add_to_project_checkbox.setEnabled(False)
-        self.result_layout.addWidget(self.add_to_project_checkbox, 0, 0)
-
-        # Output layers style
-        if __wfs_style__:
-            self.style_checkbox = QCheckBox(self)
-            self.style_checkbox.setAccessibleName("style")
-            self.style_checkbox.setText(self.tr("Add style to layers"))
-            self.style_checkbox.setChecked(True)
-            self.result_layout.addWidget(self.style_checkbox, 0, 1)
-
-        # Output folder selection
-        self.save_result_checkbox = QCheckBox(self)
-        self.save_result_checkbox.setText(self.tr("Save the results"))
-        self.result_layout.addWidget(self.save_result_checkbox, 1, 0)
-
-        # Output format
-        self.format_layout = QHBoxLayout()
-        self.output_format_button_group = QButtonGroup(self)
-        self.output_format_button_group.setExclusive(True)
-        self.wfs_checkbox = QCheckBox(self)
-        self.wfs_checkbox.setAccessibleName("wfs")
-        self.wfs_checkbox.setChecked(True)
-        self.wfs_checkbox.setEnabled(False)
-        self.wfs_checkbox.setText("WFS")
-        self.format_layout.addWidget(self.wfs_checkbox)
-        self.output_format_button_group.addButton(self.wfs_checkbox, 0)
-        self.gpkg_checkbox = QCheckBox(self)
-        self.gpkg_checkbox.setAccessibleName("gpkg")
-        self.gpkg_checkbox.setChecked(False)
-        self.gpkg_checkbox.setEnabled(False)
-        self.gpkg_checkbox.setText("GeoPackage")
-        self.format_layout.addWidget(self.gpkg_checkbox)
-        self.output_format_button_group.addButton(self.gpkg_checkbox, 1)
-        self.shp_checkbox = QCheckBox(self)
-        self.shp_checkbox.setAccessibleName("shp")
-        self.shp_checkbox.setEnabled(False)
-        self.shp_checkbox.setText("Shapefile")
-        self.format_layout.addWidget(self.shp_checkbox)
-        self.output_format_button_group.addButton(self.shp_checkbox, 2)
-        self.geojson_checkbox = QCheckBox(self)
-        self.geojson_checkbox.setAccessibleName("geojson")
-        self.geojson_checkbox.setEnabled(False)
-        self.geojson_checkbox.setText("GeoJSON")
-        self.format_layout.addWidget(self.geojson_checkbox)
-        self.output_format_button_group.addButton(self.geojson_checkbox, 3)
-        self.result_layout.addLayout(self.format_layout, 2, 0, 1, 2)
-
-        # Output path selection
-        self.output_layout = QGridLayout()
-        label_output = QLabel(self)
-        label_output.setText(self.tr("Explore folders :"))
-        self.output_layout.addWidget(label_output, 0, 0)
-        self.line_edit_output_folder = QLineEdit(self)
-        self.line_edit_output_folder.setEnabled(False)
-        self.output_layout.addWidget(self.line_edit_output_folder, 0, 1)
-        button_output_folder = QPushButton(self)
-        button_output_folder.setEnabled(False)
-        button_output_folder.setText("...")
-        button_output_folder.clicked.connect(self.select_output_folder)
-        button_output_folder.setMaximumWidth(30)
-        self.output_layout.addWidget(button_output_folder, 0, 2)
-        self.result_layout.addLayout(self.output_layout, 3, 0, 1, 2)
-        self.layout.addLayout(self.result_layout)
-        self.layout.insertSpacing(25, 10)
-
-        # Accept and reject button box
-        self.footer_layout = QGridLayout()
-        self.button_box = QDialogButtonBox(self)
-        self.button_box.setEnabled(False)
-        self.button_box.addButton(
-            self.tr("Ok"), QDialogButtonBox.ButtonRole.AcceptRole  # noqa: E501
-        )
-        self.button_box.addButton(
-            self.tr("Cancel"), QDialogButtonBox.ButtonRole.RejectRole  # noqa: E501
-        )
-        self.button_box.accepted.connect(self.accept)
-        self.button_box.rejected.connect(self.reject)
-        self.accepted.connect(self.get_result)
-        self.rejected.connect(self.disconnect)
-        self.footer_layout.addWidget(self.button_box, 0, 2)
-
-        # Loading gif
-        self.loading_gif_label = QLabel(self)
-        self.footer_layout.addWidget(self.loading_gif_label, 0, 0, 2, 2)
-        self.layout.addLayout(self.footer_layout)
-
-        # Progress Bar
-        progress_bar_labels_layout = QHBoxLayout()
-
-        self.dl_progress_bar_label = QLabel(self)
-        self.dl_progress_bar_label.setText("")
-        progress_bar_labels_layout.addWidget(self.dl_progress_bar_label)
-
-        self.select_progress_bar_label = QLabel(self)
-        self.select_progress_bar_label.setText("")
-        progress_bar_labels_layout.addWidget(self.select_progress_bar_label)
-        progress_bar_labels_layout.addStretch(1)
-
-        self.layout.addLayout(progress_bar_labels_layout)
-
-        self.progress_bar = QProgressBar(self)
-        self.progress_bar.setValue(0)
-        self.thread = Thread()
-        self.thread._signal.connect(self.signal_accept)
-        self.layout.addWidget(self.progress_bar)
-
-        # Add layout
-        # self.setLayout(self.layout)
-
-        # Ui signals
-        # Header signals
-        self.producer_label.clicked.connect(self.open_url)
-        self.metadata_button.clicked.connect(self.open_url)
-        self.documentation_button.clicked.connect(self.open_url)
-
-        # Extent selection signals
-        self.draw_rectangle_checkbox.stateChanged.connect(
-            self.draw_rectangle_button.setEnabled
-        )
-        self.draw_rectangle_checkbox.stateChanged.connect(
-            self.select_layer_combo_box.setDisabled
-        )
-        self.draw_rectangle_checkbox.stateChanged.connect(
-            self.is_param_valid  # noqa: E501
-        )
-        self.draw_rectangle_checkbox.stateChanged.connect(
-            self.does_extent_exists  # noqa: E501
-        )
-        self.select_layer_checkbox.stateChanged.connect(
-            self.select_layer_combo_box.setEnabled
-        )
-        self.select_layer_checkbox.stateChanged.connect(
-            self.draw_rectangle_button.setDisabled
-        )
-        self.select_layer_checkbox.stateChanged.connect(
-            self.within_layer_checkbox.setEnabled
-        )
-
-        self.select_layer_checkbox.stateChanged.connect(
-            self.is_param_valid  # noqa: E501
-        )
-        self.select_layer_checkbox.stateChanged.connect(self.erase_rubber_band)
-        self.select_layer_checkbox.stateChanged.connect(
-            self.does_extent_exists  # noqa: E501
-        )
-        self.select_layer_checkbox.stateChanged.connect(self.check_layer_size)
-        self.show_wfs_extent_checkbox.stateChanged.connect(
-            self.show_max_extent
-        )  # noqa: E501
-
-        # Data selection signals
-        self.select_all_checkbox.stateChanged.connect(self.select_all)
-        self.select_all_checkbox.stateChanged.connect(self.is_param_valid)
-
-        self.crs_selector.crsChanged.connect(self.historize_crs)
-        # Saving results signals
-        self.save_result_checkbox.stateChanged.connect(
-            button_output_folder.setEnabled  # noqa: E501
-        )
-        self.save_result_checkbox.stateChanged.connect(
-            self.gpkg_checkbox.setChecked  # noqa: E501
-        )
-        self.save_result_checkbox.stateChanged.connect(self.crs_selector.setEnabled)
-        self.geom_button_group.buttonClicked.connect(self.is_param_valid)
-        self.save_result_checkbox.stateChanged.connect(
-            self.line_edit_output_folder.setEnabled
-        )
-        self.save_result_checkbox.stateChanged.connect(self.is_param_valid)
-        self.save_result_checkbox.stateChanged.connect(
-            self.add_to_project_checkbox.setEnabled
-        )
-        self.save_result_checkbox.stateChanged.connect(
-            self.gpkg_checkbox.setEnabled  # noqa: E501
-        )
-        self.save_result_checkbox.stateChanged.connect(
-            self.shp_checkbox.setEnabled  # noqa: E501
-        )
-        self.save_result_checkbox.stateChanged.connect(
-            self.geojson_checkbox.setEnabled  # noqa: E501
-        )
-
-        # Check the selected path exists
-        self.line_edit_output_folder.textEdited.connect(self.is_param_valid)
-
-    def historize_crs(self):
-        if not self.wfs_checkbox.isChecked():
-            self.crs_history = self.crs_selector.crs()
-
-    def open_url(self):
-        # Function to open the url of the buttons
-        url = QUrl(self.sender().objectName())
-        QDesktopServices.openUrl(url)
-
-    def show_max_extent(self, value):
-        # Show a rectangle for the max extent of the wfs' data
-        if value == 0:
-            if len(self.project.instance().mapLayersByName("Max extent")) != 0:
-                self.project.instance().removeMapLayer(self.max_extent_layer)
-                self.canvas.refresh()
-        else:
-            self.max_extent_layer = QgsVectorLayer(
-                "Polygon?crs=epsg:" + str(__wfs_crs__), "Max extent", "memory"
-            )
-            self.max_extent_layer.startEditing()
-            new_geom = QgsGeometry().fromRect(
-                self.getcapabilities.max_bounding_box  # noqa: E501
-            )
-            new_feature = QgsFeature(self.max_extent_layer.fields())
-            new_feature.setGeometry(new_geom)
-            self.max_extent_layer.dataProvider().addFeatures([new_feature])
-            self.max_extent_layer.updateExtents()
-            self.max_extent_layer.commitChanges()
-            self.max_extent_layer.triggerRepaint()
-            style_path: Path = (
-                DIR_PLUGIN_ROOT / f'{"resources/styles/max_extent_style.qml"}'
-            )
-            self.max_extent_layer.loadNamedStyle(style_path.__str__())
-            self.project.instance().addMapLayer(self.max_extent_layer, False)
-            self.project.instance().layerTreeRoot().insertLayer(
-                0, self.max_extent_layer
-            )  # noqa: E501
-            self.canvas.refresh()
-
-    def set_rectangle_tool(self):
-        # Once the get capabilities request is done, the rectangle tool is set
-        self.rectangle_tool = RectangleDrawTool(
-            self.project, self.canvas, self.getcapabilities.max_bounding_box
-        )
-        self.rectangle_tool.signal.connect(self.activate_window)
-        self.draw_rectangle_button.setEnabled(True)
-
-    def check_layer_size(self):
-        if self.select_layer_checkbox.isChecked():
-            # Check layer size and add a warning message if extent is too large
-            layer = self.select_layer_combo_box.currentLayer()
-            # Reproject the layer
-            transformed_extent = self.transform_crs(
-                layer.extent(),
-                layer.crs(),
-                QgsCoordinateReferenceSystem("EPSG:" + str(__wfs_crs__)),
-            )
-            if self.getcapabilities.max_bounding_box.intersects(
-                transformed_extent
-            ):  # noqa: E501
-                area = QgsDistanceArea()
-                ellipsoid = QgsCoordinateReferenceSystem(
-                    "EPSG:" + str(__wfs_crs__)
-                ).ellipsoidAcronym()
-                area.setEllipsoid(ellipsoid)
-                if (
-                    area.measureArea(QgsGeometry.fromRect(transformed_extent))
-                    > 100000000
-                ):
-                    msg = QMessageBox()
-                    msg.warning(
-                        None,
-                        self.tr("Warning"),
-                        self.tr(
-                            "Selected layer is very large (degraded performance)"  # noqa: E501
-                        ),
-                    )
-            else:
-                # If the layer is outside of the max extent,
-                # an eror message appear
-                msg = QMessageBox()
-                msg.critical(
-                    None,
-                    self.tr("Error"),
-                    self.tr("Selected layer is outside of the WFS' extent."),
-                )
-
-    def filter_by_text(self, searchtext):
-        # Filter layer list by the text in the search bar
-        if searchtext == "":
-            row = 0
-            column = 0
-            # Show all items if searchbar is empty
-            for checkbox in self.layer_check_group.buttons():
-                checkbox.setHidden(False)
-                self.checkbox_layout.addWidget(checkbox, row, column)
-                if column < 2:
-                    column = column + 1
-                else:
-                    column = 0
-                    row = row + 1
-        else:
-            row = 0
-            column = 0
-            # Only show items with text corresponding to searchbar
-            for checkbox in self.layer_check_group.buttons():
-                if searchtext.lower() in checkbox.text().lower():
-                    checkbox.setHidden(False)
-                    self.checkbox_layout.addWidget(checkbox, row, column)
-                    if column < 2:
-                        column = column + 1
-                    else:
-                        column = 0
-                        row = row + 1
-                else:
-                    checkbox.setHidden(True)
-
-    def get_result(self):
-        # Accepted result from the dialog
-        # Loading GIF is started to show user that process is started
-        self.loading_gif = QMovie(str(__loading_gif__))
-        self.loading_gif_label.setMovie(self.loading_gif)
-        size = QSize(
-            100,
-            60,
-        )
-        movie = self.loading_gif_label.movie()
-        movie.setScaledSize(size)
-        self.loading_gif.start()
-        # If the extent is from a drawn rectangle
-        if self.draw_rectangle_checkbox.isChecked():
-            # Remove rectangle from map
-            self.erase_rubber_band()
-            # Remove the map tool to draw the rectangle
-            self.canvas.unsetMapTool(self.rectangle_tool)
-            # Get the rectangle extent and reproject it
-            self.extent = self.rectangle_tool.new_extent
-        # If the extent is from a layer
-        else:
-            # Get the layer
-            self.layer = self.select_layer_combo_box.currentLayer()
-            # Reproject the layer
-            self.extent = self.transform_crs(
-                self.layer.extent(),
-                self.layer.crs(),
-                QgsCoordinateReferenceSystem("EPSG:" + str(__wfs_crs__)),
-            )
-
-    def signal_accept(self, msg):
-        # Update the progress bar when result is pressed
-        self.progress_bar.setValue(int(msg))
-        if self.progress_bar.value() == 101:
-            self.progress_bar.setValue(0)
-
-    def output_format(self):
-        # Function to get the requested output format
-        format = ""
-        for button in self.output_format_button_group.buttons():
-            if button.isChecked():
-                format = button.accessibleName()
-        return format
-
-    def select_output_folder(self):
-        # Function to use the OS explorer and select an output directory
-        my_dir = QFileDialog.getExistingDirectory(
-            self,
-            self.tr("Select an output folder"),
-            "",
-            QFileDialog.Option.ShowDirsOnly,
-        )
-        self.line_edit_output_folder.setText(my_dir)
-        self.is_param_valid()
-
-    def is_param_valid(self):
-        # Check if different conditions are True to enable the OK button.
-        # Check if there is a rectangle
-        if self.rectangle:
-            # Check if a wfs data is checked
-            if self.checked > 0:
-                # If the result must be saved the output directory must exists.
-                if self.save_result_checkbox.isChecked():
-                    if os.path.exists(self.line_edit_output_folder.text()):
-                        self.button_box.setEnabled(True)
-                    else:
-                        self.button_box.setEnabled(False)
-                else:
-                    self.button_box.setEnabled(True)
-            else:
-                self.button_box.setEnabled(False)
-        else:
-            self.button_box.setEnabled(False)
-        # If the result is saved as a temporary output,
-        # the result is added to the project and is a GPKG
-
-        if not self.save_result_checkbox.isChecked():
-            self.add_to_project_checkbox.setChecked(True)
-            if self.intersect_checkbox.isChecked():
-                self.wfs_checkbox.setChecked(True)
-                self.crs_selector.setCrs(
-                    QgsCoordinateReferenceSystem("EPSG:" + str(__wfs_crs__))
-                )
-                self.crs_selector.setEnabled(False)
-            else:
-                self.crs_selector.setEnabled(True)
-                self.gpkg_checkbox.setChecked(True)
-                self.crs_selector.setCrs(self.crs_history)
-        else:
-            self.crs_selector.setEnabled(True)
-            self.crs_selector.setCrs(self.crs_history)
-        if (
-            self.within_layer_checkbox.isChecked()
-            and self.draw_rectangle_checkbox.isChecked()
-        ):
-            self.within_checkbox.setChecked(True)
-
-    def select_all(self):
-        # Check all Wfs' data checkbox
-        if self.select_all_checkbox.isChecked():
-            for button in self.layer_check_group.buttons():
-                button.setChecked(True)
-        # Uncheck all Wfs' data checkbox
-        else:
-            for button in self.layer_check_group.buttons():
-                button.setChecked(False)
-
-    def add_layers(self, layers):
-        self.text_data_filter.setEnabled(True)
-        # Add all wfs' data checkboxes to the ui
-        row = 0
-        column = 0
-        # Every checkbox are added to a grid layout
-        for layer in layers:
-            checkbox = QCheckBox(self)
-            # Format data names to add apostrophe,
-            # replace underscore with space
-            if self.schema == "*":
-                text_with_spaces = (
-                    layer.split(":")[1].replace("_", " ")
-                    + " ("
-                    + str(layer.split(":")[0])
-                    + ")"
-                )
-            else:
-                text_with_spaces = layer.replace("_", " ")
-            for elem in [" d ", " l ", " s "]:
-                if elem in text_with_spaces:
-                    text_with_spaces = text_with_spaces.replace(
-                        elem, " " + elem[1] + "'"
-                    )
-            # If the name is too long, it is splitted in half
-            n = len(text_with_spaces.split(" ")) / 2
-            first_part = ""
-            second_part = ""
-            for word in text_with_spaces.split(" "):
-                if text_with_spaces.split(" ").index(word) < n:
-                    if first_part == "":
-                        first_part = word
-                    else:
-                        first_part = first_part + " " + word
-                else:
-                    if second_part == "":
-                        second_part = word
-                    else:
-                        second_part = second_part + " " + word
-            text_with_spaces = first_part + "\n" + second_part
-            # Add upper case to the data name
-            checkbox.setText(text_with_spaces.capitalize())
-            # Keep the real data name
-            # add it to accessible name of the checkbox
-            if self.schema == "*":
-                checkbox.setAccessibleName(layer)
-            else:
-                checkbox.setAccessibleName(self.schema + ":" + str(layer))
-            # Count the number of checked checkboxes
-            checkbox.stateChanged.connect(self.check_result)
-            self.layer_check_group.addButton(checkbox)
-            # Add to the checkboxes to the layout
-            self.checkbox_layout.addWidget(checkbox, row, column)
-            # 3 columns max
-            if column != 2:
-                column = column + 1
-            else:
-                row = row + 1
-                column = 0
-        self.scroll_area_content.setLayout(self.checkbox_layout)
-
-    def check_result(self, value):
-        # Count the checked checkboxes to know if the Ok button must be enabled
-        if value == 0:
-            self.checked = self.checked - 1
-        else:
-            self.checked = self.checked + 1
-        self.is_param_valid()
-
-    def does_extent_exists(self):
-        # Check if a rectangle is drawn or a layer is selected
-        if self.select_layer_checkbox.isChecked():
-            if self.select_layer_combo_box is None:
-                self.rectangle = None
-            else:
-                self.rectangle = True
-        elif self.draw_rectangle_checkbox.isChecked():
-            self.rectangle = None
-
-    def transform_crs(self, rectangle, input_crs, output_crs):
-        # Reproject a rectangle to the project crs
-        geom = QgsGeometry().fromRect(rectangle)
-        geom.transform(
-            QgsCoordinateTransform(input_crs, output_crs, self.project)  # noqa: E501
-        )
-        transformed_extent = geom.boundingBox()
-        return transformed_extent
-
-    def erase_rubber_band(self):
-        # Erase the drawn rectangle
-        if self.rectangle_tool.rubber_band:
-            self.rectangle_tool.rubber_band.reset()
-        else:
-            pass
-
-    def disconnect(self):
-        # When dialog is closed, disconnect some signals and unset rectangle
-        self.select_layer_combo_box.layerChanged.disconnect(
-            self.check_layer_size  # noqa: E501
-        )
-        # Unset the tool to draw a rectangle
         if self.rectangle_tool:
-            self.canvas.unsetMapTool(self.rectangle_tool)
-            self.erase_rubber_band()
+            self.rectangle_tool.signal.connect(self._on_rectangle_drawn)
 
-    def rectangle_drawner(self):
-        # Add the tool to draw a rectangle
+        self._all_processes: list = []
+        self.current_extent: QgsRectangle | None = None
+        self.selected_process = None
+        self.selected_process_details = None
+
+        self._admin_search_timer = QTimer(self)
+        self._admin_search_timer.setSingleShot(True)
+        self._admin_search_timer.setInterval(400)
+        self._admin_search_timer.timeout.connect(self._search_admin)
+
+        self._build_ui()
+        self._refresh_auth_status()
+
+    def tr(self, message: str) -> str:
+        return QCoreApplication.translate(self.__class__.__name__, message)
+
+    # ------------------------------------------------------------------
+    # Construction de l'interface
+    # ------------------------------------------------------------------
+    def _build_ui(self) -> None:
+        layout = QVBoxLayout(self)
+
+        # -- Bandeau connexion -------------------------------------------------
+        auth_layout = QHBoxLayout()
+        self.lbl_auth_status = QLabel()
+        auth_layout.addWidget(self.lbl_auth_status, stretch=1)
+        self.btn_connect = QPushButton(self.tr("Se connecter..."))
+        self.btn_connect.clicked.connect(self._open_auth)
+        auth_layout.addWidget(self.btn_connect)
+        self.btn_doc = QPushButton(self.tr("Documentation"))
+        self.btn_doc.clicked.connect(
+            partial(QDesktopServices.openUrl, QUrl(__uri_homepage__))
+        )
+        auth_layout.addWidget(self.btn_doc)
+        layout.addLayout(auth_layout)
+
+        # -- Emprise -------------------------------------------------------
+        self.grp_extent = QGroupBox(self.tr("Emprise"))
+        extent_layout = QVBoxLayout(self.grp_extent)
+        self._extent_mode_group = QButtonGroup(self)
+        self._extent_mode_group.setExclusive(True)
+
+        bbox_layout = QHBoxLayout()
+        self.chk_bbox = QCheckBox(self.tr("BBox dessinée sur la carte"))
+        self.chk_bbox.setChecked(True)
+        self._extent_mode_group.addButton(self.chk_bbox)
+        bbox_layout.addWidget(self.chk_bbox)
+        self.btn_draw_rectangle = QPushButton(self.tr("Dessiner l'emprise"))
+        self.btn_draw_rectangle.clicked.connect(self._start_draw_rectangle)
+        bbox_layout.addWidget(self.btn_draw_rectangle)
+        extent_layout.addLayout(bbox_layout)
+
+        self.chk_admin = QCheckBox(self.tr("Emprise administrative (commune, département, région)"))
+        self._extent_mode_group.addButton(self.chk_admin)
+        extent_layout.addWidget(self.chk_admin)
+
+        self.txt_admin_search = QLineEdit()
+        self.txt_admin_search.setPlaceholderText(
+            self.tr("Rechercher une commune, un département, une région...")
+        )
+        self.txt_admin_search.setEnabled(False)
+        self.txt_admin_search.textChanged.connect(
+            lambda: self._admin_search_timer.start()
+        )
+        extent_layout.addWidget(self.txt_admin_search)
+
+        self.list_admin_results = QListWidget()
+        self.list_admin_results.setEnabled(False)
+        self.list_admin_results.setMaximumHeight(90)
+        self.list_admin_results.itemSelectionChanged.connect(self._on_admin_selected)
+        extent_layout.addWidget(self.list_admin_results)
+
+        self.lbl_extent_value = QLabel(self.tr("Aucune emprise choisie."))
+        self.lbl_extent_value.setWordWrap(True)
+        extent_layout.addWidget(self.lbl_extent_value)
+
+        self.chk_bbox.toggled.connect(self._update_extent_mode)
+        self.chk_admin.toggled.connect(self._update_extent_mode)
+
+        layout.addWidget(self.grp_extent)
+
+        # -- Produit ---------------------------------------------------------
+        self.grp_process = QGroupBox(self.tr("Produit à extraire"))
+        process_layout = QVBoxLayout(self.grp_process)
+
+        self.txt_process_filter = QLineEdit()
+        self.txt_process_filter.setPlaceholderText(self.tr("Filtrer (ex. BD TOPO)..."))
+        self.txt_process_filter.textChanged.connect(self._filter_processes)
+        process_layout.addWidget(self.txt_process_filter)
+
+        self.list_processes = QListWidget()
+        self.list_processes.setMaximumHeight(120)
+        self.list_processes.itemSelectionChanged.connect(self._on_process_selected)
+        process_layout.addWidget(self.list_processes)
+
+        self.params_widget = ProcessParamsWidget()
+        process_layout.addWidget(self.params_widget)
+
+        layout.addWidget(self.grp_process)
+
+        # -- Sortie -----------------------------------------------------------
+        self.grp_output = QGroupBox(self.tr("Résultat"))
+        output_layout = QVBoxLayout(self.grp_output)
+
+        self.chk_add_to_project = QCheckBox(self.tr("Ajouter le résultat au projet"))
+        self.chk_add_to_project.setChecked(True)
+        output_layout.addWidget(self.chk_add_to_project)
+
+        folder_layout = QHBoxLayout()
+        folder_layout.addWidget(QLabel(self.tr("Dossier de sortie :")))
+        self.txt_output_folder = QLineEdit()
+        folder_layout.addWidget(self.txt_output_folder, stretch=1)
+        self.btn_output_folder = QPushButton("...")
+        self.btn_output_folder.setMaximumWidth(30)
+        self.btn_output_folder.clicked.connect(self._select_output_folder)
+        folder_layout.addWidget(self.btn_output_folder)
+        output_layout.addLayout(folder_layout)
+
+        layout.addWidget(self.grp_output)
+
+        # -- Boutons -----------------------------------------------------------
+        self.button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        self.button_box.button(QDialogButtonBox.StandardButton.Ok).setEnabled(False)
+        self.button_box.accepted.connect(self._on_accept)
+        self.button_box.rejected.connect(self.reject)
+        layout.addWidget(self.button_box)
+
+        self._set_content_enabled(False)
+
+    # ------------------------------------------------------------------
+    # Authentification
+    # ------------------------------------------------------------------
+    def _open_auth(self) -> None:
+        dlg = AuthenticationDialog(self)
+        if dlg.exec():
+            self._refresh_auth_status()
+
+    def _refresh_auth_status(self) -> None:
+        settings = self.plg_settings_mngr.get_plg_settings()
+        connected = bool(settings.qgis_auth_id)
+        if connected:
+            self.lbl_auth_status.setText(self.tr("Connecté à la Géoplateforme."))
+            self.btn_connect.setText(self.tr("Changer de compte..."))
+            self.client = ExtractionApiClient(
+                authcfg=settings.qgis_auth_id, api_base=settings.api_base
+            )
+            self._load_processes()
+        else:
+            self.lbl_auth_status.setText(
+                self.tr("Non connecté : connectez-vous pour lister les produits disponibles.")
+            )
+            self.btn_connect.setText(self.tr("Se connecter..."))
+            self.client = None
+
+        self._set_content_enabled(connected)
+        self._validate()
+
+        if not connected:
+            self.txt_output_folder.setText("")
+        elif not self.txt_output_folder.text():
+            self.txt_output_folder.setText(settings.last_output_dir or "")
+
+    def _set_content_enabled(self, enabled: bool) -> None:
+        self.grp_extent.setEnabled(enabled)
+        self.grp_process.setEnabled(enabled)
+        self.grp_output.setEnabled(enabled)
+
+    # ------------------------------------------------------------------
+    # Emprise : BBox
+    # ------------------------------------------------------------------
+    def _update_extent_mode(self) -> None:
+        bbox_mode = self.chk_bbox.isChecked()
+        self.btn_draw_rectangle.setEnabled(bbox_mode)
+        self.txt_admin_search.setEnabled(not bbox_mode)
+        self.list_admin_results.setEnabled(not bbox_mode)
+
+    def _start_draw_rectangle(self) -> None:
+        if not self.rectangle_tool:
+            return
         self.showMinimized()
         self.iface.mainWindow().activateWindow()
         self.canvas.setMapTool(self.rectangle_tool)
 
-    def activate_window(self):
-        # Put the dialog on top once the rectangle is drawn
+    def _on_rectangle_drawn(self) -> None:
         self.showNormal()
         self.activateWindow()
-        self.rectangle = True
-        self.is_param_valid()
+        self.current_extent = self.rectangle_tool.new_extent
+        self._update_extent_label()
+        self._validate()
 
+    def _update_extent_label(self) -> None:
+        if not self.current_extent:
+            self.lbl_extent_value.setText(self.tr("Aucune emprise choisie."))
+            return
+        rect = self.current_extent
+        self.lbl_extent_value.setText(
+            self.tr("Emprise ({crs}) : {xmin:.4f}, {ymin:.4f} → {xmax:.4f}, {ymax:.4f}").format(
+                crs=DEFAULT_WORKING_CRS,
+                xmin=rect.xMinimum(),
+                ymin=rect.yMinimum(),
+                xmax=rect.xMaximum(),
+                ymax=rect.yMaximum(),
+            )
+        )
+        self.params_widget.set_extent(self.current_extent, DEFAULT_WORKING_CRS)
 
-class Thread(QThread):
-    """Thread used fot the ProgressBar"""
+    # ------------------------------------------------------------------
+    # Emprise : administrative
+    # ------------------------------------------------------------------
+    def _search_admin(self) -> None:
+        text = self.txt_admin_search.text().strip()
+        self.list_admin_results.clear()
+        if len(text) < 2:
+            return
+        try:
+            results = AdminBoundaryClient().search(text)
+        except AdminBoundaryNotFoundError:
+            item = QListWidgetItem(self.tr("Aucun résultat."))
+            item.setFlags(Qt.ItemFlag.NoItemFlags)
+            self.list_admin_results.addItem(item)
+            return
+        except ConnectionError as exc:
+            self.log(
+                message=f"Erreur lors de la recherche administrative : {exc}",
+                log_level=Qgis.MessageLevel.Warning,
+            )
+            return
 
-    _signal = pyqtSignal(int)
+        for result in results:
+            item = QListWidgetItem(result.label)
+            item.setData(Qt.ItemDataRole.UserRole, result)
+            self.list_admin_results.addItem(item)
 
-    def __init__(self):
-        super().__init__()
-        self.max_value = 1
-        self.value = 0
+    def _on_admin_selected(self) -> None:
+        items = self.list_admin_results.selectedItems()
+        if not items:
+            return
+        result = items[0].data(Qt.ItemDataRole.UserRole)
+        if result is None:
+            return
+        self.current_extent = result.geometry.boundingBox()
+        self._update_extent_label()
+        self._validate()
 
-    def __del__(self):
-        self.wait()
+    # ------------------------------------------------------------------
+    # Produits (processus)
+    # ------------------------------------------------------------------
+    def _load_processes(self) -> None:
+        if not self.client:
+            return
+        try:
+            self._all_processes = self.client.list_processes(page=1, limit=200)
+        except ApiRequestError as exc:
+            QMessageBox.critical(
+                self,
+                self.tr("Erreur"),
+                self.tr("Impossible de récupérer la liste des produits disponibles :\n{}").format(
+                    exc
+                ),
+            )
+            self._all_processes = []
 
-    def set_max(self, max_value):
-        self.max_value = max_value
+        def sort_key(process):
+            title_lower = (process.title or process.id).lower()
+            is_bdtopo = any(hint in title_lower for hint in _BDTOPO_HINTS)
+            return (0 if is_bdtopo else 1, title_lower)
 
-    def add_one(self):
-        self.value = self.value + 1
-        self._signal.emit(int((self.value / self.max_value) * 100))
+        self._all_processes.sort(key=sort_key)
+        self._populate_process_list(self._all_processes)
 
-    def finish(self):
-        self._signal.emit(101)
+    def _populate_process_list(self, processes) -> None:
+        self.list_processes.clear()
+        for process in processes:
+            item = QListWidgetItem(process.title or process.id)
+            item.setData(Qt.ItemDataRole.UserRole, process)
+            item.setToolTip(process.description)
+            self.list_processes.addItem(item)
 
-    def reset_value(self):
-        self.value = 0
+    def _filter_processes(self, text: str) -> None:
+        text = text.strip().lower()
+        if not text:
+            self._populate_process_list(self._all_processes)
+            return
+        filtered = [
+            p
+            for p in self._all_processes
+            if text in (p.title or "").lower()
+            or text in p.id.lower()
+            or text in (p.description or "").lower()
+        ]
+        self._populate_process_list(filtered)
+
+    def _on_process_selected(self) -> None:
+        items = self.list_processes.selectedItems()
+        if not items or not self.client:
+            self.selected_process = None
+            self.selected_process_details = None
+            self.params_widget.set_process(None)
+            self._validate()
+            return
+
+        process = items[0].data(Qt.ItemDataRole.UserRole)
+        self.selected_process = process
+        try:
+            self.selected_process_details = self.client.get_process(process.id)
+        except ApiRequestError as exc:
+            QMessageBox.warning(
+                self,
+                self.tr("Avertissement"),
+                self.tr(
+                    "Impossible de récupérer le détail du produit « {} » : {}\n"
+                    "Le formulaire de paramètres restera vide (utilisez l'édition avancée)."
+                ).format(process.title, exc),
+            )
+            self.selected_process_details = None
+
+        self.params_widget.set_process(self.selected_process_details)
+        if self.current_extent:
+            self.params_widget.set_extent(self.current_extent, DEFAULT_WORKING_CRS)
+        self._validate()
+
+    # ------------------------------------------------------------------
+    # Sortie
+    # ------------------------------------------------------------------
+    def _select_output_folder(self) -> None:
+        directory = QFileDialog.getExistingDirectory(
+            self, self.tr("Choisir un dossier de sortie"), self.txt_output_folder.text()
+        )
+        if directory:
+            self.txt_output_folder.setText(directory)
+
+    # ------------------------------------------------------------------
+    # Validation / soumission
+    # ------------------------------------------------------------------
+    def _validate(self) -> None:
+        ok = bool(self.client) and self.current_extent is not None and self.selected_process is not None
+        self.button_box.button(QDialogButtonBox.StandardButton.Ok).setEnabled(ok)
+
+    def _on_accept(self) -> None:
+        try:
+            body = self.params_widget.get_body()
+        except ValueError as exc:
+            QMessageBox.warning(self, self.tr("Paramètres invalides"), str(exc))
+            return
+
+        output_dir = self.txt_output_folder.text().strip() or None
+        if output_dir:
+            try:
+                os.makedirs(output_dir, exist_ok=True)
+            except OSError as exc:
+                QMessageBox.critical(
+                    self,
+                    self.tr("Erreur"),
+                    self.tr("Impossible d'utiliser le dossier de sortie :\n{}").format(exc),
+                )
+                return
+
+        try:
+            job = self.client.execute(self.selected_process.id, body)
+        except ApiRequestError as exc:
+            QMessageBox.critical(
+                self,
+                self.tr("Erreur"),
+                self.tr("Le lancement de l'extraction a échoué :\n{}").format(exc),
+            )
+            return
+
+        settings = self.plg_settings_mngr.get_plg_settings()
+        settings.last_output_dir = output_dir or ""
+        self.plg_settings_mngr.save_from_object(settings)
+
+        self.hide()
+        monitor = JobMonitorDialog(
+            client=self.client,
+            job=job,
+            output_dir=output_dir,
+            add_to_project=self.chk_add_to_project.isChecked(),
+            project=self.project,
+            poll_interval_seconds=settings.status_check_sleep,
+            parent=self.iface.mainWindow() if self.iface else None,
+        )
+        monitor.exec()
+        self.accept()
