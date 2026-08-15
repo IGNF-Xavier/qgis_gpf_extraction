@@ -44,6 +44,12 @@ class ExtractionApiClient:
         self._authcfg = authcfg
         self._network = NetworkClient(authcfg=authcfg)
 
+    @property
+    def authcfg(self) -> str:
+        """Identifiant de configuration d'authentification QGIS utilisé,
+        réutilisable pour d'autres clients (ex. `StoredDataClient`)."""
+        return self._authcfg
+
     # ------------------------------------------------------------------
     # Processus
     # ------------------------------------------------------------------

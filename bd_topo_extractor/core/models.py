@@ -79,6 +79,7 @@ class ProcessDetails:
     version: str = ""
     inputs: list = field(default_factory=list)
     output_ids: list = field(default_factory=list)
+    described_by_url: Optional[str] = None
     raw: dict = field(default_factory=dict)
 
     @classmethod
@@ -91,6 +92,7 @@ class ProcessDetails:
             version=str(data.get("version", "")),
             inputs=_normalize_inputs(data.get("inputs")),
             output_ids=output_ids or list(DEFAULT_OUTPUT_IDS),
+            described_by_url=_find_described_by_url(data.get("links")),
             raw=data,
         )
 
@@ -123,7 +125,12 @@ def _normalize_inputs(raw_inputs: Any) -> list[ProcessInputField]:
             # Forme observée dans l'OpenAPI du service : {"input": {...}}
             if "input" in item and isinstance(item["input"], dict) and len(item) == 1:
                 item = item["input"]
-            input_id = str(item.get("id") or item.get("name") or "")
+            # Constaté en conditions réelles sur ce service : les entrées de
+            # `inputs` n'ont pas de champ `id`/`name` distinct, seulement un
+            # `title` qui fait office d'identifiant (ex. "compression",
+            # "relations", "format"...) — utilisé tel quel comme clé du corps
+            # de requête `inputs`.
+            input_id = str(item.get("id") or item.get("name") or item.get("title") or "")
             if not input_id:
                 # Dernier recours : un dict à une seule clé, ex. {"bbox": {...}}
                 if len(item) == 1:
@@ -138,12 +145,26 @@ def _normalize_inputs(raw_inputs: Any) -> list[ProcessInputField]:
                     title=str(item.get("title") or input_id),
                     description=str(item.get("description", "")),
                     schema=item.get("schema", item),
-                    required=item.get("minOccurs", 1) not in (0, None),
+                    required=str(item.get("minOccurs", 1)) not in ("0",),
                     raw=item,
                 )
             )
 
     return fields
+
+
+def _find_described_by_url(raw_links: Any) -> Optional[str]:
+    """Cherche, dans les `links` d'un processus, l'URL "describedby" pointant
+    vers la description de la donnée stockée sous-jacente (liste des tables
+    et attributs disponibles pour l'input `relations`)."""
+    if not isinstance(raw_links, list):
+        return None
+    for link in raw_links:
+        if isinstance(link, dict) and link.get("rel") == "describedby":
+            href = link.get("href")
+            if href:
+                return str(href)
+    return None
 
 
 def _normalize_output_ids(raw_outputs: Any) -> list[str]:
@@ -165,6 +186,69 @@ def _normalize_output_ids(raw_outputs: Any) -> list[str]:
                     ids.append(str(output_id))
         return ids
     return []
+
+
+@dataclass
+class StoredDataTable:
+    """Une table exploitable d'une donnée stockée de type VECTOR-DB (obtenue
+    via le lien `describedby` d'un processus), telle qu'attendue par l'input
+    `relations` des processus d'extraction "ARCHIVE depuis VECTOR-DB"."""
+
+    name: str
+    attributes: dict = field(default_factory=dict)  # {nom_colonne: type_pg}
+    primary_key: list = field(default_factory=list)
+    raw: dict = field(default_factory=dict)
+
+    @property
+    def geometry_attribute(self) -> Optional[str]:
+        """Nom de la colonne géométrique de la table, si elle en a une."""
+        for attr_name, attr_type in self.attributes.items():
+            if isinstance(attr_type, str) and attr_type.startswith("geometry"):
+                return attr_name
+        return None
+
+    @classmethod
+    def from_json(cls, data: dict) -> "StoredDataTable":
+        return cls(
+            name=str(data.get("name", "")),
+            attributes=data.get("attributes") or {},
+            primary_key=data.get("primary_key") or [],
+            raw=data,
+        )
+
+
+@dataclass
+class StoredDataDescription:
+    """Description d'une donnée stockée (jeu de données source d'un
+    processus d'extraction), avec la liste de ses tables exploitables."""
+
+    id: str
+    name: str = ""
+    type: str = ""
+    srs: str = ""
+    tables: list = field(default_factory=list)
+    raw: dict = field(default_factory=dict)
+
+    @classmethod
+    def from_json(cls, data: dict) -> "StoredDataDescription":
+        type_infos = data.get("type_infos") or {}
+        raw_relations = type_infos.get("relations") or []
+        # Inclut aussi bien les TABLE que les VIEW (constaté sur des données
+        # stockées réelles) : toutes deux sont des relations exploitables
+        # par l'input `relations` d'un processus d'extraction.
+        tables = [
+            StoredDataTable.from_json(item)
+            for item in raw_relations
+            if isinstance(item, dict) and item.get("name")
+        ]
+        return cls(
+            id=str(data.get("_id", "")),
+            name=str(data.get("name", "")),
+            type=str(data.get("type", "")),
+            srs=str(data.get("srs", "")),
+            tables=tables,
+            raw=data,
+        )
 
 
 @dataclass

@@ -40,6 +40,7 @@ from bd_topo_extractor.core.admin_boundary import AdminBoundaryClient
 from bd_topo_extractor.core.constants import DEFAULT_WORKING_CRS
 from bd_topo_extractor.core.exceptions import AdminBoundaryNotFoundError, ApiRequestError
 from bd_topo_extractor.core.extraction_api_client import ExtractionApiClient
+from bd_topo_extractor.core.stored_data import StoredDataClient
 from bd_topo_extractor.gui.dlg_authentication import AuthenticationDialog
 from bd_topo_extractor.gui.dlg_job_monitor import JobMonitorDialog
 from bd_topo_extractor.gui.wdg_process_params import ProcessParamsWidget
@@ -404,6 +405,28 @@ class BdTopoExtractorDialog(QDialog):
         self.params_widget.set_process(self.selected_process_details)
         if self.current_extent:
             self.params_widget.set_extent(self.current_extent, DEFAULT_WORKING_CRS)
+
+        described_by_url = (
+            self.selected_process_details.described_by_url
+            if self.selected_process_details
+            else None
+        )
+        if described_by_url:
+            try:
+                stored_data = StoredDataClient(authcfg=self.client.authcfg).get(
+                    described_by_url
+                )
+                self.params_widget.set_stored_data(stored_data)
+            except ApiRequestError as exc:
+                self.log(
+                    message=f"Impossible de récupérer la description de la donnée "
+                    f"stockée ({described_by_url}) : {exc}",
+                    log_level=Qgis.MessageLevel.Warning,
+                )
+                self.params_widget.set_stored_data(None)
+        else:
+            self.params_widget.set_stored_data(None)
+
         self._validate()
 
     # ------------------------------------------------------------------

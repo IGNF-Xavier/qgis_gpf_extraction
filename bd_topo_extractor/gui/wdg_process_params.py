@@ -17,7 +17,7 @@ import json
 from typing import Optional
 
 from qgis.core import QgsRectangle
-from qgis.PyQt.QtCore import QCoreApplication
+from qgis.PyQt.QtCore import QCoreApplication, Qt
 from qgis.PyQt.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -30,11 +30,35 @@ from qgis.PyQt.QtWidgets import (
     QWidget,
 )
 
-from bd_topo_extractor.core.models import ProcessDetails, ProcessInputField
+from bd_topo_extractor.core.models import ProcessDetails, ProcessInputField, StoredDataDescription
+from bd_topo_extractor.gui.wdg_relations_builder import RelationsBuilderWidget
 
 #: Fragments de nom de champ évoquant une emprise géographique, utilisés pour
 #: pré-remplir automatiquement la valeur avec l'emprise choisie par l'utilisateur.
 _EXTENT_FIELD_HINTS = ("bbox", "emprise", "extent", "envelope", "footprint", "zone")
+
+#: Identifiant d'input observé pour le sélecteur de tables des processus
+#: d'extraction "ARCHIVE depuis VECTOR-DB" (BD TOPO, GPU_EXTRACTION, ...) :
+#: prend en charge son propre widget dédié (RelationsBuilderWidget) plutôt
+#: que le formulaire générique.
+_RELATIONS_FIELD_ID = "relations"
+
+#: Valeurs à privilégier, par ordre de préférence, quand un input de type
+#: enum (ex. `format`) ne déclare pas de défaut : "GeoPackage" est le format
+#: le plus directement exploitable dans QGIS parmi ceux généralement
+#: proposés par ce service (GPKG, ESRI SHAPEFILE, GEOJSON, PGDUMP, GML,
+#: PARQUET, ...).
+_PREFERRED_ENUM_VALUES = ("GPKG", "GeoPackage", "ESRI SHAPEFILE", "GEOJSON")
+
+
+def _srid_from_crs(crs: str) -> int:
+    """Extrait le code EPSG numérique d'une chaîne "EPSG:xxxx", avec repli
+    sur 4326 (CRS de travail par défaut du plugin, cf. core/constants.py)."""
+    if crs and ":" in crs:
+        code = crs.rsplit(":", 1)[-1]
+        if code.isdigit():
+            return int(code)
+    return 4326
 
 
 class ProcessParamsWidget(QWidget):
@@ -42,8 +66,12 @@ class ProcessParamsWidget(QWidget):
         super().__init__(parent)
         self._process: Optional[ProcessDetails] = None
         self._field_widgets: dict[str, QWidget] = {}
+        self._field_objs: dict[str, ProcessInputField] = {}
         self._extent_bbox: Optional[list[float]] = None
         self._extent_crs: str = ""
+        self._extent_rectangle: Optional[QgsRectangle] = None
+        self._relations_widget: Optional[RelationsBuilderWidget] = None
+        self._pending_stored_data: Optional[StoredDataDescription] = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -76,6 +104,8 @@ class ProcessParamsWidget(QWidget):
         """Reconstruit le formulaire pour le processus donné."""
         self._process = process
         self._field_widgets = {}
+        self._field_objs = {}
+        self._relations_widget = None
         self.chk_advanced.setChecked(False)
 
         while self.simple_form.rowCount():
@@ -104,16 +134,39 @@ class ProcessParamsWidget(QWidget):
             if widget is None:
                 continue
             self._field_widgets[field.id] = widget
+            self._field_objs[field.id] = field
+            if isinstance(widget, RelationsBuilderWidget):
+                self._relations_widget = widget
+                widget.changed.connect(self._refresh_advanced_preview)
             label = field.title or field.id
             if field.required:
                 label += " *"
             self.simple_form.addRow(label, widget)
 
+        if self._relations_widget is not None:
+            if self._pending_stored_data is not None:
+                self._relations_widget.set_tables(self._pending_stored_data.tables)
+            if self._extent_rectangle is not None:
+                self._relations_widget.set_extent(
+                    self._extent_rectangle, _srid_from_crs(self._extent_crs)
+                )
+
         self._refresh_advanced_preview()
+
+    def set_stored_data(self, description: Optional[StoredDataDescription]) -> None:
+        """Fournit la liste des tables exploitables (obtenue via le lien
+        `describedby` du processus) au sélecteur de tables, s'il est présent
+        dans le formulaire courant (input `relations`)."""
+        self._pending_stored_data = description
+        if self._relations_widget is not None:
+            self._relations_widget.set_tables(description.tables if description else [])
+            self._refresh_advanced_preview()
 
     def set_extent(self, rectangle: QgsRectangle, crs: str) -> None:
         """Mémorise l'emprise choisie par l'utilisateur, pour pré-remplissage
-        automatique des champs qui y ressemblent (bbox, emprise, ...)."""
+        automatique des champs qui y ressemblent (bbox, emprise, ...) et pour
+        le sélecteur de tables (filtre spatial par table)."""
+        self._extent_rectangle = rectangle
         if rectangle is None:
             self._extent_bbox = None
             self._extent_crs = ""
@@ -125,12 +178,19 @@ class ProcessParamsWidget(QWidget):
                 rectangle.yMaximum(),
             ]
             self._extent_crs = crs
+
+        if self._relations_widget is not None:
+            self._relations_widget.set_extent(rectangle, _srid_from_crs(crs))
+
         self._refresh_advanced_preview()
 
     # ------------------------------------------------------------------
     # Construction des widgets
     # ------------------------------------------------------------------
     def _build_field_widget(self, field: ProcessInputField) -> Optional[QWidget]:
+        if field.id.lower() == _RELATIONS_FIELD_ID:
+            return RelationsBuilderWidget()
+
         if field.enum:
             combo = QComboBox()
             for value in field.enum:
@@ -139,6 +199,17 @@ class ProcessParamsWidget(QWidget):
                 idx = combo.findData(field.default)
                 if idx >= 0:
                     combo.setCurrentIndex(idx)
+            else:
+                # Pas de défaut déclaré par le processus : préfère un format
+                # directement exploitable dans QGIS (GeoPackage) quand ce
+                # choix est proposé, plutôt que le premier de la liste
+                # (qui peut être un format de dump non chargeable tel quel,
+                # ex. "PGDUMP" observé sur le processus BD TOPO).
+                for preferred in _PREFERRED_ENUM_VALUES:
+                    idx = combo.findText(preferred, Qt.MatchFlag.MatchFixedString)
+                    if idx >= 0:
+                        combo.setCurrentIndex(idx)
+                        break
             combo.currentIndexChanged.connect(self._refresh_advanced_preview)
             return combo
 
@@ -183,12 +254,29 @@ class ProcessParamsWidget(QWidget):
         values: dict = {}
         extent_field_filled = False
         for field_id, widget in self._field_widgets.items():
-            if isinstance(widget, QComboBox):
+            if isinstance(widget, RelationsBuilderWidget):
+                values[field_id] = widget.get_value()
+                # L'emprise est déjà injectée table par table (ST_Intersects
+                # dans chaque filtre) : pas besoin du repli "bbox" générique.
+                if self._extent_rectangle is not None:
+                    extent_field_filled = True
+            elif isinstance(widget, QComboBox):
                 values[field_id] = widget.currentData()
             elif isinstance(widget, QCheckBox):
                 values[field_id] = widget.isChecked()
             elif isinstance(widget, QDoubleSpinBox):
-                values[field_id] = widget.value()
+                field_obj = self._field_objs.get(field_id)
+                is_untouched_optional = (
+                    field_obj is not None
+                    and not field_obj.required
+                    and field_obj.default is None
+                    and widget.value() == 0
+                )
+                if not is_untouched_optional:
+                    # Champ optionnel laissé à sa valeur neutre (0) : on
+                    # l'omet plutôt que d'écraser le défaut du serveur (ex.
+                    # "Durée de rétention" par défaut 168h côté API si omis).
+                    values[field_id] = widget.value()
             elif isinstance(widget, QLineEdit):
                 text = widget.text().strip()
                 if not text and self._extent_bbox and self._looks_like_extent_field(field_id):
