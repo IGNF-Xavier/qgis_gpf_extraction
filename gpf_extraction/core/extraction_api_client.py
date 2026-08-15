@@ -16,8 +16,10 @@ Toute la logique d'accès réseau du plugin transite par cette classe.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from ..network.http_client import HttpResponse, NetworkClient
+from .atom_feed import DownloadEntry, looks_like_atom_feed, parse_download_entries
 from .constants import DEFAULT_API_BASE
 from .exceptions import ApiRequestError, JobFailedError
 from .models import JobResult, JobStatus, ProcessDetails, ProcessSummary
@@ -125,14 +127,14 @@ class ExtractionApiClient:
         _ensure_ok(self._network.delete(url), "DELETE", url)
 
     def download_result(self, href: str, dest_path):
-        """Télécharge le fichier résultat d'un job.
+        """Télécharge un fichier vers un chemin donné.
 
-        Le lien `extractData.href` peut pointer soit vers l'API elle-même
-        (auth nécessaire), soit vers une URL de stockage objet pré-signée
-        (auth déjà incluse dans l'URL, un en-tête d'autorisation
-        supplémentaire ferait échouer la requête). On essaie donc d'abord
-        sans authentification si l'hôte diffère de celui de l'API, avec
-        repli sur l'authentification sinon.
+        Le lien peut pointer soit vers l'API elle-même (auth nécessaire),
+        soit vers une URL de stockage objet pré-signée (auth déjà incluse
+        dans l'URL, un en-tête d'autorisation supplémentaire ferait échouer
+        la requête). On essaie donc d'abord sans authentification si
+        l'hôte diffère de celui de l'API, avec repli sur l'authentification
+        sinon.
         """
         from urllib.parse import urlparse
 
@@ -140,3 +142,47 @@ class ExtractionApiClient:
         href_host = urlparse(href).netloc
         use_auth = href_host in ("", api_host)
         return self._network.download_to_file(href, dest_path, use_auth=use_auth)
+
+    def resolve_download_files(self, extract_data_href: str) -> list[DownloadEntry]:
+        """Résout le lien `extractData` vers la liste réelle des fichiers
+        téléchargeables.
+
+        Constaté en conditions réelles : ce lien ne pointe pas directement
+        vers le fichier de résultat, mais vers un flux Atom (INSPIRE
+        Download Service) qui liste les fichiers disponibles (données +
+        métadonnées). Repli défensif si un processus renvoyait malgré tout
+        un lien direct vers un fichier : le lien est alors utilisé tel quel.
+
+        :param extract_data_href: valeur de `JobResult.extract_data_href`.
+        :type extract_data_href: str
+
+        :return: fichiers téléchargeables (au moins un, sauf échec réseau).
+        :rtype: list[DownloadEntry]
+        """
+        response = _ensure_ok(self._network.get(extract_data_href), "GET", extract_data_href)
+        content_type = response.headers.get("Content-Type", "")
+        if looks_like_atom_feed(content_type, response.body):
+            entries = parse_download_entries(response.body)
+            if entries:
+                return entries
+        return [DownloadEntry(href=extract_data_href, mime_type=content_type)]
+
+    def download_all_results(self, extract_data_href: str, dest_dir) -> list[Path]:
+        """Résout puis télécharge tous les fichiers de résultat d'un job
+        dans un dossier.
+
+        :param extract_data_href: valeur de `JobResult.extract_data_href`.
+        :type extract_data_href: str
+        :param dest_dir: dossier de destination (créé si besoin).
+        :type dest_dir: Union[str, Path]
+
+        :return: chemins des fichiers téléchargés.
+        :rtype: list[Path]
+        """
+        entries = self.resolve_download_files(extract_data_href)
+        downloaded: list[Path] = []
+        for entry in entries:
+            dest_path = Path(dest_dir) / entry.filename
+            self.download_result(entry.href, dest_path)
+            downloaded.append(dest_path)
+        return downloaded

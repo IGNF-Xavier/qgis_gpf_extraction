@@ -234,13 +234,22 @@ class ProcessParamsWidget(QWidget):
 
         if field.enum:
             combo = QComboBox()
+            if not field.required:
+                # Champ optionnel : ne rien présélectionner par défaut. Sans
+                # ça, un champ comme "compression" (dont l'unique valeur
+                # possible est "7zip") se retrouvait systématiquement
+                # envoyé alors que l'utilisateur n'en avait rien demandé,
+                # produisant une archive fractionnée (.7z.0001) au lieu du
+                # fichier directement exploitable (constaté en conditions
+                # réelles).
+                combo.addItem(self.tr("(non spécifié)"), None)
             for value in field.enum:
                 combo.addItem(str(value), value)
             if field.default is not None:
                 idx = combo.findData(field.default)
                 if idx >= 0:
                     combo.setCurrentIndex(idx)
-            else:
+            elif field.required:
                 # Pas de défaut déclaré par le processus : préfère un format
                 # directement exploitable dans QGIS (GeoPackage) quand ce
                 # choix est proposé, plutôt que le premier de la liste
@@ -313,7 +322,9 @@ class ProcessParamsWidget(QWidget):
                 if self._extent_rectangle is not None:
                     extent_field_filled = True
             elif isinstance(widget, QComboBox):
-                values[field_id] = widget.currentData()
+                data = widget.currentData()
+                if data is not None:
+                    values[field_id] = data
             elif isinstance(widget, QCheckBox):
                 values[field_id] = widget.isChecked()
             elif isinstance(widget, QDoubleSpinBox):

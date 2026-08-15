@@ -40,6 +40,7 @@ from gpf_extraction.core.admin_boundary import AdminBoundaryClient
 from gpf_extraction.core.constants import DEFAULT_WORKING_CRS
 from gpf_extraction.core.exceptions import AdminBoundaryNotFoundError, ApiRequestError
 from gpf_extraction.core.extraction_api_client import ExtractionApiClient
+from gpf_extraction.core.job_registry import JobRegistry, TrackedJob
 from gpf_extraction.core.stored_data import StoredDataClient
 from gpf_extraction.gui.dlg_authentication import AuthenticationDialog
 from gpf_extraction.gui.dlg_job_monitor import JobMonitorDialog
@@ -202,12 +203,24 @@ class GpfExtractionDialog(QDialog):
         folder_layout = QHBoxLayout()
         folder_layout.addWidget(QLabel(self.tr("Dossier de sortie :")))
         self.txt_output_folder = QLineEdit()
+        self.txt_output_folder.setPlaceholderText(
+            self.tr("Par défaut : dossier temporaire du système")
+        )
         folder_layout.addWidget(self.txt_output_folder, stretch=1)
         self.btn_output_folder = QPushButton("...")
         self.btn_output_folder.setMaximumWidth(30)
         self.btn_output_folder.clicked.connect(self._select_output_folder)
         folder_layout.addWidget(self.btn_output_folder)
         output_layout.addLayout(folder_layout)
+
+        comment_layout = QHBoxLayout()
+        comment_layout.addWidget(QLabel(self.tr("Commentaire (optionnel) :")))
+        self.txt_comment = QLineEdit()
+        self.txt_comment.setPlaceholderText(
+            self.tr("Pour retrouver ce job plus facilement dans « Jobs en cours »")
+        )
+        comment_layout.addWidget(self.txt_comment, stretch=1)
+        output_layout.addLayout(comment_layout)
 
         layout.addWidget(self.grp_output)
 
@@ -501,7 +514,21 @@ class GpfExtractionDialog(QDialog):
             else (self.selected_process.title if self.selected_process else "")
         )
 
-        self.hide()
+        JobRegistry.add_job(
+            TrackedJob(
+                job_id=job.job_id,
+                process_id=self.selected_process.id,
+                process_title=self.selected_process.title,
+                product_name=product_name,
+                output_dir=output_dir or "",
+                comment=self.txt_comment.text().strip(),
+                last_known_status=job.status,
+            )
+        )
+
+        # Non-bloquant : le suivi continue en arrière-plan (fenêtre indépendante,
+        # cf. dlg_job_monitor.py), le job restant par ailleurs retrouvable via
+        # le menu « Jobs en cours » même si cette fenêtre-ci ou QGIS ferment.
         monitor = JobMonitorDialog(
             client=self.client,
             job=job,
@@ -512,5 +539,5 @@ class GpfExtractionDialog(QDialog):
             product_name=product_name,
             parent=self.iface.mainWindow() if self.iface else None,
         )
-        monitor.exec()
+        monitor.show()
         self.accept()

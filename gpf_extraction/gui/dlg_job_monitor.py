@@ -1,15 +1,21 @@
 #! python3  # noqa: E265
 
-"""Suivi d'un job d'extraction (polling asynchrone + téléchargement du résultat)."""
+"""Suivi d'un job d'extraction (polling asynchrone + téléchargement du résultat).
+
+Ce dialogue n'est **pas modal** : il ne bloque pas l'utilisation du reste
+de QGIS pendant qu'un job tourne côté serveur (potentiellement plusieurs
+minutes). Le job est par ailleurs mémorisé dans `core/job_registry.py`, ce
+qui permet de le retrouver plus tard (statut, téléchargement) via
+`gui/dlg_jobs.py`, y compris après fermeture et réouverture de QGIS.
+"""
 
 from __future__ import annotations
 
 import tempfile
 from pathlib import Path
 from typing import Optional
-from urllib.parse import urlparse
 
-from qgis.core import Qgis, QgsProject, QgsVectorLayer
+from qgis.core import Qgis, QgsProject
 from qgis.PyQt.QtCore import QCoreApplication, QTimer, pyqtSignal
 from qgis.PyQt.QtWidgets import (
     QDialog,
@@ -20,13 +26,18 @@ from qgis.PyQt.QtWidgets import (
     QVBoxLayout,
 )
 
-from gpf_extraction.core.csw_client import CswClient
 from gpf_extraction.core.exceptions import ApiRequestError, JobFailedError
 from gpf_extraction.core.extraction_api_client import ExtractionApiClient
+from gpf_extraction.core.job_registry import JobRegistry
 from gpf_extraction.core.models import JobStatus
-from gpf_extraction.core.style_bundle import fetch_style_files, match_candidates_for_table
-from gpf_extraction.gui.dlg_style_choice import StyleChoiceDialog
+from gpf_extraction.gui.job_result_loader import load_result
 from gpf_extraction.toolbelt import PlgLogger
+
+#: Garde une référence Python vivante sur chaque dialogue non-modal affiché,
+#: pour ne pas dépendre de l'appelant (celui qui a créé le dialogue peut se
+#: fermer avant que le suivi ne se termine). Nettoyé au fur et à mesure via
+#: le signal `finished`.
+_ACTIVE_MONITORS: list["JobMonitorDialog"] = []
 
 
 class JobMonitorDialog(QDialog):
@@ -46,6 +57,8 @@ class JobMonitorDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(self.tr("Extraction en cours"))
         self.setMinimumWidth(420)
+        # Non-modal : ne bloque pas le reste de QGIS pendant le suivi.
+        self.setModal(False)
 
         self.log = PlgLogger().log
         self._client = client
@@ -71,9 +84,22 @@ class JobMonitorDialog(QDialog):
         self.txt_logs.setMinimumHeight(120)
         layout.addWidget(self.txt_logs)
 
+        hint = QLabel(
+            self.tr(
+                "Cette fenêtre peut être fermée sans interrompre l'extraction : "
+                "retrouvez-la plus tard via le menu « Jobs en cours »."
+            )
+        )
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color: #666;")
+        layout.addWidget(hint)
+
         self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel)
         self.button_box.rejected.connect(self._cancel_or_close)
         layout.addWidget(self.button_box)
+
+        _ACTIVE_MONITORS.append(self)
+        self.finished.connect(self._on_dialog_finished)
 
         self._timer = QTimer(self)
         self._timer.setInterval(max(1, poll_interval_seconds) * 1000)
@@ -83,6 +109,10 @@ class JobMonitorDialog(QDialog):
 
     def tr(self, message: str) -> str:
         return QCoreApplication.translate(self.__class__.__name__, message)
+
+    def _on_dialog_finished(self, _result: int) -> None:
+        if self in _ACTIVE_MONITORS:
+            _ACTIVE_MONITORS.remove(self)
 
     # ------------------------------------------------------------------
     # Polling
@@ -97,6 +127,7 @@ class JobMonitorDialog(QDialog):
         self.lbl_status.setText(
             self.tr("Job {} : {}").format(self._job.job_id, self._job.status)
         )
+        JobRegistry.update_job(self._job.job_id, last_known_status=self._job.status)
         if self._job.message:
             self._append_log(self._job.message)
 
@@ -138,22 +169,34 @@ class JobMonitorDialog(QDialog):
             return
 
         dest_dir = Path(self._output_dir) if self._output_dir else Path(tempfile.gettempdir())
-        filename = Path(urlparse(result.extract_data_href).path).name or f"{self._job.job_id}.zip"
-        dest_path = dest_dir / filename
+        dest_dir.mkdir(parents=True, exist_ok=True)
 
-        self._append_log(self.tr("Téléchargement vers {}...").format(dest_path))
+        self._append_log(self.tr("Téléchargement vers {}...").format(dest_dir))
         try:
-            self._client.download_result(result.extract_data_href, dest_path)
-        except ConnectionError as exc:
+            downloaded_paths = self._client.download_all_results(
+                result.extract_data_href, dest_dir
+            )
+        except (ApiRequestError, ConnectionError) as exc:
             self._append_log(self.tr("Échec du téléchargement : {}").format(exc))
             self._finish_as_closable()
             return
 
-        self._downloaded_path = str(dest_path)
-        self._append_log(self.tr("Téléchargement terminé : {}").format(dest_path))
+        self._downloaded_path = str(dest_dir)
+        JobRegistry.update_job(self._job.job_id, downloaded_path=self._downloaded_path)
+        for downloaded_path in downloaded_paths:
+            self._append_log(self.tr("Téléchargé : {}").format(downloaded_path))
 
         if self._add_to_project:
-            self._add_result_to_project(dest_path)
+            for downloaded_path in downloaded_paths:
+                if downloaded_path.suffix.lower() == ".json":
+                    continue  # métadonnées de l'extraction, pas une couche
+                load_result(
+                    downloaded_path,
+                    self._project,
+                    self._product_name,
+                    log=self._append_log,
+                    parent=self,
+                )
 
         self.finished_ok.emit(self._downloaded_path)
         self._finish_as_closable()
@@ -186,129 +229,7 @@ class JobMonitorDialog(QDialog):
                     message=f"Erreur lors de l'annulation du job {self._job.job_id} : {exc}",
                     log_level=Qgis.MessageLevel.Warning,
                 )
+            JobRegistry.remove_job(self._job.job_id)
             self.reject()
         else:
             self.accept()
-
-    # ------------------------------------------------------------------
-    # Ajout au projet
-    # ------------------------------------------------------------------
-    def _add_result_to_project(self, path: Path) -> None:
-        """Tente d'ajouter le fichier téléchargé au projet QGIS.
-
-        Le format exact renvoyé par le service n'étant pas garanti (archive
-        zip, GeoPackage, ...), cette méthode reste best-effort : en cas
-        d'échec, le fichier reste disponible sur disque et l'utilisateur en
-        est informé.
-        """
-        candidate_path = str(path)
-        if path.suffix.lower() == ".zip":
-            candidate_path = f"/vsizip/{path}"
-
-        added_layers: list[QgsVectorLayer] = []
-
-        layer = QgsVectorLayer(candidate_path, path.stem, "ogr")
-        if layer.isValid():
-            sub_layers = layer.dataProvider().subLayers() if layer.dataProvider() else []
-            if len(sub_layers) > 1:
-                for sub_layer_info in sub_layers:
-                    # format "index!!::!!name!!::!!feature_count!!::!!geom_type"
-                    name = sub_layer_info.split(QgsVectorLayer.sublayerSeparator())[1]
-                    sub_uri = f"{candidate_path}|layername={name}"
-                    sub_layer = QgsVectorLayer(sub_uri, name, "ogr")
-                    if sub_layer.isValid():
-                        self._project.addMapLayer(sub_layer)
-                        added_layers.append(sub_layer)
-            else:
-                self._project.addMapLayer(layer)
-                added_layers.append(layer)
-            self._append_log(self.tr("Résultat ajouté au projet."))
-        else:
-            self._append_log(
-                self.tr(
-                    "Le résultat n'a pas pu être chargé automatiquement comme couche "
-                    "vecteur. Fichier disponible ici : {}"
-                ).format(path)
-            )
-            return
-
-        self._apply_styles(added_layers)
-
-    # ------------------------------------------------------------------
-    # Styles (catalogue CSW)
-    # ------------------------------------------------------------------
-    def _apply_styles(self, layers: list[QgsVectorLayer]) -> None:
-        """Cherche, télécharge et applique les styles (SLD) référencés par le
-        catalogue de métadonnées pour le produit extrait, s'il y en a.
-
-        Fonctionnalité entièrement best-effort : toute erreur (réseau,
-        absence de fiche, absence de style...) est simplement journalisée,
-        sans jamais interrompre le déroulement normal de l'extraction.
-        """
-        if not self._product_name or not layers:
-            return
-
-        try:
-            csw_client = CswClient()
-            record_id = csw_client.find_record_id(self._product_name)
-            if not record_id:
-                self._append_log(
-                    self.tr(
-                        "Aucune fiche de métadonnées trouvée pour « {} » : pas de style "
-                        "appliqué automatiquement."
-                    ).format(self._product_name)
-                )
-                return
-
-            resources = csw_client.get_style_resources(record_id)
-            if not resources:
-                self._append_log(
-                    self.tr("Aucun style référencé pour « {} ».").format(self._product_name)
-                )
-                return
-
-            self._append_log(
-                self.tr("Styles trouvés dans le catalogue, téléchargement...")
-            )
-            candidates = fetch_style_files(resources)
-        except Exception as exc:  # noqa: BLE001 - fonctionnalité best-effort
-            self.log(
-                message=f"Recherche/téléchargement des styles CSW échoué : {exc}",
-                log_level=Qgis.MessageLevel.Warning,
-            )
-            return
-
-        if not candidates:
-            self._append_log(self.tr("Aucun fichier de style exploitable n'a été trouvé."))
-            return
-
-        ambiguous: dict[str, list] = {}
-        layers_by_name: dict[str, QgsVectorLayer] = {}
-        for layer in layers:
-            layers_by_name[layer.name()] = layer
-            matches = match_candidates_for_table(candidates, layer.name())
-            if len(matches) == 1:
-                self._apply_sld(layer, matches[0].sld_path)
-            elif len(matches) > 1:
-                ambiguous[layer.name()] = matches
-
-        if ambiguous:
-            dlg = StyleChoiceDialog(ambiguous, parent=self)
-            if dlg.exec():
-                for layer_name, choice in dlg.get_choices().items():
-                    if choice is not None:
-                        self._apply_sld(layers_by_name[layer_name], choice.sld_path)
-
-    def _apply_sld(self, layer: QgsVectorLayer, sld_path: Path) -> None:
-        message, ok = layer.loadSldStyle(str(sld_path))
-        if ok:
-            layer.triggerRepaint()
-            self._append_log(self.tr("Style « {} » appliqué à « {} ».").format(
-                sld_path.name, layer.name()
-            ))
-        else:
-            self._append_log(
-                self.tr("Échec de l'application du style « {} » à « {} » : {}").format(
-                    sld_path.name, layer.name(), message
-                )
-            )

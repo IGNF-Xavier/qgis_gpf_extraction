@@ -11,9 +11,9 @@ from pathlib import Path
 # PyQGIS
 from qgis.core import QgsApplication, QgsProject, QgsSettings
 from qgis.gui import QgisInterface
-from qgis.PyQt.QtCore import QCoreApplication, QLocale, QTranslator, QUrl
+from qgis.PyQt.QtCore import QCoreApplication, QEvent, QLocale, QObject, QTranslator, QUrl
 from qgis.PyQt.QtGui import QDesktopServices, QIcon
-from qgis.PyQt.QtWidgets import QAction, QWidget
+from qgis.PyQt.QtWidgets import QAction, QMessageBox, QWidget
 
 # project
 from gpf_extraction.__about__ import (
@@ -23,10 +23,49 @@ from gpf_extraction.__about__ import (
     __title__,
     __uri_homepage__,
 )
+from gpf_extraction.core.job_registry import JobRegistry
+from gpf_extraction.gui.dlg_jobs import JobsDialog
 from gpf_extraction.gui.dlg_main import GpfExtractionDialog
 from gpf_extraction.gui.dlg_settings import PlgOptionsFactory
 from gpf_extraction.processing import GpfExtractionProvider
 from gpf_extraction.toolbelt import PlgLogger
+
+
+class _MainWindowCloseGuard(QObject):
+    """Avertit l'utilisateur, à la fermeture de QGIS, si des jobs
+    d'extraction sont encore suivis (cf. `core/job_registry.py`).
+
+    Les jobs continuent de tourner sur le serveur indépendamment de QGIS et
+    restent retrouvables à la prochaine ouverture (menu « Jobs en cours »)
+    : cet avertissement est informatif, pas bloquant par défaut.
+    """
+
+    def __init__(self, tr_func):
+        super().__init__()
+        self._tr = tr_func
+
+    def eventFilter(self, obj, event) -> bool:
+        if event.type() == QEvent.Type.Close:
+            jobs = JobRegistry.list_jobs()
+            pending = [j for j in jobs if not j.downloaded_path]
+            if pending:
+                titles = ", ".join(j.process_title or j.job_id for j in pending[:5])
+                reply = QMessageBox.question(
+                    obj,
+                    self._tr("Extractions en cours"),
+                    self._tr(
+                        "{} extraction(s) GPF Extraction sont encore suivies ({}). "
+                        "Elles continueront sur le serveur et resteront accessibles "
+                        "via le menu « Jobs en cours » à la prochaine ouverture de "
+                        "QGIS.\n\nQuitter quand même ?"
+                    ).format(len(pending), titles),
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.Yes,
+                )
+                if reply == QMessageBox.StandardButton.No:
+                    event.ignore()
+                    return True
+        return False
 
 # ############################################################################
 # ########## Classes ###############
@@ -79,6 +118,14 @@ class GpfExtractionPlugin:
         )
         self.iface.addToolBarIcon(self.action_launch)
         self.action_launch.triggered.connect(lambda: self.run())
+
+        self.action_jobs = QAction(
+            QIcon(str(__icon_path__)),
+            self.tr("Jobs en cours..."),
+            self.iface.mainWindow(),
+        )
+        self.action_jobs.triggered.connect(self._open_jobs_dialog)
+
         self.action_help = QAction(
             QgsApplication.getThemeIcon("mActionHelpContents.svg"),
             self.tr("Help"),
@@ -101,11 +148,16 @@ class GpfExtractionPlugin:
 
         # -- Menu
         self.iface.addPluginToMenu(f"{__plugin_name__}", self.action_launch)
+        self.iface.addPluginToMenu(f"{__plugin_name__}", self.action_jobs)
         self.iface.addPluginToMenu(f"{__plugin_name__}", self.action_settings)
         self.iface.addPluginToMenu(f"{__plugin_name__}", self.action_help)
 
         # -- Processing
         self.initProcessing()
+
+        # -- Avertissement à la fermeture de QGIS s'il reste des jobs suivis
+        self._close_guard = _MainWindowCloseGuard(self.tr)
+        self.iface.mainWindow().installEventFilter(self._close_guard)
 
         # -- Help menu
 
@@ -157,6 +209,7 @@ class GpfExtractionPlugin:
         # -- Clean up menu
         self.iface.removePluginMenu(f"{__plugin_name__}", self.action_launch)
         self.iface.removeToolBarIcon(self.action_launch)
+        self.iface.removePluginMenu(f"{__plugin_name__}", self.action_jobs)
         self.iface.removePluginMenu(f"{__plugin_name__}", self.action_settings)
 
         # -- Clean up preferences panel in QGIS settings
@@ -171,8 +224,14 @@ class GpfExtractionPlugin:
                 self.action_help_plugin_menu_documentation
             )
 
+        # -- Remove close-event warning
+        if getattr(self, "_close_guard", None):
+            self.iface.mainWindow().removeEventFilter(self._close_guard)
+            self._close_guard = None
+
         # remove actions
         del self.action_launch
+        del self.action_jobs
         del self.action_settings
         del self.action_help
         self.pluginIsActive = False
@@ -198,3 +257,7 @@ class GpfExtractionPlugin:
 
     def _on_dialog_finished(self, _result: int) -> None:
         self.pluginIsActive = False
+
+    def _open_jobs_dialog(self) -> None:
+        dlg = JobsDialog(project=self.project, parent=self.iface.mainWindow())
+        dlg.exec()
