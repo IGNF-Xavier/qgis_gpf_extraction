@@ -208,10 +208,18 @@ class ProcessParamsWidget(QWidget):
 
         return values
 
+    def _outputs_value(self) -> dict:
+        """Construit la valeur du champ `outputs`, obligatoire pour ce
+        service (constaté par retour d'erreur de l'API : `Le champ outputs
+        ne doit pas être null`). Une entrée vide par output déclaré par le
+        processus laisse le mode de transmission au choix du serveur."""
+        output_ids = self._process.output_ids if self._process else []
+        return {output_id: {} for output_id in output_ids}
+
     def _refresh_advanced_preview(self) -> None:
         if self.chk_advanced.isChecked():
             return  # l'utilisateur a la main, on ne l'écrase pas
-        body = {"inputs": self._simple_values()}
+        body = {"inputs": self._simple_values(), "outputs": self._outputs_value()}
         self.txt_advanced.setPlainText(json.dumps(body, indent=2, ensure_ascii=False))
 
     def _toggle_advanced(self, checked: bool) -> None:
@@ -234,7 +242,7 @@ class ProcessParamsWidget(QWidget):
         if self.chk_advanced.isChecked() or not self._field_widgets:
             text = self.txt_advanced.toPlainText().strip()
             if not text:
-                return {"inputs": {}}
+                return {"inputs": {}, "outputs": self._outputs_value()}
             try:
                 return json.loads(text)
             except json.JSONDecodeError as exc:
@@ -242,4 +250,4 @@ class ProcessParamsWidget(QWidget):
                     self.tr("Le corps de requête JSON est invalide : {}").format(exc)
                 ) from exc
 
-        return {"inputs": self._simple_values()}
+        return {"inputs": self._simple_values(), "outputs": self._outputs_value()}

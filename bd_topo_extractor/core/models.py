@@ -64,6 +64,13 @@ class ProcessSummary:
         )
 
 
+#: Identifiants d'outputs observés en pratique sur ce service (constaté par
+#: retour d'erreur de l'API : le champ `outputs` du corps d'exécution est
+#: obligatoire). Utilisé comme repli si `GET /processes/{id}` ne permet pas
+#: d'en extraire la liste exacte pour un processus donné.
+DEFAULT_OUTPUT_IDS = ("logs", "summary", "extractedData")
+
+
 @dataclass
 class ProcessDetails:
     id: str
@@ -71,16 +78,19 @@ class ProcessDetails:
     description: str = ""
     version: str = ""
     inputs: list = field(default_factory=list)
+    output_ids: list = field(default_factory=list)
     raw: dict = field(default_factory=dict)
 
     @classmethod
     def from_json(cls, data: dict) -> "ProcessDetails":
+        output_ids = _normalize_output_ids(data.get("outputs"))
         return cls(
             id=str(data.get("id", "")),
             title=str(data.get("title") or data.get("id", "")),
             description=str(data.get("description", "")),
             version=str(data.get("version", "")),
             inputs=_normalize_inputs(data.get("inputs")),
+            output_ids=output_ids or list(DEFAULT_OUTPUT_IDS),
             raw=data,
         )
 
@@ -134,6 +144,27 @@ def _normalize_inputs(raw_inputs: Any) -> list[ProcessInputField]:
             )
 
     return fields
+
+
+def _normalize_output_ids(raw_outputs: Any) -> list[str]:
+    """Extrait la liste des identifiants d'outputs déclarés par un processus.
+
+    Comme pour `inputs`, la forme exacte n'est pas garantie par l'OpenAPI du
+    service (`ProcessOutputDto` déclare des propriétés génériques). En
+    pratique, `outputs` est un dict `{id: schema}` (forme standard OGC API -
+    Processes) ; on se contente d'en récupérer les clés.
+    """
+    if isinstance(raw_outputs, dict):
+        return [str(k) for k in raw_outputs.keys()]
+    if isinstance(raw_outputs, list):
+        ids = []
+        for item in raw_outputs:
+            if isinstance(item, dict):
+                output_id = item.get("id") or item.get("name")
+                if output_id:
+                    ids.append(str(output_id))
+        return ids
+    return []
 
 
 @dataclass
