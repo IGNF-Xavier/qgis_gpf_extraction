@@ -97,6 +97,17 @@ class ProcessDetails:
         )
 
 
+#: Certains `title` observés côté API sont des libellés humains, pas
+#: l'identifiant réel attendu dans le corps de requête `inputs` — confirmé
+#: par la documentation officielle du service d'extraction
+#: (https://cartes.gouv.fr/aide/fr/guides-utilisateur/utiliser-les-services-de-la-geoplateforme/extraction/),
+#: dont l'exemple de corps de requête utilise la clé `lifetime` là où le
+#: processus déclare le titre "Durée de rétention".
+_TITLE_TO_INPUT_ID = {
+    "durée de rétention": "lifetime",
+}
+
+
 def _normalize_inputs(raw_inputs: Any) -> list[ProcessInputField]:
     """Normalise `inputs`, qu'il soit un dict `{id: schema}` (forme standard
     OGC API - Processes) ou une liste d'objets (forme observée dans
@@ -131,6 +142,7 @@ def _normalize_inputs(raw_inputs: Any) -> list[ProcessInputField]:
             # "relations", "format"...) — utilisé tel quel comme clé du corps
             # de requête `inputs`.
             input_id = str(item.get("id") or item.get("name") or item.get("title") or "")
+            input_id = _TITLE_TO_INPUT_ID.get(input_id.lower(), input_id)
             if not input_id:
                 # Dernier recours : un dict à une seule clé, ex. {"bbox": {...}}
                 if len(item) == 1:

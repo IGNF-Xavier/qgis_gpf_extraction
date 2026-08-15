@@ -151,7 +151,42 @@ class ProcessParamsWidget(QWidget):
                     self._extent_rectangle, _srid_from_crs(self._extent_crs)
                 )
 
+        self._wire_format_append_compatibility()
         self._refresh_advanced_preview()
+
+    def _wire_format_append_compatibility(self) -> None:
+        """`append` n'est compatible qu'avec les formats multi-couches
+        (GPKG, PGDUMP) — documenté sur le service d'extraction. Désactive
+        et décoche automatiquement `append` pour les autres formats, et le
+        coche par défaut pour un format multi-couches (pratique quand
+        plusieurs tables sont sélectionnées : un seul fichier résultat)."""
+        format_widget = self._field_widgets.get("format")
+        append_widget = self._field_widgets.get("append")
+        if not isinstance(format_widget, QComboBox) or not isinstance(append_widget, QCheckBox):
+            return
+
+        def _is_multilayer_format() -> bool:
+            value = format_widget.currentData() or format_widget.currentText()
+            return str(value).upper() in ("GPKG", "PGDUMP")
+
+        def _sync(*_args) -> None:
+            multilayer_ok = _is_multilayer_format()
+            append_widget.setEnabled(multilayer_ok)
+            if not multilayer_ok:
+                append_widget.setChecked(False)
+            append_widget.setToolTip(
+                ""
+                if multilayer_ok
+                else self.tr(
+                    "Disponible seulement pour les formats multi-couches (GPKG, PGDUMP)."
+                )
+            )
+
+        format_widget.currentIndexChanged.connect(_sync)
+        _sync()
+        append_field = self._field_objs.get("append")
+        if _is_multilayer_format() and append_field is not None and append_field.default is None:
+            append_widget.setChecked(True)
 
     def set_stored_data(self, description: Optional[StoredDataDescription]) -> None:
         """Fournit la liste des tables exploitables (obtenue via le lien
@@ -223,7 +258,18 @@ class ProcessParamsWidget(QWidget):
         if field_type in ("integer", "number"):
             spin = QDoubleSpinBox()
             spin.setDecimals(0 if field_type == "integer" else 6)
-            spin.setRange(-1_000_000_000, 1_000_000_000)
+            if field.id == "lifetime":
+                # Bornes documentées (durée de rétention, en heures) :
+                # https://cartes.gouv.fr/aide/fr/guides-utilisateur/utiliser-les-services-de-la-geoplateforme/extraction/
+                # "Valeur comprise entre 7 et 336 (soit 14 jours)". La borne
+                # basse 0 sert de valeur spéciale "non renseigné" : dans ce
+                # cas, le champ est omis du corps de requête (cf.
+                # _simple_values) et le serveur applique son propre défaut
+                # (168h, d'après la description du processus).
+                spin.setRange(0, 336)
+                spin.setSpecialValueText(self.tr("(168h, défaut serveur)"))
+            else:
+                spin.setRange(-1_000_000_000, 1_000_000_000)
             if isinstance(field.default, (int, float)):
                 spin.setValue(field.default)
             spin.valueChanged.connect(self._refresh_advanced_preview)
