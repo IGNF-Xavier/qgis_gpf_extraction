@@ -13,7 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable, Optional
 
-from qgis.core import QgsProject, QgsVectorLayer
+from qgis.core import QgsMapLayer, QgsProject, QgsProviderRegistry, QgsProviderSublayerDetails
 from qgis.PyQt.QtCore import QCoreApplication
 from qgis.PyQt.QtWidgets import QWidget
 
@@ -34,7 +34,7 @@ def _tr(message: str) -> str:
 
 def add_result_to_project(
     path: Path, project: QgsProject, log: LogFn = _noop
-) -> list[QgsVectorLayer]:
+) -> list[QgsMapLayer]:
     """Tente d'ajouter le fichier téléchargé au projet QGIS comme couche(s)
     vecteur.
 
@@ -43,10 +43,17 @@ def add_result_to_project(
     d'échec, le fichier reste disponible sur disque et l'appelant en est
     informé via `log`.
 
+    Utilise `QgsProviderRegistry.querySublayers` (API recommandée depuis
+    QGIS 3.18) plutôt que l'ancien couple `dataProvider().subLayers()` +
+    `QgsVectorLayer.sublayerSeparator()` — ce dernier a disparu de
+    `QgsVectorLayer` dans les versions récentes de QGIS (constaté sur
+    3.40 : `AttributeError`). `querySublayers` gère uniformément le cas
+    d'une seule couche comme celui de plusieurs.
+
     :return: les couches effectivement ajoutées au projet (peut être vide).
-    :rtype: list[QgsVectorLayer]
+    :rtype: list[QgsMapLayer]
     """
-    added_layers: list[QgsVectorLayer] = []
+    added_layers: list[QgsMapLayer] = []
 
     # Résultat compressé en 7z (`compression=7zip` explicitement choisi par
     # l'utilisateur) : archive potentiellement fractionnée en plusieurs
@@ -68,8 +75,8 @@ def add_result_to_project(
     if path.suffix.lower() == ".zip":
         candidate_path = f"/vsizip/{path}"
 
-    layer = QgsVectorLayer(candidate_path, path.stem, "ogr")
-    if not layer.isValid():
+    sublayers = QgsProviderRegistry.instance().querySublayers(candidate_path)
+    if not sublayers:
         log(
             _tr(
                 "Le résultat n'a pas pu être chargé automatiquement comme couche "
@@ -78,26 +85,27 @@ def add_result_to_project(
         )
         return added_layers
 
-    sub_layers = layer.dataProvider().subLayers() if layer.dataProvider() else []
-    if len(sub_layers) > 1:
-        for sub_layer_info in sub_layers:
-            # format "index!!::!!name!!::!!feature_count!!::!!geom_type"
-            name = sub_layer_info.split(QgsVectorLayer.sublayerSeparator())[1]
-            sub_uri = f"{candidate_path}|layername={name}"
-            sub_layer = QgsVectorLayer(sub_uri, name, "ogr")
-            if sub_layer.isValid():
-                project.addMapLayer(sub_layer)
-                added_layers.append(sub_layer)
-    else:
-        project.addMapLayer(layer)
-        added_layers.append(layer)
+    options = QgsProviderSublayerDetails.LayerOptions(project.transformContext())
+    for sublayer in sublayers:
+        layer = sublayer.toLayer(options)
+        if layer is not None and layer.isValid():
+            project.addMapLayer(layer)
+            added_layers.append(layer)
 
-    log(_tr("Résultat ajouté au projet ({} couche(s)).").format(len(added_layers)))
+    if added_layers:
+        log(_tr("Résultat ajouté au projet ({} couche(s)).").format(len(added_layers)))
+    else:
+        log(
+            _tr(
+                "Le résultat n'a pas pu être chargé automatiquement comme couche "
+                "vecteur. Fichier disponible ici : {}"
+            ).format(path)
+        )
     return added_layers
 
 
 def apply_styles(
-    layers: list[QgsVectorLayer],
+    layers: list[QgsMapLayer],
     product_name: str,
     log: LogFn = _noop,
     parent: Optional[QWidget] = None,
@@ -140,7 +148,7 @@ def apply_styles(
         return
 
     ambiguous: dict[str, list] = {}
-    layers_by_name: dict[str, QgsVectorLayer] = {}
+    layers_by_name: dict[str, QgsMapLayer] = {}
     for layer in layers:
         layers_by_name[layer.name()] = layer
         matches = match_candidates_for_table(candidates, layer.name())
@@ -157,7 +165,7 @@ def apply_styles(
                     _apply_sld(layers_by_name[layer_name], choice.sld_path, log)
 
 
-def _apply_sld(layer: QgsVectorLayer, sld_path: Path, log: LogFn = _noop) -> None:
+def _apply_sld(layer: QgsMapLayer, sld_path: Path, log: LogFn = _noop) -> None:
     message, ok = layer.loadSldStyle(str(sld_path))
     if ok:
         layer.triggerRepaint()
@@ -176,7 +184,7 @@ def load_result(
     product_name: str,
     log: LogFn = _noop,
     parent: Optional[QWidget] = None,
-) -> list[QgsVectorLayer]:
+) -> list[QgsMapLayer]:
     """Ajoute le résultat téléchargé au projet et tente d'y appliquer les
     styles trouvés au catalogue CSW. Combine `add_result_to_project` et
     `apply_styles`."""
