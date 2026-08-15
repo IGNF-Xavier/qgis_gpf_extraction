@@ -6,7 +6,7 @@ stages:
 
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_FOLDER/.cache/pip"
-  PROJECT_FOLDER: "bd_topo_extractor"
+  PROJECT_FOLDER: "gpf_extraction"
   PACKAGE_REGISTRY_URL: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/${PROJECT_FOLDER}"
   PRE_COMMIT_HOME: ${CI_PROJECT_DIR}/.cache/pre-commit
   PYTHON_MINIMAL_VERSION: "3.9"

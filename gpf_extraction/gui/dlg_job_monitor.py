@@ -20,10 +20,10 @@ from qgis.PyQt.QtWidgets import (
     QVBoxLayout,
 )
 
-from bd_topo_extractor.core.exceptions import ApiRequestError, JobFailedError
-from bd_topo_extractor.core.extraction_api_client import ExtractionApiClient
-from bd_topo_extractor.core.models import JobStatus
-from bd_topo_extractor.toolbelt import PlgLogger
+from gpf_extraction.core.exceptions import ApiRequestError, JobFailedError
+from gpf_extraction.core.extraction_api_client import ExtractionApiClient
+from gpf_extraction.core.models import JobStatus
+from gpf_extraction.toolbelt import PlgLogger
 
 
 class JobMonitorDialog(QDialog):

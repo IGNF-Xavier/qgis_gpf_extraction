@@ -1,4 +1,4 @@
-# BD TOPO® Extractor - Documentation
+# GPF Extraction - Documentation
 
 ## What's the point
 
@@ -6,7 +6,7 @@ This tool allows you to extract specific data from IGN's BD TOPO®. The extracti
 
 ## How to use it
 
-Only 4 steps are required to use the BD TOPO® Extractor :
+Only 4 steps are required to use the GPF Extraction :
 
 1. [Select the extent you want to use to extract data.](https://plugin-bd-topo-extractor-220867.frama.io/usage/en_how_to_use.html#select-an-extent)
 
@@ -19,7 +19,7 @@ Only 4 steps are required to use the BD TOPO® Extractor :
 ### User Interface
 
 <p align="center">
-  <img src="https://framagit.org/JulesGrillot/plugin_bd_topo_extractor/-/raw/main/bd_topo_extractor/resources/images/plugin_ui.png?ref_type=heads" alt="user_interface"/>
+  <img src="https://framagit.org/JulesGrillot/plugin_gpf_extraction/-/raw/main/gpf_extraction/resources/images/plugin_ui.png?ref_type=heads" alt="user_interface"/>
 </p>
 
 ### 1. Select an extent
@@ -39,7 +39,7 @@ You can either draw a rectangle on the map (default) or select a layer in your p
 The selected layer or the drawned rectangle is outside of the total extent of the WFS data.
 
 <p align="center">
-  <img src="https://framagit.org/JulesGrillot/plugin_bd_topo_extractor/-/raw/main/bd_topo_extractor/resources/images/outside_wfs_error.png?ref_type=heads" alt="outside_wfs_error"/>
+  <img src="https://framagit.org/JulesGrillot/plugin_gpf_extraction/-/raw/main/gpf_extraction/resources/images/outside_wfs_error.png?ref_type=heads" alt="outside_wfs_error"/>
 </p>
 
 You can use the checkbox `Draw the max extent of the WFS on the map` to add a layer in your project to show the extent of the WFS.
@@ -47,7 +47,7 @@ You can use the checkbox `Draw the max extent of the WFS on the map` to add a la
 The drawned rectangle or the selected layer is too big, the process can take a long time.
 
 <p align="center">
-  <img src="https://framagit.org/JulesGrillot/plugin_bd_topo_extractor/-/raw/main/bd_topo_extractor/resources/images/extent_too_big_error.png?ref_type=heads" alt="extent_too_big_error"/>
+  <img src="https://framagit.org/JulesGrillot/plugin_gpf_extraction/-/raw/main/gpf_extraction/resources/images/extent_too_big_error.png?ref_type=heads" alt="extent_too_big_error"/>
 </p>
 
 ### 2. Select data to export

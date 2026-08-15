@@ -1,7 +1,7 @@
 from qgis.PyQt.QtWidgets import QDialog, QVBoxLayout
 
 # project
-from bd_topo_extractor.__about__ import __title__
+from gpf_extraction.__about__ import __title__
 
 
 class ResultLogger(QDialog):

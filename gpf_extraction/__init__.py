@@ -18,6 +18,6 @@ def classFactory(iface):
     :param iface: A QGIS interface instance.
     :type iface: QgsInterface
     """
-    from .plugin_main import BdTopoExtractorPlugin
+    from .plugin_main import GpfExtractionPlugin
 
-    return BdTopoExtractorPlugin(iface)
+    return GpfExtractionPlugin(iface)

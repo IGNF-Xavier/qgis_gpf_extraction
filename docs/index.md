@@ -1,4 +1,4 @@
-# BD TOPO® Extractor - Documentation
+# GPF Extraction - Documentation
 
 > **Description:** {{ description }}  
 > **Author and contributors:** {{ author }}  

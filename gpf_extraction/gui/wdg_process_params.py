@@ -30,8 +30,8 @@ from qgis.PyQt.QtWidgets import (
     QWidget,
 )
 
-from bd_topo_extractor.core.models import ProcessDetails, ProcessInputField, StoredDataDescription
-from bd_topo_extractor.gui.wdg_relations_builder import RelationsBuilderWidget
+from gpf_extraction.core.models import ProcessDetails, ProcessInputField, StoredDataDescription
+from gpf_extraction.gui.wdg_relations_builder import RelationsBuilderWidget
 
 #: Fragments de nom de champ évoquant une emprise géographique, utilisés pour
 #: pré-remplir automatiquement la valeur avec l'emprise choisie par l'utilisateur.

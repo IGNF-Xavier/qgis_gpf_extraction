@@ -35,17 +35,17 @@ from qgis.PyQt.QtWidgets import (
 )
 
 # project
-from bd_topo_extractor.__about__ import __plugin_name__, __uri_homepage__
-from bd_topo_extractor.core.admin_boundary import AdminBoundaryClient
-from bd_topo_extractor.core.constants import DEFAULT_WORKING_CRS
-from bd_topo_extractor.core.exceptions import AdminBoundaryNotFoundError, ApiRequestError
-from bd_topo_extractor.core.extraction_api_client import ExtractionApiClient
-from bd_topo_extractor.core.stored_data import StoredDataClient
-from bd_topo_extractor.gui.dlg_authentication import AuthenticationDialog
-from bd_topo_extractor.gui.dlg_job_monitor import JobMonitorDialog
-from bd_topo_extractor.gui.wdg_process_params import ProcessParamsWidget
-from bd_topo_extractor.processing.rectangle_tool import RectangleDrawTool
-from bd_topo_extractor.toolbelt import PlgLogger, PlgOptionsManager
+from gpf_extraction.__about__ import __plugin_name__, __uri_homepage__
+from gpf_extraction.core.admin_boundary import AdminBoundaryClient
+from gpf_extraction.core.constants import DEFAULT_WORKING_CRS
+from gpf_extraction.core.exceptions import AdminBoundaryNotFoundError, ApiRequestError
+from gpf_extraction.core.extraction_api_client import ExtractionApiClient
+from gpf_extraction.core.stored_data import StoredDataClient
+from gpf_extraction.gui.dlg_authentication import AuthenticationDialog
+from gpf_extraction.gui.dlg_job_monitor import JobMonitorDialog
+from gpf_extraction.gui.wdg_process_params import ProcessParamsWidget
+from gpf_extraction.processing.rectangle_tool import RectangleDrawTool
+from gpf_extraction.toolbelt import PlgLogger, PlgOptionsManager
 
 # ############################################################################
 # ########## Classes ###############
@@ -54,7 +54,7 @@ from bd_topo_extractor.toolbelt import PlgLogger, PlgOptionsManager
 _BDTOPO_HINTS = ("bdtopo", "bd topo", "bd_topo")
 
 
-class BdTopoExtractorDialog(QDialog):
+class GpfExtractionDialog(QDialog):
     def __init__(
         self,
         project: QgsProject = None,

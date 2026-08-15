@@ -14,7 +14,7 @@ from qgis.PyQt.QtGui import QColor
 from qgis.PyQt.QtWidgets import QMessageBox
 
 # project
-from bd_topo_extractor.core.constants import DEFAULT_WORKING_CRS
+from gpf_extraction.core.constants import DEFAULT_WORKING_CRS
 
 
 class RectangleDrawTool(QgsMapTool):

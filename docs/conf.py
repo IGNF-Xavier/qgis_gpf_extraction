@@ -15,7 +15,7 @@ sys.path.insert(0, path.abspath(".."))  # move into project package
 import sphinx_rtd_theme  # noqa: F401 theme of Read the Docs
 
 # Package
-from bd_topo_extractor import __about__
+from gpf_extraction import __about__
 
 # -- Build environment -----------------------------------------------------
 on_rtd = environ.get("READTHEDOCS", None) == "True"

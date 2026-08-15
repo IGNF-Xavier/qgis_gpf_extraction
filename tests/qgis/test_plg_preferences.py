@@ -15,8 +15,8 @@
 from qgis.testing import unittest
 
 # project
-from bd_topo_extractor.__about__ import __version__
-from bd_topo_extractor.toolbelt.preferences import PlgSettingsStructure
+from gpf_extraction.__about__ import __version__
+from gpf_extraction.toolbelt.preferences import PlgSettingsStructure
 
 # ############################################################################
 # ########## Classes #############

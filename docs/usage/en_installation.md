@@ -2,7 +2,7 @@
 
 ## Stable version (recomended)
 
-This plugin is published on the official QGIS plugins repository: <https://plugins.qgis.org/plugins/bd_topo_extractor/>.
+This plugin is published on the official QGIS plugins repository: <https://plugins.qgis.org/plugins/gpf_extraction/>.
 
 ## Beta versions released
 

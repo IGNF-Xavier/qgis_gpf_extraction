@@ -16,24 +16,24 @@ from qgis.PyQt.QtGui import QDesktopServices, QIcon
 from qgis.PyQt.QtWidgets import QAction, QWidget
 
 # project
-from bd_topo_extractor.__about__ import (
+from gpf_extraction.__about__ import (
     DIR_PLUGIN_ROOT,
     __icon_path__,
     __plugin_name__,
     __title__,
     __uri_homepage__,
 )
-from bd_topo_extractor.gui.dlg_main import BdTopoExtractorDialog
-from bd_topo_extractor.gui.dlg_settings import PlgOptionsFactory
-from bd_topo_extractor.processing import BdTopoExtractorProvider
-from bd_topo_extractor.toolbelt import PlgLogger
+from gpf_extraction.gui.dlg_main import GpfExtractionDialog
+from gpf_extraction.gui.dlg_settings import PlgOptionsFactory
+from gpf_extraction.processing import GpfExtractionProvider
+from gpf_extraction.toolbelt import PlgLogger
 
 # ############################################################################
 # ########## Classes ###############
 # ##################################
 
 
-class BdTopoExtractorPlugin:
+class GpfExtractionPlugin:
     def __init__(self, iface: QgisInterface):
         """Constructor.
 
@@ -125,7 +125,7 @@ class BdTopoExtractorPlugin:
         )
 
     def initProcessing(self):
-        self.provider = BdTopoExtractorProvider()
+        self.provider = GpfExtractionProvider()
         QgsApplication.processingRegistry().addProvider(self.provider)
 
     def create_gpf_plugins_actions(self, parent: QWidget) -> list[QAction]:
@@ -181,12 +181,12 @@ class BdTopoExtractorPlugin:
         """Main process : opens the extraction dialog.
 
         The dialog manages its own connected/disconnected state (see
-        `BdTopoExtractorDialog`), so there is nothing else to check here.
+        `GpfExtractionDialog`), so there is nothing else to check here.
         """
         # Check if plugin is already launched
         if not self.pluginIsActive:
             self.pluginIsActive = True
-            self.dlg = BdTopoExtractorDialog(
+            self.dlg = GpfExtractionDialog(
                 project=self.project, iface=self.iface, locale=self.locale
             )
             self.dlg.finished.connect(self._on_dialog_finished)

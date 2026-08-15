@@ -11,10 +11,10 @@ from qgis.gui import QgsMessageBar
 from qgis.PyQt.QtWidgets import QPushButton, QWidget
 from qgis.utils import iface
 
-import bd_topo_extractor.toolbelt.preferences as plg_prefs_hdlr
+import gpf_extraction.toolbelt.preferences as plg_prefs_hdlr
 
 # project package
-from bd_topo_extractor.__about__ import __title__
+from gpf_extraction.__about__ import __title__
 
 # ############################################################################
 # ########## Classes ###############

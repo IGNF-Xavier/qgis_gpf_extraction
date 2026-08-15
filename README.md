@@ -1,4 +1,14 @@
-# BD TOPO® Extractor - QGIS Plugin
+# GPF Extraction - QGIS Plugin
+
+> ⚠️ **Plugin expérimental — ne pas utiliser en production.**
+> Ce dépôt est un fork expérimental de l'ancien plugin *BD TOPO® Extractor*
+> (renommé **GPF Extraction**), réécrit pour utiliser le nouveau service
+> d'extraction authentifié de la Géoplateforme
+> (<https://cartes.gouv.fr/actualites/services-validation-et-extraction>,
+> API OGC API - Processes) au lieu de l'ancien flux WFS anonyme. Il permet
+> d'extraire la BD TOPO® ainsi que tout autre produit auquel le compte
+> cartes.gouv.fr connecté a accès. Le comportement face à l'API réelle est
+> encore en cours de calibration : testez avant tout usage.
 
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Imports: isort](https://img.shields.io/badge/%20imports-isort-%231674b1?style=flat&labelColor=ef8336)](https://pycqa.github.io/isort/)
@@ -10,12 +20,12 @@
 
 | Cookiecutter option | Picked value |
 | :-- | :--: |
-| Plugin name | BD Topo Extractor |
-| Plugin name slugified | bd_topo_extractor |
-| Plugin name class (used in code) | BdTopoExtractor |
+| Plugin name | GPF Extraction |
+| Plugin name slugified | gpf_extraction |
+| Plugin name class (used in code) | GpfExtraction |
 | Plugin category | Vector |
-| Plugin description short | It allows the user to extract elements from IGN's BD Topo with an extent of a drawn rectangle or from layer. |
-| Plugin description long | It allows the user to extract elements from IGN's BD Topo with an extent of a drawn rectangle or from layer. You can select wich element you want to extract,from the database. Choose if you want to keep it as a memory layer or directly save it into a folder. It's also possible to select if you want the intersecting data or the data within the selected extent. |
+| Plugin description short | [Expérimental] Extract IGN's BD TOPO® and other Géoplateforme products via the authenticated extraction service, within a BBox or an administrative extent. |
+| Plugin description long | [Expérimental, fork de "BD TOPO® Extractor" par Jules Grillot] Extract the BD TOPO® and other Géoplateforme products via the extraction service (OGC API - Processes), authenticated with your cartes.gouv.fr account. Extent is a BBox drawn on the map or an administrative area searched by name. |
 | Plugin tags | vector |
 | Plugin icon | default_icon.png |
 | Plugin with processing provider | yes |
@@ -84,7 +94,7 @@ The documentation is generated using Sphinx and is automatically generated throu
 
 ### Try to build documentation locally
 
-1. Have a look to the [plugin's metadata.txt file](bd_topo_extractor/metadata.txt): review it, complete it or fix it if needed (URLs, etc.).
+1. Have a look to the [plugin's metadata.txt file](gpf_extraction/metadata.txt): review it, complete it or fix it if needed (URLs, etc.).
 1. Follow the [embedded documentation to build plugin documentation locally](./docs/development/environment.md)
 
 ----

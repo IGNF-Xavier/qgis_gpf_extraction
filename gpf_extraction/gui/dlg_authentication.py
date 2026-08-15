@@ -31,11 +31,11 @@ from qgis.PyQt.QtWidgets import (
     QVBoxLayout,
 )
 
-from bd_topo_extractor.core.constants import OAUTH_DECLARED_REDIRECT_PORTS
-from bd_topo_extractor.core.exceptions import ApiRequestError, AuthenticationError
-from bd_topo_extractor.core.extraction_api_client import ExtractionApiClient
-from bd_topo_extractor.core.oauth2_configuration import build_default_config
-from bd_topo_extractor.toolbelt import PlgLogger, PlgOptionsManager
+from gpf_extraction.core.constants import OAUTH_DECLARED_REDIRECT_PORTS
+from gpf_extraction.core.exceptions import ApiRequestError, AuthenticationError
+from gpf_extraction.core.extraction_api_client import ExtractionApiClient
+from gpf_extraction.core.oauth2_configuration import build_default_config
+from gpf_extraction.toolbelt import PlgLogger, PlgOptionsManager
 
 
 def _is_port_available(port: int, host: str = "127.0.0.1") -> bool:

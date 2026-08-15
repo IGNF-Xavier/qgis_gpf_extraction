@@ -18,7 +18,7 @@ from pathlib import Path
 from packaging.version import parse
 
 # project
-from bd_topo_extractor import __about__
+from gpf_extraction import __about__
 
 # ############################################################################
 # ########## Classes #############

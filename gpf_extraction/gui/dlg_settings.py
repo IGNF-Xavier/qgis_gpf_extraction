@@ -24,7 +24,7 @@ from qgis.PyQt.QtWidgets import (
 )
 
 # project
-from bd_topo_extractor.__about__ import (
+from gpf_extraction.__about__ import (
     __icon_path__,
     __plugin_name__,
     __title__,
@@ -32,10 +32,10 @@ from bd_topo_extractor.__about__ import (
     __uri_tracker__,
     __version__,
 )
-from bd_topo_extractor.core.constants import DEFAULT_API_BASE
-from bd_topo_extractor.gui.dlg_authentication import AuthenticationDialog
-from bd_topo_extractor.toolbelt import PlgLogger, PlgOptionsManager
-from bd_topo_extractor.toolbelt.preferences import PlgSettingsStructure
+from gpf_extraction.core.constants import DEFAULT_API_BASE
+from gpf_extraction.gui.dlg_authentication import AuthenticationDialog
+from gpf_extraction.toolbelt import PlgLogger, PlgOptionsManager
+from gpf_extraction.toolbelt.preferences import PlgSettingsStructure
 
 # ############################################################################
 # ########## Classes ###############

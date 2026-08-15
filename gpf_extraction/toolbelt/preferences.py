@@ -12,9 +12,9 @@ from typing import Optional
 from qgis.core import QgsSettings
 
 # package
-import bd_topo_extractor.toolbelt.log_handler as log_hdlr
-from bd_topo_extractor.__about__ import __title__, __version__
-from bd_topo_extractor.core.constants import (
+import gpf_extraction.toolbelt.log_handler as log_hdlr
+from gpf_extraction.__about__ import __title__, __version__
+from gpf_extraction.core.constants import (
     DEFAULT_API_BASE,
     DEFAULT_STATUS_CHECK_SLEEP,
 )

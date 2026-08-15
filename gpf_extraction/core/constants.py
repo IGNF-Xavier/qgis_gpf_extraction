@@ -6,7 +6,7 @@ désynchronisées) dans chaque module.
 
 from __future__ import annotations
 
-PLUGIN_NAMESPACE = "bd_topo_extractor"
+PLUGIN_NAMESPACE = "gpf_extraction"
 
 #: URL de base du service d'extraction de la Géoplateforme (API OGC API -
 #: Processes). Référence : https://data.geopf.fr/extraction/swagger-ui/index.html

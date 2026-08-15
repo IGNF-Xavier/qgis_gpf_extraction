@@ -7,7 +7,7 @@ You can use this plugin as your own WFS service extractor.
 
 ## Minimum modification
 
-The `metadata.txt` file is located in the `bd_topo_extractor` folder.
+The `metadata.txt` file is located in the `gpf_extraction` folder.
 The values specified in this file concern basic informations on the plugin:
 - Name
 - Description

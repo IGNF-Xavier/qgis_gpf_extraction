@@ -33,7 +33,7 @@ from qgis.PyQt.QtWidgets import (
     QWidget,
 )
 
-from bd_topo_extractor.core.models import StoredDataTable
+from gpf_extraction.core.models import StoredDataTable
 
 
 class RelationsBuilderWidget(QWidget):

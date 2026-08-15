@@ -10,14 +10,14 @@ from qgis.PyQt.QtCore import QCoreApplication
 from qgis.PyQt.QtGui import QIcon
 
 # project
-from bd_topo_extractor.__about__ import DIR_PLUGIN_ROOT, __version__
+from gpf_extraction.__about__ import DIR_PLUGIN_ROOT, __version__
 
 # ############################################################################
 # ########## Classes ###############
 # ##################################
 
 
-class BdTopoExtractorProvider(QgsProcessingProvider):
+class GpfExtractionProvider(QgsProcessingProvider):
     """
     Processing provider class.
     """
@@ -35,7 +35,7 @@ class BdTopoExtractorProvider(QgsProcessingProvider):
         :return: provider ID
         :rtype: str
         """
-        return "bd_topo_extractor"
+        return "gpf_extraction"
 
     def name(self) -> str:
         """Returns the provider name, which is used to describe the provider
@@ -45,7 +45,7 @@ class BdTopoExtractorProvider(QgsProcessingProvider):
         :return: provider name
         :rtype: str
         """
-        return self.tr("BdTopoExtractor")
+        return self.tr("GPF Extraction")
 
     def longName(self) -> str:
         """Longer version of the provider name, which can include
@@ -56,7 +56,7 @@ class BdTopoExtractorProvider(QgsProcessingProvider):
         :return: provider long name
         :rtype: str
         """
-        return self.tr("BD Topo Extractor - Tools")
+        return self.tr("GPF Extraction - Tools (expérimental)")
 
     def icon(self) -> QIcon:
         """QIcon used for your provider inside the Processing toolbox menu.

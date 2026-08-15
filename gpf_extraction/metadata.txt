@@ -1,15 +1,15 @@
 [general]
-name=BD TOPO® Extractor
-about=It allows the user to extract IGN's BD TOPO® and other Géoplateforme products, using the authenticated extraction service, within a BBox or an administrative extent.
+name=GPF Extraction
+about=[EXPERIMENTAL / NOT FOR PRODUCTION] Extract IGN's BD TOPO® and other Géoplateforme products the authenticated user has access to, via the Géoplateforme's new extraction service, within a BBox or an administrative extent.
 category=Vector
 hasProcessingProvider=yes
-description=This tool allows you to extract the BD TOPO® and other products from the Géoplateforme's extraction service (OGC API - Processes), authenticated with your cartes.gouv.fr account. The extraction extent is either a BBox drawn on the map canvas or an administrative area (commune, département, région) searched by name.
+description=[Plugin expérimental, en cours de calibration face au service réel] This tool allows you to extract the BD TOPO® and other products from the Géoplateforme's extraction service (OGC API - Processes), authenticated with your cartes.gouv.fr account. The extraction extent is either a BBox drawn on the map canvas or an administrative area (commune, département, région) searched by name. Fork of the original "BD TOPO® Extractor" plugin by Jules Grillot, rewritten around the new authenticated extraction service and renamed accordingly.
 icon=resources/images/default_icon.png
 loading=resources/images/loading.gif
-tags=vector, france, bdtopo, ign, export, ign france, géoplateforme, geoplateforme, extraction, oauth2, ogc api processes
+tags=vector, france, bdtopo, ign, export, ign france, géoplateforme, geoplateforme, extraction, oauth2, ogc api processes, experimental
 
 # credits and contact
-author=Jules GRILLOT
+author=Jules GRILLOT (fork expérimental)
 email=jules.grillot@fdn.fr
 homepage=https://plugin-bd-topo-extractor-220867.frama.io/
 repository=https://framagit.org/JulesGrillot/plugin_bd_topo_extractor
@@ -22,7 +22,7 @@ qgisMinimumVersion=3.16
 qgisMaximumVersion=4.99
 
 # versioning
-version=3.0.0
+version=3.1.0
 changelog=
     1.0.0 sphinx documentation, add metadata variable for schema, geometry column and crs.
     1.0.1 crs correction.
@@ -38,3 +38,4 @@ changelog=
     2.0.2 add extraction logs in the final message box
     2.1.0 correct last bug for QGIS4, save style if layer is not added to the project, add deleteLater for QNetworkReply
     3.0.0 rewrite: replace the anonymous WFS flow with the new Géoplateforme extraction service (OGC API - Processes), add OAuth2 authentication (autonomous login or reuse of an existing QGIS authentication configuration), add administrative extent search, support any product the authenticated user has access to (not just BD TOPO). Experimental until validated against the live API.
+    3.1.0 renamed to GPF Extraction (was "BD TOPO® Extractor"), fixed input parsing against the real API (title used as input id, "lifetime" retention field), added a table picker with automatic ST_Intersects spatial filters for VECTOR-DB extraction processes (BD TOPO, GPU_EXTRACTION...), aligned default values (GPKG format, append for multi-layer formats) with the official documentation. Still experimental.

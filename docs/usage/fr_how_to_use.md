@@ -1,4 +1,4 @@
-# BD TOPO® Extractor - Documentation
+# GPF Extraction - Documentation
 
 ## Pourquoi ?
 
@@ -6,7 +6,7 @@ Cet outil permet d'extraire les données de son choix de la BD TOPO® de l'IGN. 
 
 ## Comment ?
 
-Seulement 4 étapes sont nécéssaires pour utiliser le BD TOPO® Extractor :
+Seulement 4 étapes sont nécéssaires pour utiliser le GPF Extraction :
 
 1. [Sélectionner une emprise pour filtrée les données à extraire.](https://plugin-bd-topo-extractor-220867.frama.io/usage/fr_how_to_use.html#selectionner-une-emprise)
 
@@ -19,7 +19,7 @@ Seulement 4 étapes sont nécéssaires pour utiliser le BD TOPO® Extractor :
 ### Interface utilisateur
 
 <p align="center">
-  <img src="https://framagit.org/JulesGrillot/plugin_bd_topo_extractor/-/raw/main/bd_topo_extractor/resources/images/plugin_ui_fr.png?ref_type=heads" alt="user_interface"/>
+  <img src="https://framagit.org/JulesGrillot/plugin_gpf_extraction/-/raw/main/gpf_extraction/resources/images/plugin_ui_fr.png?ref_type=heads" alt="user_interface"/>
 </p>
 
 ### 1. Sélectionner une emprise
@@ -42,7 +42,7 @@ Il est possible de :
 La couche sélectionne ou le rectangle déssinée est en dehors de l'emprise maximale des données WFS.
 
 <p align="center">
-  <img src="https://framagit.org/JulesGrillot/plugin_bd_topo_extractor/-/raw/main/bd_topo_extractor/resources/images/outside_wfs_error_fr.png?ref_type=heads" alt="outside_wfs_error"/>
+  <img src="https://framagit.org/JulesGrillot/plugin_gpf_extraction/-/raw/main/gpf_extraction/resources/images/outside_wfs_error_fr.png?ref_type=heads" alt="outside_wfs_error"/>
 </p>
 
 Vous pouvez utiliser la case à cocher `Ajouter l'étendue maximale du WFS sur la carte` pour ajouter une couche d'information géographique dans votre projet montrant l'étendue du WFS.
@@ -50,7 +50,7 @@ Vous pouvez utiliser la case à cocher `Ajouter l'étendue maximale du WFS sur l
 L'emprise sélectionnée est trop grande, le traitement peut prendre un temps conséquent.
 
 <p align="center">
-  <img src="https://framagit.org/JulesGrillot/plugin_bd_topo_extractor/-/raw/main/bd_topo_extractor/resources/images/extent_too_big_error_fr.png?ref_type=heads" alt="extent_too_big_error"/>
+  <img src="https://framagit.org/JulesGrillot/plugin_gpf_extraction/-/raw/main/gpf_extraction/resources/images/extent_too_big_error_fr.png?ref_type=heads" alt="extent_too_big_error"/>
 </p>
 
 ### 2. Sélectionner les données à extraire

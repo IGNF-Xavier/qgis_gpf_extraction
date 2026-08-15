@@ -53,9 +53,9 @@ class OAuth2Configuration:
     clientId: str = DEFAULT_OAUTH_CLIENT_ID
     clientSecret: str = ""
     configType: int = 1  # 1 = OAuth2 configuration "manuelle"
-    description: str = "Authentification Géoplateforme (BD TOPO Extractor)."
+    description: str = "Authentification Géoplateforme (GPF Extraction)."
     grantFlow: int = 0  # 0 = Authorization Code
-    name: str = "bd_topo_extractor_cfg"
+    name: str = "gpf_extraction_cfg"
     persistToken: bool = True
     queryPairs: dict = field(default_factory=dict)
     redirectPort: int = 7070

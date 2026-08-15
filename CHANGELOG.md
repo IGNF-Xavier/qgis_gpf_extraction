@@ -48,3 +48,17 @@ Unreleased
 
 ## 2.0.2 - 2026-02-03
 - Add log after extraction to have more detail on what's missing
+
+## 3.0.0 - 2026-08-15 [EXPERIMENTAL]
+- Replace the anonymous WFS flow with the Géoplateforme's new authenticated extraction service (OGC API - Processes)
+- Add OAuth2 authentication (reuse of an existing QGIS authentication configuration, e.g. from the official QGIS Géoplateforme plugin)
+- Add administrative extent search (commune, département, région), in addition to the drawn BBox
+- Support any product the authenticated user has access to, not just BD TOPO®
+- **Not yet validated against the live API at release time — experimental**
+
+## 3.1.0 - 2026-08-15 [EXPERIMENTAL]
+- **Plugin renamed from "BD TOPO® Extractor" to "GPF Extraction"**
+- Fix input parsing against the real API (the service uses each input's `title` as its identifier, with a couple of exceptions documented by the official guide, e.g. `lifetime` for the retention duration)
+- Add a table picker (with automatic `ST_Intersects` spatial filtering) for "ARCHIVE from VECTOR-DB" extraction processes (BD TOPO, GPU_EXTRACTION, ...)
+- Align default values with the official documentation: prefer GPKG output format, enable `append` only for multi-layer formats (GPKG/PGDUMP), don't send an unset retention duration
+- Validated live against the real API (BD TOPO and GPU_EXTRACTION processes) — still experimental for other processes
