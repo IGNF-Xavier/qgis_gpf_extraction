@@ -64,6 +64,10 @@ class JobsDialog(QDialog):
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        # Par défaut, QTableWidget étire la dernière colonne pour occuper
+        # tout l'espace restant et empêche son redimensionnement manuel :
+        # désactivé pour que la colonne "Créé le" reste redimensionnable.
+        self.table.horizontalHeader().setStretchLastSection(False)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)

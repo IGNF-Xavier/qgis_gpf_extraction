@@ -19,7 +19,7 @@ import json
 from pathlib import Path
 
 from ..network.http_client import HttpResponse, NetworkClient
-from .atom_feed import DownloadEntry, looks_like_atom_feed, parse_download_entries
+from .atom_feed import DownloadEntry, parse_download_entries
 from .constants import DEFAULT_API_BASE
 from .exceptions import ApiRequestError, JobFailedError
 from .models import JobResult, JobStatus, ProcessDetails, ProcessSummary
@@ -177,18 +177,31 @@ class ExtractionApiClient:
         métadonnées). Repli défensif si un processus renvoyait malgré tout
         un lien direct vers un fichier : le lien est alors utilisé tel quel.
 
+        Constaté en conditions réelles : cette ressource fait de la
+        négociation de contenu, et renvoie une version JSON du même flux
+        si l'en-tête `Accept: application/json` (envoyé par défaut par
+        `NetworkClient` pour le reste de l'API REST) est présent — d'où la
+        surcharge explicite ci-dessous pour forcer la forme Atom/XML, seule
+        que le parseur (`core/atom_feed.py`) sait lire.
+
         :param extract_data_href: valeur de `JobResult.extract_data_href`.
         :type extract_data_href: str
 
         :return: fichiers téléchargeables (au moins un, sauf échec réseau).
         :rtype: list[DownloadEntry]
         """
-        response = _ensure_ok(self._network.get(extract_data_href), "GET", extract_data_href)
+        response = _ensure_ok(
+            self._network.get(extract_data_href, headers={"Accept": "application/atom+xml"}),
+            "GET",
+            extract_data_href,
+        )
         content_type = response.headers.get("Content-Type", "")
-        if looks_like_atom_feed(content_type, response.body):
-            entries = parse_download_entries(response.body)
-            if entries:
-                return entries
+        # Tente systématiquement le parsing Atom (peu coûteux, et plus fiable
+        # qu'un pré-filtrage sur le Content-Type/les premiers octets) ; ne se
+        # rabat sur "lien direct vers un fichier" que si ça ne donne rien.
+        entries = parse_download_entries(response.body)
+        if entries:
+            return entries
         return [DownloadEntry(href=extract_data_href, mime_type=content_type)]
 
     def download_all_results(self, extract_data_href: str, dest_dir) -> list[Path]:
