@@ -88,6 +88,7 @@ class GpfExtractionDialog(QDialog):
         self.current_extent: QgsRectangle | None = None
         self.selected_process = None
         self.selected_process_details = None
+        self.selected_stored_data = None
 
         self._admin_search_timer = QTimer(self)
         self._admin_search_timer.setSingleShot(True)
@@ -383,6 +384,7 @@ class GpfExtractionDialog(QDialog):
         if not items or not self.client:
             self.selected_process = None
             self.selected_process_details = None
+            self.selected_stored_data = None
             self.params_widget.set_process(None)
             self._validate()
             return
@@ -411,12 +413,13 @@ class GpfExtractionDialog(QDialog):
             if self.selected_process_details
             else None
         )
+        self.selected_stored_data = None
         if described_by_url:
             try:
-                stored_data = StoredDataClient(authcfg=self.client.authcfg).get(
+                self.selected_stored_data = StoredDataClient(authcfg=self.client.authcfg).get(
                     described_by_url
                 )
-                self.params_widget.set_stored_data(stored_data)
+                self.params_widget.set_stored_data(self.selected_stored_data)
             except ApiRequestError as exc:
                 self.log(
                     message=f"Impossible de récupérer la description de la donnée "
@@ -479,6 +482,12 @@ class GpfExtractionDialog(QDialog):
         settings.last_output_dir = output_dir or ""
         self.plg_settings_mngr.save_from_object(settings)
 
+        product_name = (
+            self.selected_stored_data.name
+            if self.selected_stored_data
+            else (self.selected_process.title if self.selected_process else "")
+        )
+
         self.hide()
         monitor = JobMonitorDialog(
             client=self.client,
@@ -487,6 +496,7 @@ class GpfExtractionDialog(QDialog):
             add_to_project=self.chk_add_to_project.isChecked(),
             project=self.project,
             poll_interval_seconds=settings.status_check_sleep,
+            product_name=product_name,
             parent=self.iface.mainWindow() if self.iface else None,
         )
         monitor.exec()

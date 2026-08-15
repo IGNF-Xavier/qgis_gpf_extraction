@@ -20,9 +20,12 @@ from qgis.PyQt.QtWidgets import (
     QVBoxLayout,
 )
 
+from gpf_extraction.core.csw_client import CswClient
 from gpf_extraction.core.exceptions import ApiRequestError, JobFailedError
 from gpf_extraction.core.extraction_api_client import ExtractionApiClient
 from gpf_extraction.core.models import JobStatus
+from gpf_extraction.core.style_bundle import fetch_style_files, match_candidates_for_table
+from gpf_extraction.gui.dlg_style_choice import StyleChoiceDialog
 from gpf_extraction.toolbelt import PlgLogger
 
 
@@ -37,6 +40,7 @@ class JobMonitorDialog(QDialog):
         add_to_project: bool,
         project: QgsProject,
         poll_interval_seconds: int = 15,
+        product_name: str = "",
         parent=None,
     ):
         super().__init__(parent)
@@ -49,6 +53,7 @@ class JobMonitorDialog(QDialog):
         self._output_dir = output_dir
         self._add_to_project = add_to_project
         self._project = project
+        self._product_name = product_name
         self._downloaded_path: Optional[str] = None
 
         layout = QVBoxLayout(self)
@@ -200,6 +205,8 @@ class JobMonitorDialog(QDialog):
         if path.suffix.lower() == ".zip":
             candidate_path = f"/vsizip/{path}"
 
+        added_layers: list[QgsVectorLayer] = []
+
         layer = QgsVectorLayer(candidate_path, path.stem, "ogr")
         if layer.isValid():
             sub_layers = layer.dataProvider().subLayers() if layer.dataProvider() else []
@@ -211,8 +218,10 @@ class JobMonitorDialog(QDialog):
                     sub_layer = QgsVectorLayer(sub_uri, name, "ogr")
                     if sub_layer.isValid():
                         self._project.addMapLayer(sub_layer)
+                        added_layers.append(sub_layer)
             else:
                 self._project.addMapLayer(layer)
+                added_layers.append(layer)
             self._append_log(self.tr("Résultat ajouté au projet."))
         else:
             self._append_log(
@@ -220,4 +229,86 @@ class JobMonitorDialog(QDialog):
                     "Le résultat n'a pas pu être chargé automatiquement comme couche "
                     "vecteur. Fichier disponible ici : {}"
                 ).format(path)
+            )
+            return
+
+        self._apply_styles(added_layers)
+
+    # ------------------------------------------------------------------
+    # Styles (catalogue CSW)
+    # ------------------------------------------------------------------
+    def _apply_styles(self, layers: list[QgsVectorLayer]) -> None:
+        """Cherche, télécharge et applique les styles (SLD) référencés par le
+        catalogue de métadonnées pour le produit extrait, s'il y en a.
+
+        Fonctionnalité entièrement best-effort : toute erreur (réseau,
+        absence de fiche, absence de style...) est simplement journalisée,
+        sans jamais interrompre le déroulement normal de l'extraction.
+        """
+        if not self._product_name or not layers:
+            return
+
+        try:
+            csw_client = CswClient()
+            record_id = csw_client.find_record_id(self._product_name)
+            if not record_id:
+                self._append_log(
+                    self.tr(
+                        "Aucune fiche de métadonnées trouvée pour « {} » : pas de style "
+                        "appliqué automatiquement."
+                    ).format(self._product_name)
+                )
+                return
+
+            resources = csw_client.get_style_resources(record_id)
+            if not resources:
+                self._append_log(
+                    self.tr("Aucun style référencé pour « {} ».").format(self._product_name)
+                )
+                return
+
+            self._append_log(
+                self.tr("Styles trouvés dans le catalogue, téléchargement...")
+            )
+            candidates = fetch_style_files(resources)
+        except Exception as exc:  # noqa: BLE001 - fonctionnalité best-effort
+            self.log(
+                message=f"Recherche/téléchargement des styles CSW échoué : {exc}",
+                log_level=Qgis.MessageLevel.Warning,
+            )
+            return
+
+        if not candidates:
+            self._append_log(self.tr("Aucun fichier de style exploitable n'a été trouvé."))
+            return
+
+        ambiguous: dict[str, list] = {}
+        layers_by_name: dict[str, QgsVectorLayer] = {}
+        for layer in layers:
+            layers_by_name[layer.name()] = layer
+            matches = match_candidates_for_table(candidates, layer.name())
+            if len(matches) == 1:
+                self._apply_sld(layer, matches[0].sld_path)
+            elif len(matches) > 1:
+                ambiguous[layer.name()] = matches
+
+        if ambiguous:
+            dlg = StyleChoiceDialog(ambiguous, parent=self)
+            if dlg.exec():
+                for layer_name, choice in dlg.get_choices().items():
+                    if choice is not None:
+                        self._apply_sld(layers_by_name[layer_name], choice.sld_path)
+
+    def _apply_sld(self, layer: QgsVectorLayer, sld_path: Path) -> None:
+        message, ok = layer.loadSldStyle(str(sld_path))
+        if ok:
+            layer.triggerRepaint()
+            self._append_log(self.tr("Style « {} » appliqué à « {} ».").format(
+                sld_path.name, layer.name()
+            ))
+        else:
+            self._append_log(
+                self.tr("Échec de l'application du style « {} » à « {} » : {}").format(
+                    sld_path.name, layer.name(), message
+                )
             )
