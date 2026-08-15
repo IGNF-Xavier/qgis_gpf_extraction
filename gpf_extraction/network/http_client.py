@@ -57,7 +57,7 @@ class NetworkClient:
     def _wait(reply: QNetworkReply) -> QNetworkReply:
         loop = QEventLoop()
         reply.finished.connect(loop.quit)
-        loop.exec_()
+        loop.exec()  # pas de exec_() : supprimé en PyQt6/Qt6 (QGIS 4)
         return reply
 
     @staticmethod
