@@ -182,7 +182,12 @@ class ExtractionApiClient:
         si l'en-tête `Accept: application/json` (envoyé par défaut par
         `NetworkClient` pour le reste de l'API REST) est présent — d'où la
         surcharge explicite ci-dessous pour forcer la forme Atom/XML, seule
-        que le parseur (`core/atom_feed.py`) sait lire.
+        que le parseur (`core/atom_feed.py`) sait lire. Le cache HTTP de
+        QGIS ne tenant par ailleurs pas compte de cette variation d'en-tête
+        (pas de `Vary: Accept` renvoyé par le serveur), une requête déjà
+        mise en cache avec un autre `Accept` doit être contournée
+        explicitement (`bypass_cache`), sous peine de rejouer indéfiniment
+        la première réponse obtenue pour cette URL.
 
         :param extract_data_href: valeur de `JobResult.extract_data_href`.
         :type extract_data_href: str
@@ -191,7 +196,11 @@ class ExtractionApiClient:
         :rtype: list[DownloadEntry]
         """
         response = _ensure_ok(
-            self._network.get(extract_data_href, headers={"Accept": "application/atom+xml"}),
+            self._network.get(
+                extract_data_href,
+                headers={"Accept": "application/atom+xml"},
+                bypass_cache=True,
+            ),
             "GET",
             extract_data_href,
         )

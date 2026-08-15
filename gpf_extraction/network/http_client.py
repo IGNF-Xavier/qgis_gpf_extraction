@@ -79,7 +79,9 @@ class NetworkClient:
             headers=headers,
         )
 
-    def _build_request(self, url: str, headers: Optional[dict] = None) -> QNetworkRequest:
+    def _build_request(
+        self, url: str, headers: Optional[dict] = None, bypass_cache: bool = False
+    ) -> QNetworkRequest:
         request = QNetworkRequest(QUrl(url))
         request.setRawHeader(b"Accept", b"application/json")
         self._inject_auth(request)
@@ -88,13 +90,26 @@ class NetworkClient:
                 key if isinstance(key, bytes) else key.encode("utf-8"),
                 value if isinstance(value, bytes) else str(value).encode("utf-8"),
             )
+        if bypass_cache:
+            # QGIS met en cache disque les réponses HTTP par URL, sans tenir
+            # compte d'un éventuel `Vary: Accept` du serveur : une ressource
+            # à négociation de contenu (ex. Accept différent selon l'appel)
+            # peut donc renvoyer une réponse mise en cache pour un tout
+            # autre en-tête `Accept` que celui réellement envoyé. Constaté
+            # en conditions réelles sur le lien `extractData` du service
+            # d'extraction. `AlwaysNetwork` force une requête réseau fraîche.
+            request.setAttribute(
+                QNetworkRequest.CacheLoadControlAttribute, QNetworkRequest.AlwaysNetwork
+            )
         return request
 
     # ------------------------------------------------------------------
     # API publique
     # ------------------------------------------------------------------
-    def get(self, url: str, headers: Optional[dict] = None) -> HttpResponse:
-        request = self._build_request(url, headers)
+    def get(
+        self, url: str, headers: Optional[dict] = None, bypass_cache: bool = False
+    ) -> HttpResponse:
+        request = self._build_request(url, headers, bypass_cache=bypass_cache)
         nam = QgsNetworkAccessManager.instance()
         reply = self._wait(nam.get(request))
         return self._to_response(reply)
