@@ -181,7 +181,13 @@ class GpfExtractionDialog(QDialog):
         process_layout.addWidget(self.list_processes)
 
         self.params_widget = ProcessParamsWidget()
+        self.params_widget.changed.connect(self._validate)
         process_layout.addWidget(self.params_widget)
+
+        self.lbl_params_status = QLabel()
+        self.lbl_params_status.setWordWrap(True)
+        self.lbl_params_status.setStyleSheet("color: #a33;")
+        process_layout.addWidget(self.lbl_params_status)
 
         layout.addWidget(self.grp_process)
 
@@ -447,6 +453,13 @@ class GpfExtractionDialog(QDialog):
     # ------------------------------------------------------------------
     def _validate(self) -> None:
         ok = bool(self.client) and self.current_extent is not None and self.selected_process is not None
+
+        params_message = ""
+        if ok:
+            params_ready, params_message = self.params_widget.is_ready()
+            ok = ok and params_ready
+        self.lbl_params_status.setText(params_message)
+
         self.button_box.button(QDialogButtonBox.StandardButton.Ok).setEnabled(ok)
 
     def _on_accept(self) -> None:

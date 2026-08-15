@@ -17,7 +17,7 @@ import json
 from typing import Optional
 
 from qgis.core import QgsRectangle
-from qgis.PyQt.QtCore import QCoreApplication, Qt
+from qgis.PyQt.QtCore import QCoreApplication, Qt, pyqtSignal
 from qgis.PyQt.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -62,6 +62,11 @@ def _srid_from_crs(crs: str) -> int:
 
 
 class ProcessParamsWidget(QWidget):
+    #: Émis quand un choix pouvant affecter la validité du formulaire change
+    #: (ex. sélection de tables dans le sélecteur `relations`), pour que le
+    #: dialogue parent puisse revalider l'activation de son bouton OK.
+    changed = pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._process: Optional[ProcessDetails] = None
@@ -138,6 +143,7 @@ class ProcessParamsWidget(QWidget):
             if isinstance(widget, RelationsBuilderWidget):
                 self._relations_widget = widget
                 widget.changed.connect(self._refresh_advanced_preview)
+                widget.changed.connect(self.changed)
             label = field.title or field.id
             if field.required:
                 label += " *"
@@ -363,6 +369,27 @@ class ProcessParamsWidget(QWidget):
             widget.setEnabled(not checked)
         if not checked:
             self._refresh_advanced_preview()
+
+    def is_ready(self) -> tuple[bool, str]:
+        """Vérifie que le formulaire est en état d'être soumis.
+
+        En mode simple, le sélecteur de tables (`relations`), quand il est
+        présent, doit avoir au moins une table cochée : l'API refuse
+        explicitement une valeur vide pour cet input (constaté en
+        conditions réelles : "Le paramètre en inputs.relations doit
+        contenir au moins un élément"). L'édition avancée n'est pas
+        vérifiée ici (l'utilisateur a la main sur le JSON).
+
+        :return: (prêt, message d'erreur si non prêt).
+        :rtype: tuple[bool, str]
+        """
+        if self.chk_advanced.isChecked():
+            return True, ""
+        if self._relations_widget is not None and not self._relations_widget.has_selection():
+            return False, self.tr(
+                "Sélectionnez au moins une table dans le sélecteur ci-dessus."
+            )
+        return True, ""
 
     def get_body(self) -> dict:
         """Construit le corps de requête pour `POST /processes/{id}/execution`.
