@@ -59,9 +59,13 @@ class AdminBoundaryClient:
 
         results: list[AdminBoundaryResult] = []
         for path, kind_label in _ADMIN_KINDS:
+            # `codeDepartement` (communes) / `codeRegion` (départements) sont
+            # demandés pour désambiguïser les homonymes (ex. plusieurs
+            # communes "Montreuil" en France) directement dans le libellé.
+            extra_field = "codeDepartement" if path == "communes" else "codeRegion"
             url = (
                 f"{self._api_base}/{path}?nom={text}"
-                f"&fields=nom,code,contour&boost=population&limit={limit}"
+                f"&fields=nom,code,contour,{extra_field}&boost=population&limit={limit}"
             )
             response = self._network.get(url)
             if not response.ok:
@@ -79,9 +83,14 @@ class AdminBoundaryClient:
                 geometry = _geojson_geometry_to_qgs_geometry(contour)
                 if geometry is None or geometry.isEmpty():
                     continue
+                disambiguator = item.get(extra_field)
+                label = f"{item.get('nom', text)} ({kind_label}"
+                if disambiguator:
+                    label += f" {disambiguator}"
+                label += ")"
                 results.append(
                     AdminBoundaryResult(
-                        label=f"{item.get('nom', text)} ({kind_label})",
+                        label=label,
                         kind=kind_label,
                         code=str(item.get("code", "")),
                         geometry=geometry,

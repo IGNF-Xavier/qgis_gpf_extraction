@@ -23,6 +23,7 @@ from qgis.PyQt.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFileDialog,
+    QFrame,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -31,7 +32,9 @@ from qgis.PyQt.QtWidgets import (
     QListWidgetItem,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QVBoxLayout,
+    QWidget,
 )
 
 # project
@@ -106,7 +109,20 @@ class GpfExtractionDialog(QDialog):
     # Construction de l'interface
     # ------------------------------------------------------------------
     def _build_ui(self) -> None:
-        layout = QVBoxLayout(self)
+        outer_layout = QVBoxLayout(self)
+
+        # Le contenu (emprise, produit, formulaire de paramètres dynamique,
+        # sortie) est de hauteur variable selon le processus sélectionné
+        # (ex. le sélecteur de tables peut afficher des dizaines de lignes) :
+        # une zone défilante évite que ce contenu ne soit simplement coupé
+        # (invisible tant que la fenêtre n'est pas agrandie manuellement).
+        scroll_area = QScrollArea(self)
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        scroll_content = QWidget()
+        layout = QVBoxLayout(scroll_content)
+        scroll_area.setWidget(scroll_content)
+        outer_layout.addWidget(scroll_area, stretch=1)
 
         # -- Bandeau connexion -------------------------------------------------
         auth_layout = QHBoxLayout()
@@ -231,7 +247,9 @@ class GpfExtractionDialog(QDialog):
         self.button_box.button(QDialogButtonBox.StandardButton.Ok).setEnabled(False)
         self.button_box.accepted.connect(self._on_accept)
         self.button_box.rejected.connect(self.reject)
-        layout.addWidget(self.button_box)
+        # Hors de la zone défilante : toujours visible, sans avoir à faire
+        # défiler jusqu'en bas.
+        outer_layout.addWidget(self.button_box)
 
         self._set_content_enabled(False)
 

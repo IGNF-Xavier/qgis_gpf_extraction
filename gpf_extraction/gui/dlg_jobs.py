@@ -71,6 +71,16 @@ class JobsDialog(QDialog):
         layout.addWidget(self.table)
 
         buttons_layout = QHBoxLayout()
+        self.btn_import_from_server = QPushButton(self.tr("Importer les jobs du serveur"))
+        self.btn_import_from_server.setToolTip(
+            self.tr(
+                "Retrouve les jobs connus du serveur mais absents de ce suivi local "
+                "(ex. lancés avant une mise à jour du plugin)."
+            )
+        )
+        self.btn_import_from_server.clicked.connect(self._import_from_server)
+        buttons_layout.addWidget(self.btn_import_from_server)
+
         self.btn_refresh = QPushButton(self.tr("Rafraîchir le statut"))
         self.btn_refresh.clicked.connect(self._refresh_selected)
         buttons_layout.addWidget(self.btn_refresh)
@@ -168,6 +178,58 @@ class JobsDialog(QDialog):
     # ------------------------------------------------------------------
     # Actions
     # ------------------------------------------------------------------
+    def _import_from_server(self) -> None:
+        """Récupère la liste des jobs connus du serveur et importe dans le
+        suivi local ceux qui n'y sont pas déjà (ex. lancés avant une mise à
+        jour du plugin, ou depuis une autre installation) : le job continue
+        d'exister côté serveur indépendamment du suivi local."""
+        client = self._get_client()
+        if client is None:
+            return
+        try:
+            server_jobs = client.list_jobs()
+        except ApiRequestError as exc:
+            QMessageBox.warning(
+                self,
+                self.tr("Erreur"),
+                self.tr("Impossible de récupérer la liste des jobs :\n{}").format(exc),
+            )
+            return
+
+        known_ids = {job.job_id for job in JobRegistry.list_jobs()}
+        imported = 0
+        process_titles: dict[str, str] = {}
+        for server_job in server_jobs:
+            if not server_job.job_id or server_job.job_id in known_ids:
+                continue
+            if server_job.process_id not in process_titles:
+                try:
+                    process_titles[server_job.process_id] = client.get_process(
+                        server_job.process_id
+                    ).title
+                except ApiRequestError:
+                    process_titles[server_job.process_id] = server_job.process_id
+            JobRegistry.add_job(
+                TrackedJob(
+                    job_id=server_job.job_id,
+                    process_id=server_job.process_id,
+                    process_title=process_titles[server_job.process_id],
+                    product_name=process_titles[server_job.process_id],
+                    comment=self.tr("Importé depuis le serveur"),
+                    last_known_status=server_job.status,
+                )
+            )
+            imported += 1
+
+        self._reload_table()
+        QMessageBox.information(
+            self,
+            self.tr("Import terminé"),
+            self.tr("{} job(s) importé(s) depuis le serveur.").format(imported)
+            if imported
+            else self.tr("Aucun job supplémentaire trouvé sur le serveur."),
+        )
+
     def _refresh_selected(self) -> None:
         job = self._selected_job()
         client = self._get_client()

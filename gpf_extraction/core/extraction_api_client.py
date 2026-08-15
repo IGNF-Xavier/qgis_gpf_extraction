@@ -107,6 +107,30 @@ class ExtractionApiClient:
         response = _ensure_ok(self._network.get(url), "GET", url)
         return JobStatus.from_json(_parse_json(response, url))
 
+    def list_jobs(self, limit: int = 50) -> list[JobStatus]:
+        """Liste les jobs de l'utilisateur authentifié, tels que connus par
+        le serveur.
+
+        Utile pour retrouver un job non suivi localement (ex. lancé avant
+        une mise à jour du plugin, ou depuis une autre installation) : le
+        registre local (`core/job_registry.py`) ne mémorise que les jobs
+        lancés depuis ce poste, alors qu'un job continue d'exister côté
+        serveur indépendamment de ce suivi.
+
+        :param limit: nombre maximum de jobs renvoyés, defaults to 50
+        :type limit: int, optional
+
+        :return: jobs connus du serveur, les plus récents en premier.
+        :rtype: list[JobStatus]
+        """
+        url = f"{self._api_base}/jobs?limit={limit}"
+        response = _ensure_ok(self._network.get(url), "GET", url)
+        payload = _parse_json(response, url)
+        raw_items = payload.get("jobs") if isinstance(payload, dict) else payload
+        if not isinstance(raw_items, list):
+            return []
+        return [JobStatus.from_json(item) for item in raw_items]
+
     def get_job_results(self, job_id: str) -> JobResult:
         """Récupère le résultat d'un job terminé avec succès.
 
