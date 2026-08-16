@@ -11,6 +11,7 @@ chaque table extraite.
 from __future__ import annotations
 
 import hashlib
+import re
 import tempfile
 import zipfile
 from dataclasses import dataclass
@@ -64,6 +65,7 @@ def fetch_style_files(resources: list[StyleResource]) -> list[StyleCandidate]:
                 sld_path = target_dir / "style.sld"
                 if not sld_path.exists():
                     network.download_to_file(resource.url, sld_path, use_auth=False)
+                _fix_mislabeled_sld_encoding(sld_path)
                 candidates.append(StyleCandidate(resource.title, sld_path))
 
             elif suffix == ".zip":
@@ -75,11 +77,60 @@ def fetch_style_files(resources: list[StyleResource]) -> list[StyleCandidate]:
                         archive.extractall(target_dir)
                     marker.touch()
                 for sld_path in sorted(target_dir.rglob("*.sld")):
+                    # Appliqué à chaque appel (pas seulement à l'extraction) :
+                    # corrige aussi les fichiers déjà mis en cache lors d'une
+                    # précédente exécution du plugin.
+                    _fix_mislabeled_sld_encoding(sld_path)
                     candidates.append(StyleCandidate(resource.title, sld_path))
         except (ConnectionError, OSError, zipfile.BadZipFile):
             continue
 
     return candidates
+
+
+def _fix_mislabeled_sld_encoding(path: Path) -> None:
+    """Corrige un SLD dont l'en-tête XML déclare un encodage (souvent
+    ISO-8859-1) qui ne correspond pas à son contenu réel.
+
+    Constaté en conditions réelles sur le paquet de styles Géoserver de la
+    BD TOPO® : les fichiers déclarent `encoding="ISO-8859-1"` alors que
+    leur contenu est en réalité encodé en UTF-8 (ex. "é" présent comme les
+    deux octets UTF-8 `\\xc3\\xa9`, pas l'octet unique ISO-8859-1 `\\xe9`).
+    QGIS décode alors le fichier avec le mauvais encodage et affiche des
+    libellés corrompus dans la légende (ex. "IndiffÃ©renciÃ©e" au lieu de
+    "Indifférenciée"). Ne modifie que la déclaration d'encodage dans l'en-
+    tête XML ; le contenu (déjà en UTF-8) n'a pas besoin d'être réécrit.
+    """
+    try:
+        raw = path.read_bytes()
+    except OSError:
+        return
+
+    match = re.match(rb'^<\?xml[^>]*encoding="([^"]+)"', raw)
+    if not match:
+        return
+    declared = match.group(1).decode("ascii", "ignore")
+    if declared.lower() in ("utf-8", "utf8"):
+        return
+
+    try:
+        raw.decode(declared)
+        return  # le contenu correspond réellement à l'encodage déclaré
+    except (UnicodeDecodeError, LookupError):
+        pass
+
+    try:
+        raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return  # ni dans l'encodage déclaré, ni en UTF-8 : on ne touche à rien
+
+    fixed = raw.replace(
+        b'encoding="' + match.group(1) + b'"', b'encoding="UTF-8"', 1
+    )
+    try:
+        path.write_bytes(fixed)
+    except OSError:
+        pass
 
 
 def match_candidates_for_table(
