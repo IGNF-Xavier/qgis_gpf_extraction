@@ -169,3 +169,14 @@ class RectangleDrawTool(QgsMapTool):
     def deactivate(self):
         # Signal to put the window on top when drawing the rectangle is over.
         pass
+
+    def clear(self):
+        """Retire le rectangle affiché sur le canevas (rubber band).
+
+        À appeler à la fermeture du dialogue qui utilise cet outil : sans
+        ça, le rectangle dessiné reste affiché indéfiniment sur la carte,
+        y compris après la fermeture du dialogue, et s'accumule à chaque
+        nouvelle ouverture (chaque instance du dialogue crée son propre
+        outil, donc son propre rubber band).
+        """
+        self.rubber_band.reset(QgsWkbTypes.GeometryType.PolygonGeometry)

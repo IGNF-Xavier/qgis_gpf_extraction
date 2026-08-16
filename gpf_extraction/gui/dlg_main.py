@@ -99,6 +99,11 @@ class GpfExtractionDialog(QDialog):
         self._admin_search_timer.setInterval(400)
         self._admin_search_timer.timeout.connect(self._search_admin)
 
+        # Sans ça, le rectangle dessiné sur la carte (rubber band) reste
+        # affiché après la fermeture du dialogue, et s'accumule à chaque
+        # réouverture (constaté en conditions réelles).
+        self.finished.connect(self._cleanup_map_tool)
+
         self._build_ui()
         self._refresh_auth_status()
 
@@ -468,6 +473,16 @@ class GpfExtractionDialog(QDialog):
             self.params_widget.set_stored_data(None)
 
         self._validate()
+
+    # ------------------------------------------------------------------
+    # Nettoyage
+    # ------------------------------------------------------------------
+    def _cleanup_map_tool(self, _result: int = None) -> None:
+        if not self.rectangle_tool:
+            return
+        if self.canvas and self.canvas.mapTool() is self.rectangle_tool:
+            self.canvas.unsetMapTool(self.rectangle_tool)
+        self.rectangle_tool.clear()
 
     # ------------------------------------------------------------------
     # Sortie

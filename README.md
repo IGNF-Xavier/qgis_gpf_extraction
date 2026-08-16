@@ -7,8 +7,13 @@
 > (<https://cartes.gouv.fr/actualites/services-validation-et-extraction>,
 > API OGC API - Processes) au lieu de l'ancien flux WFS anonyme. Il permet
 > d'extraire la BD TOPO® ainsi que tout autre produit auquel le compte
-> cartes.gouv.fr connecté a accès. Le comportement face à l'API réelle est
-> encore en cours de calibration : testez avant tout usage.
+> cartes.gouv.fr connecté a accès, avec suivi asynchrone des jobs
+> (persistant entre sessions QGIS) et application automatique des styles
+> référencés au catalogue de métadonnées (CSW) quand ils existent. Testé
+> en conditions réelles (BD TOPO, GPU_EXTRACTION) mais pas passé par un
+> vrai processus de publication : voir le
+> [README du plugin](gpf_extraction/README_fr.md) pour le détail des
+> limitations connues.
 
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Imports: isort](https://img.shields.io/badge/%20imports-isort-%231674b1?style=flat&labelColor=ef8336)](https://pycqa.github.io/isort/)
