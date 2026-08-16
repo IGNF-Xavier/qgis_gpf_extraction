@@ -113,16 +113,19 @@ def _fix_mislabeled_sld_encoding(path: Path) -> None:
     if declared.lower() in ("utf-8", "utf8"):
         return
 
-    try:
-        raw.decode(declared)
-        return  # le contenu correspond réellement à l'encodage déclaré
-    except (UnicodeDecodeError, LookupError):
-        pass
-
+    # Piège classique : ISO-8859-1/cp1252 sont des encodages "permissifs"
+    # où chacun des 256 octets possibles correspond à un caractère valide
+    # — `raw.decode(declared)` réussirait donc *toujours*, même si le
+    # contenu est en réalité en UTF-8, et ne peut donc pas servir de test.
+    # À l'inverse, un contenu réellement en ISO-8859-1/cp1252 contenant un
+    # caractère accentué (un octet seul comme 0xE9) échoue presque
+    # certainement à se décoder comme UTF-8 strict : un décodage UTF-8
+    # réussi est donc le signal fiable que le contenu est déjà en UTF-8,
+    # quel que soit l'encodage déclaré.
     try:
         raw.decode("utf-8")
     except UnicodeDecodeError:
-        return  # ni dans l'encodage déclaré, ni en UTF-8 : on ne touche à rien
+        return  # contenu probablement bien dans l'encodage déclaré
 
     fixed = raw.replace(
         b'encoding="' + match.group(1) + b'"', b'encoding="UTF-8"', 1
