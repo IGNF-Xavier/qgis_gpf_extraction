@@ -34,8 +34,7 @@
 | Plugin tags | vector |
 | Plugin icon | default_icon.png |
 | Plugin with processing provider | yes |
-| Author name | Jules GRILLOT |
-| Author email | <jules.grillot@fdn.fr> |
+
 | Minimum QGIS version | 3.10 |
 | Maximum QGIS version | 3.99 |
 | Git repository URL | <https://framagit.org/JulesGrillot/plugin_bd_topo_extractor> |
