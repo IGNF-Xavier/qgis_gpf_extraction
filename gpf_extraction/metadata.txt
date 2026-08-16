@@ -9,11 +9,11 @@ loading=resources/images/loading.gif
 tags=vector, france, bdtopo, ign, export, ign france, géoplateforme, geoplateforme, extraction, oauth2, ogc api processes, experimental
 
 # credits and contact
-author=Jules GRILLOT (fork expérimental)
+author=Jules GRILLOT (auteur original) ; Xavier THAUVIN (fork expérimental)
 email=jules.grillot@fdn.fr
 homepage=https://cartes.gouv.fr/aide/fr/guides-utilisateur/utiliser-les-services-de-la-geoplateforme/extraction/
-repository=https://framagit.org/JulesGrillot/plugin_bd_topo_extractor
-tracker=https://framagit.org/JulesGrillot/plugin_bd_topo_extractor/-/work_items
+repository=https://github.com/IGNF-Xavier/qgis_gpf_extraction
+tracker=https://github.com/IGNF-Xavier/qgis_gpf_extraction/issues
 
 # experimental flag
 deprecated=False
@@ -22,7 +22,7 @@ qgisMinimumVersion=3.16
 qgisMaximumVersion=4.99
 
 # versioning
-version=3.1.0
+version=3.2.0
 changelog=
     1.0.0 sphinx documentation, add metadata variable for schema, geometry column and crs.
     1.0.1 crs correction.
@@ -39,3 +39,4 @@ changelog=
     2.1.0 correct last bug for QGIS4, save style if layer is not added to the project, add deleteLater for QNetworkReply
     3.0.0 rewrite: replace the anonymous WFS flow with the new Géoplateforme extraction service (OGC API - Processes), add OAuth2 authentication (autonomous login or reuse of an existing QGIS authentication configuration), add administrative extent search, support any product the authenticated user has access to (not just BD TOPO). Experimental until validated against the live API.
     3.1.0 renamed to GPF Extraction (was "BD TOPO® Extractor"), fixed input parsing against the real API (title used as input id, "lifetime" retention field), added a table picker with automatic ST_Intersects spatial filters for VECTOR-DB extraction processes (BD TOPO, GPU_EXTRACTION...), aligned default values (GPKG format, append for multi-layer formats) with the official documentation. Still experimental.
+    3.2.0 non-blocking, persistent job tracking across QGIS sessions ("Jobs en cours" menu: refresh status, download, open folder, forget, import jobs already known to the server); correct resolution of the extractData Atom feed (was previously downloading the wrong content due to server-side content negotiation and an HTTP cache quirk); automatic styling of extracted layers from styles referenced in the Géoplateforme's metadata catalog (CSW), with a picker when several styles match a layer, and a fix for a mislabelled character encoding in IGN's SLD files; various real-world fixes: don't send optional enum inputs unless set (was forcing 7z compression by default), prevent submitting without any table selected, disambiguate homonym communes with their département code, fix the results window not resizing to fit dynamic content, remove the map rubber band left behind after closing the dialog, replace a sublayer-loading API removed in recent QGIS versions, and a couple of PyQt6/QGIS 4 compatibility fixes.

@@ -62,3 +62,15 @@ Unreleased
 - Add a table picker (with automatic `ST_Intersects` spatial filtering) for "ARCHIVE from VECTOR-DB" extraction processes (BD TOPO, GPU_EXTRACTION, ...)
 - Align default values with the official documentation: prefer GPKG output format, enable `append` only for multi-layer formats (GPKG/PGDUMP), don't send an unset retention duration
 - Validated live against the real API (BD TOPO and GPU_EXTRACTION processes) — still experimental for other processes
+
+## 3.2.0 - 2026-08-16 [EXPERIMENTAL]
+- Extraction jobs are tracked in the background (non-blocking) and persist across QGIS restarts: new "Jobs en cours" menu to list, refresh, download, open the folder of, forget, or import from the server any job launched from this installation
+- Fix result download: the `extractData` link is an Atom feed listing the actual downloadable files, not a direct file link — was previously downloading the wrong content because of server-side content negotiation combined with a QGIS HTTP cache quirk
+- Automatic styling: styles referenced for a product in the Géoplateforme's metadata catalog (CSW) are downloaded and applied to matching layers, with a picker when several styles match the same layer; fixed a mislabelled character encoding in IGN's SLD files that corrupted accented legend labels
+- Don't send optional enum inputs unless the user picked a value (was forcing 7z compression by default on every extraction)
+- Prevent launching an extraction without any table selected in the table picker
+- Disambiguate homonym communes in the administrative extent search with their département/région code
+- Fix the extraction window not resizing to fit dynamically-added content (table picker, etc.)
+- Remove the drawn-extent rectangle left on the map canvas after closing the dialog
+- Replace a sublayer-loading API removed in recent QGIS versions (`QgsVectorLayer.sublayerSeparator`) with the current recommended one
+- A couple of PyQt6/QGIS 4 compatibility fixes (`exec_()` removed in Qt6)
