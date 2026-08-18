@@ -41,6 +41,7 @@ from qgis.PyQt.QtWidgets import (
 from gpf_extraction.__about__ import __plugin_name__, __uri_homepage__
 from gpf_extraction.core.admin_boundary import AdminBoundaryClient
 from gpf_extraction.core.constants import DEFAULT_WORKING_CRS
+from gpf_extraction.core.csw_client import prefetch_catalog_async
 from gpf_extraction.core.exceptions import AdminBoundaryNotFoundError, ApiRequestError
 from gpf_extraction.core.extraction_api_client import ExtractionApiClient
 from gpf_extraction.core.job_registry import JobRegistry, TrackedJob
@@ -106,6 +107,15 @@ class GpfExtractionDialog(QDialog):
 
         self._build_ui()
         self._refresh_auth_status()
+
+        # Précharge le catalogue CSW en arrière-plan (~30s la première fois
+        # d'une session) pendant que l'utilisateur configure son emprise,
+        # son produit et ses tables : au moment où un style sera
+        # effectivement recherché (après le téléchargement du résultat,
+        # généralement plusieurs minutes plus tard), il aura le temps
+        # d'être déjà en cache. N'a pas besoin d'être connecté (catalogue
+        # public non authentifié).
+        prefetch_catalog_async()
 
     def tr(self, message: str) -> str:
         return QCoreApplication.translate(self.__class__.__name__, message)

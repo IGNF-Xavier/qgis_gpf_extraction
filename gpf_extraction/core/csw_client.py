@@ -18,6 +18,8 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from typing import Optional
 
+from qgis.core import QgsApplication, QgsTask
+
 from ..network.http_client import NetworkClient
 from .text_utils import normalize
 
@@ -44,6 +46,62 @@ _STYLE_HINTS = ("style", "sld", "légende", "legende", "legend")
 #: chargement suffit.
 _module_records_cache: Optional[list[tuple[str, str]]] = None
 
+#: Empêche de lancer plusieurs préchargements en parallèle (ex. si le
+#: dialogue d'extraction est ouvert plusieurs fois dans la même session).
+#: Remis à False si le préchargement échoue, pour permettre un nouvel
+#: essai silencieux la prochaine fois.
+_prefetch_started = False
+
+#: Référence forte vers la tâche de préchargement en cours : sans ça, rien
+#: n'empêche le ramasse-miettes Python de détruire l'objet `QgsTask` avant
+#: la fin de son exécution côté C++ (piège classique documenté avec
+#: `QgsTask.fromFunction`), ce qui interromprait silencieusement le
+#: chargement.
+_prefetch_task: Optional[QgsTask] = None
+
+
+def prefetch_catalog_async() -> None:
+    """Précharge en arrière-plan (`QgsTask`, sans bloquer l'interface) le
+    catalogue de métadonnées CSW dans le cache partagé de la session.
+
+    Sans effet si déjà en cache ou déjà en cours de chargement.
+
+    Pensé pour être appelé dès l'ouverture du dialogue d'extraction : le
+    chargement complet prend de l'ordre de 30 secondes (mesuré en
+    conditions réelles, catalogue d'environ 300 fiches) ; le lancer
+    pendant que l'utilisateur choisit son emprise, son produit et ses
+    tables laisse largement le temps qu'il se termine avant que
+    l'application d'un style ne soit effectivement tentée — ce qui
+    n'arrive qu'après le téléchargement du résultat, généralement
+    plusieurs minutes après le lancement de l'extraction.
+    """
+    global _prefetch_started, _prefetch_task
+    if _prefetch_started or _module_records_cache is not None:
+        return
+    _prefetch_started = True
+
+    def _run(_task: QgsTask) -> None:
+        CswClient().warm_cache()
+
+    def _on_finished(exception, _result=None) -> None:
+        global _prefetch_task, _prefetch_started
+        _prefetch_task = None
+        if exception is not None:
+            # Best-effort : un échec (ex. pas de réseau à ce moment-là)
+            # n'est pas grave, la recherche de style au moment voulu
+            # retentera normalement (bloquant, comme avant ce
+            # préchargement) ; on autorise juste un nouvel essai silencieux
+            # la prochaine fois que le dialogue s'ouvrira.
+            _prefetch_started = False
+
+    task = QgsTask.fromFunction(
+        "GPF Extraction : préchargement du catalogue de styles (CSW)",
+        _run,
+        on_finished=_on_finished,
+    )
+    _prefetch_task = task
+    QgsApplication.taskManager().addTask(task)
+
 
 @dataclass
 class StyleResource:
@@ -57,6 +115,12 @@ class CswClient:
 
     def __init__(self):
         self._network = NetworkClient(authcfg="")
+
+    def warm_cache(self) -> None:
+        """Charge (et met en cache pour la session) la liste des fiches
+        CSW, sans rien renvoyer. Utilisé pour le préchargement en
+        arrière-plan (cf. `prefetch_catalog_async`)."""
+        self._load_brief_records()
 
     def _load_brief_records(self) -> list[tuple[str, str]]:
         global _module_records_cache
