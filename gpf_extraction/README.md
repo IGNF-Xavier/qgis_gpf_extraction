@@ -42,10 +42,16 @@ than the historical anonymous WFS.
    on the server (typically several minutes) and is tracked in the
    background. You can keep working, close the progress window, or even
    close QGIS entirely — see below.
-6. Once downloaded, the result is added to your project, and any style
-   published for the product on the Géoplateforme's metadata catalog
-   (CSW) is looked up and applied automatically per table — if several
-   styles could match a table, you're asked which one to use.
+6. Once downloaded, tables with no features at all in the requested extent
+   are removed from the GeoPackage, a short generation report (requested
+   tables vs. delivered layers, removed empty layers, any per-file
+   download failures) is shown and logged to the QGIS message panel, and
+   the result is added to your project. Any style published for the
+   product on the Géoplateforme's metadata catalog (CSW) is looked up and
+   applied automatically per table — if several styles could match a
+   table, you're asked which one to use. *(See Known limitations: this
+   style lookup can take about 35 seconds the first time in a QGIS
+   session.)*
 
 ### Tracking jobs — "Jobs en cours"
 
@@ -85,6 +91,21 @@ from the Géoplateforme.
   parameter explicitly set to `7zip`), the plugin does not extract it —
   7-Zip (or equivalent) is needed. Leaving `compression` unset avoids this
   entirely.
+- **Whether a style (SLD) exists for a product isn't exposed by the
+  extraction service itself.** The plugin infers it by querying the
+  Géoplateforme's general metadata catalog (CSW): it downloads the full
+  list of catalog records (~300, in pages of 100) to find the extracted
+  product's record by title matching, then looks for an online resource
+  that looks like a style. This is an indirect, costly workaround
+  (measured at about 35 seconds the first time in a QGIS session — cached
+  afterwards for the rest of the session) and a heuristic one (dependent
+  on how each record happens to describe its resources). **A dedicated
+  service, tied to the extraction service, that directly reports —
+  for a given product or stored data — whether one or more SLD styles
+  exist and where to fetch them, would make this feature considerably
+  simpler and more reliable.**
+
+See also the [CHANGELOG](../CHANGELOG.md) for the detailed version history.
 
 ## Reference
 

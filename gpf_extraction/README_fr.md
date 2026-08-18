@@ -44,11 +44,17 @@ par job) plutôt que l'ancien WFS anonyme.
    sur le serveur (généralement plusieurs minutes) et est suivi en
    arrière-plan. Vous pouvez continuer à travailler, fermer la fenêtre de
    progression, ou même fermer QGIS entièrement — voir ci-dessous.
-6. Une fois téléchargé, le résultat est ajouté à votre projet, et un
-   éventuel style publié pour ce produit dans le catalogue de métadonnées
-   (CSW) de la Géoplateforme est recherché et appliqué automatiquement par
-   table — si plusieurs styles correspondent à une même table, on vous
-   demande lequel utiliser.
+6. Une fois téléchargé, les tables sans aucune entité dans l'emprise
+   demandée sont retirées du GeoPackage, un petit rapport de génération
+   (tables demandées vs couches livrées, couches vides retirées, éventuels
+   échecs de téléchargement) est affiché et journalisé dans le panneau de
+   messages QGIS, puis le résultat est ajouté à votre projet. Un éventuel
+   style publié pour ce produit dans le catalogue de métadonnées (CSW) de
+   la Géoplateforme est recherché et appliqué automatiquement par table —
+   si plusieurs styles correspondent à une même table, on vous demande
+   lequel utiliser. *(Voir Limitations connues : cette recherche de style
+   peut prendre environ 35 secondes la première fois dans une session
+   QGIS.)*
 
 ### Suivre les jobs — « Jobs en cours »
 
@@ -91,6 +97,23 @@ dialogue pour le retrouver depuis la Géoplateforme.
   (paramètre `compression` explicitement mis à `7zip`), le plugin ne la
   décompresse pas — 7-Zip (ou équivalent) est nécessaire. Laisser
   `compression` non renseigné évite complètement ce cas.
+- **La disponibilité d'un style (SLD) pour un produit n'est pas exposée
+  par le service d'extraction lui-même.** Le plugin la déduit en
+  interrogeant le catalogue général de métadonnées (CSW) de la
+  Géoplateforme : il télécharge la liste de l'ensemble des fiches du
+  catalogue (~300, par pages de 100) pour y retrouver, par
+  correspondance de titre, celle du produit extrait, puis y cherche une
+  ressource en ligne ressemblant à un style. C'est un contournement
+  indirect, coûteux (mesuré : environ 35 secondes la première fois dans
+  une session QGIS — mis en cache ensuite pour le reste de la session) et
+  heuristique (dépendant de la façon dont chaque fiche décrit ses
+  ressources). **Un service dédié, associé au service d'extraction, qui
+  indiquerait directement — pour un produit ou une donnée stockée
+  donnée — si un ou plusieurs styles SLD existent et où les récupérer,
+  simplifierait et fiabiliserait considérablement cette fonctionnalité.**
+
+Voir aussi le [CHANGELOG](../CHANGELOG.md) pour l'historique détaillé des
+versions.
 
 ## Références
 
