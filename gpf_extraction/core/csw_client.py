@@ -34,6 +34,16 @@ _NS = {
 #: ressource en ligne pour la considérer comme une ressource de style.
 _STYLE_HINTS = ("style", "sld", "légende", "legende", "legend")
 
+#: Cache des fiches CSW (brièves), partagé par toutes les instances de
+#: `CswClient` le temps de la session QGIS. Une nouvelle instance est créée
+#: à chaque extraction (`apply_styles`, dans `gui/job_result_loader.py`) ;
+#: sans un cache au niveau du module, chacune re-parcourait tout le
+#: catalogue (~300 fiches, ~3 pages) à chaque fois — mesuré en conditions
+#: réelles à environ 35 secondes de blocage de l'interface, à chaque
+#: extraction. Le catalogue ne changeant pas en cours de session, un seul
+#: chargement suffit.
+_module_records_cache: Optional[list[tuple[str, str]]] = None
+
 
 @dataclass
 class StyleResource:
@@ -47,11 +57,11 @@ class CswClient:
 
     def __init__(self):
         self._network = NetworkClient(authcfg="")
-        self._records_cache: Optional[list[tuple[str, str]]] = None  # (id, title)
 
     def _load_brief_records(self) -> list[tuple[str, str]]:
-        if self._records_cache is not None:
-            return self._records_cache
+        global _module_records_cache
+        if _module_records_cache is not None:
+            return _module_records_cache
 
         # Récupéré par pages de 100 : une seule requête avec un maxRecords
         # élevé (ex. 500) échoue systématiquement (la réponse, volumineuse
@@ -88,7 +98,7 @@ class CswClient:
                 break
             start_position = next_record
 
-        self._records_cache = records
+        _module_records_cache = records
         return records
 
     def find_record_id(self, product_name: str) -> Optional[str]:
