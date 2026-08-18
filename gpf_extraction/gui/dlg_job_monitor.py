@@ -189,15 +189,17 @@ class JobMonitorDialog(QDialog):
         for downloaded_path in downloaded_paths:
             self._append_log(self.tr("Téléchargé : {}").format(downloaded_path))
 
-        removed_layers = remove_empty_layers(downloaded_paths)
-        if removed_layers:
-            self._append_log(
-                self.tr("{} couche(s) vide(s) (0 entité) retirée(s) : {}").format(
-                    len(removed_layers), ", ".join(sorted(removed_layers))
-                )
-            )
+        # Compté avant le nettoyage des couches vides : ce nombre reflète ce
+        # que le serveur a réellement livré, à comparer au nombre de tables
+        # demandées. Le nettoyage qui suit retire volontairement des
+        # couches (celles sans aucune entité) ; ce n'est pas un écart à
+        # signaler comme une anomalie.
+        data_paths = [p for p in downloaded_paths if p.suffix.lower() != ".json"]
+        delivered = count_layers(data_paths)
 
-        self._append_generation_report(downloaded_paths, removed_layers)
+        removed_layers = remove_empty_layers(downloaded_paths)
+
+        self._append_generation_report(delivered, removed_layers)
 
         if self._add_to_project:
             load_results(
@@ -211,33 +213,29 @@ class JobMonitorDialog(QDialog):
         self.finished_ok.emit(self._downloaded_path)
         self._finish_as_closable()
 
-    def _append_generation_report(
-        self, downloaded_paths: list[Path], removed_layers: list[str]
-    ) -> None:
+    def _append_generation_report(self, delivered: int, removed_layers: list[str]) -> None:
         """Construit un petit rapport de génération (nombre de tables
-        demandées comparé au nombre de couches réellement livrées, couches
-        vides retirées, échecs de téléchargement éventuels) et le
-        journalise à la fois dans cette fenêtre et dans le panneau de
-        messages QGIS.
+        demandées comparé au nombre de couches réellement livrées par le
+        serveur, couches vides retirées, échecs de téléchargement
+        éventuels) et le journalise à la fois dans cette fenêtre et dans le
+        panneau de messages QGIS.
 
         Cette double journalisation est volontaire : cette fenêtre de
         suivi n'est pas persistante (fermée, ou perdue en cas de plantage
         de QGIS, l'utilisateur n'a alors plus accès au rapport), alors que
         le panneau de messages QGIS reste consultable après coup.
+
+        :param delivered: nombre de couches livrées par le serveur, compté
+            *avant* le retrait des couches vides (sans quoi la comparaison
+            au nombre de tables demandées signalerait à tort un écart à
+            chaque table sans entité dans l'emprise — un cas normal, pas
+            une anomalie).
+        :type delivered: int
         """
         report_lines: list[str] = []
-        if removed_layers:
-            report_lines.append(
-                self.tr("{} couche(s) vide(s) (0 entité) retirée(s) : {}").format(
-                    len(removed_layers), ", ".join(sorted(removed_layers))
-                )
-            )
-
-        data_paths = [p for p in downloaded_paths if p.suffix.lower() != ".json"]
-        delivered = count_layers(data_paths)
         if self._requested_tables:
             report_lines.append(
-                self.tr("{} table(s) demandée(s), {} couche(s) livrée(s).").format(
+                self.tr("{} table(s) demandée(s), {} couche(s) livrée(s) par le serveur.").format(
                     self._requested_tables, delivered
                 )
             )
@@ -248,6 +246,13 @@ class JobMonitorDialog(QDialog):
                         "— vérifiez la sélection et les journaux ci-dessus."
                     )
                 )
+
+        if removed_layers:
+            report_lines.append(
+                self.tr("{} couche(s) vide(s) (0 entité) retirée(s) : {}").format(
+                    len(removed_layers), ", ".join(sorted(removed_layers))
+                )
+            )
 
         failures = getattr(self._client, "last_download_failures", None) or []
         if failures:

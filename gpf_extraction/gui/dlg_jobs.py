@@ -296,18 +296,17 @@ class JobsDialog(QDialog):
 
         data_paths = [p for p in downloaded_paths if p.suffix.lower() != ".json"]
 
-        removed_layers = remove_empty_layers(data_paths)
-        report_lines = []
-        if removed_layers:
-            report_lines.append(
-                self.tr("{} couche(s) vide(s) (0 entité) retirée(s) : {}").format(
-                    len(removed_layers), ", ".join(sorted(removed_layers))
-                )
-            )
+        # Compté avant le nettoyage des couches vides : ce nombre reflète ce
+        # que le serveur a réellement livré. Le nettoyage retire ensuite
+        # volontairement des couches (celles sans aucune entité) ; ce n'est
+        # pas un écart à signaler comme une anomalie.
         delivered = count_layers(data_paths)
+        removed_layers = remove_empty_layers(data_paths)
+
+        report_lines = []
         if job.requested_tables:
             report_lines.append(
-                self.tr("{} table(s) demandée(s), {} couche(s) livrée(s).").format(
+                self.tr("{} table(s) demandée(s), {} couche(s) livrée(s) par le serveur.").format(
                     job.requested_tables, delivered
                 )
             )
@@ -317,6 +316,12 @@ class JobsDialog(QDialog):
                         "⚠ Écart entre le nombre de tables demandées et de couches livrées."
                     )
                 )
+        if removed_layers:
+            report_lines.append(
+                self.tr("{} couche(s) vide(s) (0 entité) retirée(s) : {}").format(
+                    len(removed_layers), ", ".join(sorted(removed_layers))
+                )
+            )
         failures = getattr(client, "last_download_failures", None) or []
         if failures:
             report_lines.append(
