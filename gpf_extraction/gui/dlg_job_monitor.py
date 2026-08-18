@@ -28,9 +28,10 @@ from qgis.PyQt.QtWidgets import (
 
 from gpf_extraction.core.exceptions import ApiRequestError, JobFailedError
 from gpf_extraction.core.extraction_api_client import ExtractionApiClient
+from gpf_extraction.core.gpkg_merge import count_layers
 from gpf_extraction.core.job_registry import JobRegistry
 from gpf_extraction.core.models import JobStatus
-from gpf_extraction.gui.job_result_loader import load_result
+from gpf_extraction.gui.job_result_loader import load_results
 from gpf_extraction.toolbelt import PlgLogger
 
 #: Garde une référence Python vivante sur chaque dialogue non-modal affiché,
@@ -52,6 +53,8 @@ class JobMonitorDialog(QDialog):
         project: QgsProject,
         poll_interval_seconds: int = 15,
         product_name: str = "",
+        gpkg_name: str = "",
+        requested_tables: int = 0,
         parent=None,
     ):
         super().__init__(parent)
@@ -67,6 +70,8 @@ class JobMonitorDialog(QDialog):
         self._add_to_project = add_to_project
         self._project = project
         self._product_name = product_name
+        self._gpkg_name = gpkg_name
+        self._requested_tables = requested_tables
         self._downloaded_path: Optional[str] = None
 
         layout = QVBoxLayout(self)
@@ -120,7 +125,7 @@ class JobMonitorDialog(QDialog):
     def _poll(self) -> None:
         try:
             self._job = self._client.get_job(self._job.job_id)
-        except ApiRequestError as exc:
+        except (ApiRequestError, ConnectionError) as exc:
             self._append_log(self.tr("Erreur lors de la vérification du statut : {}").format(exc))
             return
 
@@ -185,21 +190,48 @@ class JobMonitorDialog(QDialog):
         JobRegistry.update_job(self._job.job_id, downloaded_path=self._downloaded_path)
         for downloaded_path in downloaded_paths:
             self._append_log(self.tr("Téléchargé : {}").format(downloaded_path))
+        self._append_generation_report(downloaded_paths)
 
         if self._add_to_project:
-            for downloaded_path in downloaded_paths:
-                if downloaded_path.suffix.lower() == ".json":
-                    continue  # métadonnées de l'extraction, pas une couche
-                load_result(
-                    downloaded_path,
-                    self._project,
-                    self._product_name,
-                    log=self._append_log,
-                    parent=self,
-                )
+            load_results(
+                downloaded_paths,
+                self._project,
+                self._product_name,
+                log=self._append_log,
+                parent=self,
+                merge_name=self._gpkg_name,
+            )
 
         self.finished_ok.emit(self._downloaded_path)
         self._finish_as_closable()
+
+    def _append_generation_report(self, downloaded_paths: list[Path]) -> None:
+        """Journalise un petit rapport de génération : nombre de tables
+        demandées à la soumission comparé au nombre de couches réellement
+        livrées par le serveur, et échecs de téléchargement éventuels
+        (fichiers individuels en échec, cf. `download_all_results`)."""
+        data_paths = [p for p in downloaded_paths if p.suffix.lower() != ".json"]
+        delivered = count_layers(data_paths)
+        if self._requested_tables:
+            self._append_log(
+                self.tr("Rapport : {} table(s) demandée(s), {} couche(s) livrée(s).").format(
+                    self._requested_tables, delivered
+                )
+            )
+            if delivered != self._requested_tables:
+                self._append_log(
+                    self.tr(
+                        "⚠ Écart entre le nombre de tables demandées et de couches livrées "
+                        "— vérifiez la sélection et les journaux ci-dessus."
+                    )
+                )
+        failures = getattr(self._client, "last_download_failures", None) or []
+        if failures:
+            self._append_log(
+                self.tr("⚠ {} fichier(s) n'ont pas pu être téléchargés :").format(len(failures))
+            )
+            for failure in failures:
+                self._append_log(f"  - {failure}")
 
     def _on_failure(self) -> None:
         self.progress_bar.setRange(0, 1)
@@ -224,7 +256,7 @@ class JobMonitorDialog(QDialog):
             self._timer.stop()
             try:
                 self._client.delete_job(self._job.job_id)
-            except ApiRequestError as exc:
+            except (ApiRequestError, ConnectionError) as exc:
                 self.log(
                     message=f"Erreur lors de l'annulation du job {self._job.job_id} : {exc}",
                     log_level=Qgis.MessageLevel.Warning,

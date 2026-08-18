@@ -45,6 +45,9 @@ class ExtractionApiClient:
         self._api_base = (api_base or DEFAULT_API_BASE).rstrip("/")
         self._authcfg = authcfg
         self._network = NetworkClient(authcfg=authcfg)
+        #: Renseigné par `download_all_results` : noms des fichiers dont le
+        #: téléchargement a échoué lors du dernier appel (liste vide sinon).
+        self.last_download_failures: list[str] = []
 
     @property
     def authcfg(self) -> str:
@@ -217,18 +220,45 @@ class ExtractionApiClient:
         """Résout puis télécharge tous les fichiers de résultat d'un job
         dans un dossier.
 
+        Un résultat d'extraction peut compter une dizaine de fichiers
+        (un GeoPackage par table). L'échec d'un seul d'entre eux (timeout,
+        erreur réseau ponctuelle...) ne doit pas faire perdre les fichiers
+        déjà téléchargés avec succès : constaté en conditions réelles, une
+        exception levée au milieu de la boucle faisait perdre le suivi de
+        tous les téléchargements précédents côté appelant (rien n'était
+        alors ni ajouté au projet, ni enregistré comme téléchargé). Les
+        échecs sont donc collectés plutôt que propagés immédiatement, et
+        une erreur n'est levée qu'en tout dernier recours (aucun fichier
+        récupéré).
+
         :param extract_data_href: valeur de `JobResult.extract_data_href`.
         :type extract_data_href: str
         :param dest_dir: dossier de destination (créé si besoin).
         :type dest_dir: Union[str, Path]
 
-        :return: chemins des fichiers téléchargés.
+        :raises ApiRequestError: si aucun fichier n'a pu être téléchargé.
+
+        :return: chemins des fichiers téléchargés (échecs partiels exclus).
         :rtype: list[Path]
         """
         entries = self.resolve_download_files(extract_data_href)
         downloaded: list[Path] = []
+        failures: list[str] = []
         for entry in entries:
             dest_path = Path(dest_dir) / entry.filename
-            self.download_result(entry.href, dest_path)
+            try:
+                self.download_result(entry.href, dest_path)
+            except (ApiRequestError, ConnectionError) as exc:
+                failures.append(f"{entry.filename} : {exc}")
+                continue
             downloaded.append(dest_path)
+
+        if failures and not downloaded:
+            raise ApiRequestError(
+                "GET",
+                extract_data_href,
+                0,
+                ("; ".join(failures)).encode("utf-8"),
+            )
+        self.last_download_failures = failures
         return downloaded

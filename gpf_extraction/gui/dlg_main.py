@@ -243,6 +243,18 @@ class GpfExtractionDialog(QDialog):
         comment_layout.addWidget(self.txt_comment, stretch=1)
         output_layout.addLayout(comment_layout)
 
+        gpkg_name_layout = QHBoxLayout()
+        gpkg_name_layout.addWidget(QLabel(self.tr("Nom du GeoPackage (optionnel) :")))
+        self.txt_gpkg_name = QLineEdit()
+        self.txt_gpkg_name.setPlaceholderText(
+            self.tr(
+                "Si plusieurs tables sont extraites en GeoPackage, elles sont "
+                "fusionnées en un seul fichier sous ce nom (« extraction » par défaut)"
+            )
+        )
+        gpkg_name_layout.addWidget(self.txt_gpkg_name, stretch=1)
+        output_layout.addLayout(gpkg_name_layout)
+
         layout.addWidget(self.grp_output)
 
         # -- Boutons -----------------------------------------------------------
@@ -554,6 +566,14 @@ class GpfExtractionDialog(QDialog):
             else (self.selected_process.title if self.selected_process else "")
         )
 
+        # Nombre de tables sélectionnées dans le formulaire, pour le rapport
+        # de génération affiché après téléchargement (comparaison avec le
+        # nombre de couches réellement livrées par le serveur). N'a de sens
+        # que pour les processus exposant le sélecteur de tables (`relations`).
+        relations_value = body.get("inputs", {}).get("relations")
+        requested_tables = len(relations_value) if isinstance(relations_value, dict) else 0
+        gpkg_name = self.txt_gpkg_name.text().strip()
+
         JobRegistry.add_job(
             TrackedJob(
                 job_id=job.job_id,
@@ -562,6 +582,8 @@ class GpfExtractionDialog(QDialog):
                 product_name=product_name,
                 output_dir=output_dir or "",
                 comment=self.txt_comment.text().strip(),
+                gpkg_name=gpkg_name,
+                requested_tables=requested_tables,
                 last_known_status=job.status,
             )
         )
@@ -577,6 +599,8 @@ class GpfExtractionDialog(QDialog):
             project=self.project,
             poll_interval_seconds=settings.status_check_sleep,
             product_name=product_name,
+            gpkg_name=gpkg_name,
+            requested_tables=requested_tables,
             parent=self.iface.mainWindow() if self.iface else None,
         )
         monitor.show()

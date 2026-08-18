@@ -28,8 +28,9 @@ from qgis.PyQt.QtWidgets import (
 
 from gpf_extraction.core.exceptions import ApiRequestError, JobFailedError
 from gpf_extraction.core.extraction_api_client import ExtractionApiClient
+from gpf_extraction.core.gpkg_merge import count_layers
 from gpf_extraction.core.job_registry import JobRegistry, TrackedJob
-from gpf_extraction.gui.job_result_loader import load_result
+from gpf_extraction.gui.job_result_loader import load_results
 from gpf_extraction.toolbelt import PlgLogger, PlgOptionsManager
 
 _COLUMNS = ("Titre", "Commentaire", "Identifiant du job", "État", "Créé le")
@@ -293,27 +294,50 @@ class JobsDialog(QDialog):
         JobRegistry.update_job(job.job_id, downloaded_path=str(dest_dir))
         self._reload_table()
 
+        data_paths = [p for p in downloaded_paths if p.suffix.lower() != ".json"]
+        report_lines = []
+        delivered = count_layers(data_paths)
+        if job.requested_tables:
+            report_lines.append(
+                self.tr("{} table(s) demandée(s), {} couche(s) livrée(s).").format(
+                    job.requested_tables, delivered
+                )
+            )
+            if delivered != job.requested_tables:
+                report_lines.append(
+                    self.tr(
+                        "⚠ Écart entre le nombre de tables demandées et de couches livrées."
+                    )
+                )
+        failures = getattr(client, "last_download_failures", None) or []
+        if failures:
+            report_lines.append(
+                self.tr("⚠ {} fichier(s) n'ont pas pu être téléchargés : {}").format(
+                    len(failures), "; ".join(failures)
+                )
+            )
+        report_text = ("\n\n" + "\n".join(report_lines)) if report_lines else ""
+
         file_list = "\n".join(p.name for p in downloaded_paths)
         reply = QMessageBox.question(
             self,
             self.tr("Téléchargement terminé"),
             self.tr(
-                "Résultat téléchargé dans :\n{}\n\nFichier(s) :\n{}\n\n"
+                "Résultat téléchargé dans :\n{}\n\nFichier(s) :\n{}{}\n\n"
                 "Ajouter les couches au projet actuel ?"
-            ).format(dest_dir, file_list),
+            ).format(dest_dir, file_list, report_text),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.Yes,
         )
         if reply == QMessageBox.StandardButton.Yes:
-            data_paths = [p for p in downloaded_paths if p.suffix.lower() != ".json"]
-            for dest_path in data_paths:
-                load_result(
-                    dest_path,
-                    self.project,
-                    job.product_name,
-                    log=lambda msg: self.log(message=msg, log_level=Qgis.MessageLevel.NoLevel),
-                    parent=self,
-                )
+            load_results(
+                downloaded_paths,
+                self.project,
+                job.product_name,
+                log=lambda msg: self.log(message=msg, log_level=Qgis.MessageLevel.NoLevel),
+                parent=self,
+                merge_name=job.gpkg_name,
+            )
 
     def _open_folder_selected(self) -> None:
         job = self._selected_job()
