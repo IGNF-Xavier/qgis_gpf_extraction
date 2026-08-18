@@ -20,7 +20,6 @@ from urllib.parse import urlparse
 
 from ..network.http_client import NetworkClient
 from .csw_client import StyleResource
-from .text_utils import normalize
 
 #: Dossier de cache (persiste entre les lancements de QGIS, évite de
 #: retélécharger les mêmes paquets de styles à chaque extraction).
@@ -136,16 +135,39 @@ def _fix_mislabeled_sld_encoding(path: Path) -> None:
         pass
 
 
-#: Coquilles connues dans les noms de fichiers du paquet de styles
-#: Géoserver de la BD TOPO® publié par l'IGN : le style existe bel et bien
-#: pour la table visée, mais le nom de fichier ne correspond pas à celui
-#: de la table à cause d'une faute de frappe côté IGN (constaté en
-#: conditions réelles). Corrigé ici au cas par cas plutôt que d'assouplir
-#: la correspondance de nom pour tout le monde (risque de faux positifs
-#: entre tables au nom proche).
+#: Coquille connue dans le paquet de styles Géoserver de la BD TOPO®
+#: publié par l'IGN : le style existe bel et bien pour la table visée,
+#: mais le nom de fichier contient une faute de frappe qu'aucune règle de
+#: normalisation ne peut deviner (constaté en conditions réelles :
+#: "hydrograpgique" à la place de "hydrographique"). Corrigé au cas par
+#: cas ; les autres écarts de nommage (préfixe de produit, articles
+#: français) sont gérés génériquement par `_normalize_for_matching`.
 _KNOWN_SLD_STEM_TYPOS = {
     "bdtopo_v3_surface_hydrograpgique": "bdtopo_v3_surface_hydrographique",
 }
+
+#: Préfixe de produit versionné (ex. `bdtopo_v3_`, `gpu_v1_`) toléré en
+#: tête d'un nom de fichier de style : retiré avant comparaison plutôt que
+#: de tolérer une correspondance par simple suffixe, qui produisait des
+#: faux positifs (constaté en conditions réelles : `piste_aerodrome.sld`,
+#: un style de piste d'atterrissage, se faisait accepter à tort pour la
+#: table `aerodrome` — un aérodrome entier — simplement parce que son nom
+#: se termine par "aerodrome").
+_VERSIONED_PREFIX_RE = re.compile(r"^[a-z]+_v\d+_")
+
+#: Articles/prépositions français ignorés lors de la comparaison, de part
+#: et d'autre (nom de table ET nom de fichier de style) : l'IGN est
+#: incohérent sur leur présence d'un fichier à l'autre (ex. table
+#: `terrain_de_sport` vs fichier `bdtopo_v3_terrain_sport.sld`).
+_IGNORED_TOKENS = {"de", "du", "des", "d", "la", "le", "les", "l"}
+
+
+def _normalize_for_matching(text: str, *, strip_versioned_prefix: bool = False) -> str:
+    text = text.lower()
+    if strip_versioned_prefix:
+        text = _VERSIONED_PREFIX_RE.sub("", text, count=1)
+    tokens = [t for t in re.split(r"[^a-z0-9]+", text) if t and t not in _IGNORED_TOKENS]
+    return "".join(tokens)
 
 
 def match_candidates_for_table(
@@ -153,10 +175,13 @@ def match_candidates_for_table(
 ) -> list[StyleCandidate]:
     """Filtre les styles dont le nom de fichier correspond à une table.
 
-    Tolère un préfixe (ex. `bdtopo_v3_batiment.sld` pour la table
-    `batiment`), mais pas une simple sous-chaîne (pour éviter les faux
-    positifs entre tables au nom proche, ex. `reservoir` et
-    `reservoir_hydrographique`).
+    Tolère un préfixe de produit versionné (ex. `bdtopo_v3_batiment.sld`
+    pour la table `batiment`) et l'absence/présence d'articles français
+    (ex. `terrain_sport.sld` pour la table `terrain_de_sport`), mais exige
+    une correspondance exacte du reste — pas une simple sous-chaîne ou un
+    suffixe — pour éviter les faux positifs entre tables ou styles au nom
+    proche (ex. `reservoir` / `reservoir_hydrographique`, ou
+    `piste_aerodrome.sld` / table `aerodrome`).
 
     :param candidates: fichiers de style disponibles.
     :type candidates: list[StyleCandidate]
@@ -167,13 +192,14 @@ def match_candidates_for_table(
         plusieurs).
     :rtype: list[StyleCandidate]
     """
-    normalized_table = normalize(table_name)
+    normalized_table = _normalize_for_matching(table_name)
     if not normalized_table:
         return []
     matches = []
     for candidate in candidates:
         raw_stem = candidate.sld_path.stem.lower()
-        stem = normalize(_KNOWN_SLD_STEM_TYPOS.get(raw_stem, candidate.sld_path.stem))
-        if stem == normalized_table or stem.endswith(normalized_table):
+        raw_stem = _KNOWN_SLD_STEM_TYPOS.get(raw_stem, raw_stem)
+        stem = _normalize_for_matching(raw_stem, strip_versioned_prefix=True)
+        if stem == normalized_table:
             matches.append(candidate)
     return matches
