@@ -97,3 +97,49 @@ def count_layers(paths: list[Path]) -> int:
     """
     registry = QgsProviderRegistry.instance()
     return sum(len(registry.querySublayers(str(p))) for p in paths)
+
+
+def remove_empty_layers(paths: list[Path]) -> list[str]:
+    """Retire des fichiers GeoPackage donnés toute couche ne contenant
+    aucune entité.
+
+    Une extraction par emprise produit souvent des tables vides pour les
+    objets absents de la zone demandée (ex. `aerodrome` hors de toute
+    emprise survolant un aérodrome) : l'utilisateur préfère un GeoPackage
+    ne listant que les couches réellement peuplées plutôt que d'avoir à
+    les repérer et les masquer lui-même dans le panneau des couches.
+
+    Modifie les fichiers en place. Fonctionnalité best-effort : un fichier
+    illisible par GDAL/OGR est simplement ignoré plutôt que de faire
+    échouer tout le nettoyage.
+
+    :param paths: fichiers à nettoyer (seuls les `.gpkg` sont traités).
+    :type paths: list[Path]
+
+    :return: noms des couches retirées (tous fichiers confondus).
+    :rtype: list[str]
+    """
+    from osgeo import ogr
+
+    removed: list[str] = []
+    for path in paths:
+        if path.suffix.lower() != ".gpkg":
+            continue
+        datasource = ogr.Open(str(path), update=1)
+        if datasource is None:
+            continue
+
+        empty_layers = []
+        for index in range(datasource.GetLayerCount()):
+            layer = datasource.GetLayerByIndex(index)
+            if layer is not None and layer.GetFeatureCount() == 0:
+                empty_layers.append((index, layer.GetName()))
+
+        # Supprime en partant de l'index le plus élevé : la suppression
+        # d'une couche décale les index de celles qui suivent.
+        for index, name in sorted(empty_layers, key=lambda item: item[0], reverse=True):
+            if datasource.DeleteLayer(index) == 0:  # OGRERR_NONE
+                removed.append(name)
+        datasource = None
+
+    return removed

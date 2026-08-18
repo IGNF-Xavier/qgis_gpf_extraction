@@ -28,7 +28,7 @@ from qgis.PyQt.QtWidgets import (
 
 from gpf_extraction.core.exceptions import ApiRequestError, JobFailedError
 from gpf_extraction.core.extraction_api_client import ExtractionApiClient
-from gpf_extraction.core.gpkg_merge import count_layers
+from gpf_extraction.core.gpkg_merge import count_layers, remove_empty_layers
 from gpf_extraction.core.job_registry import JobRegistry
 from gpf_extraction.core.models import JobStatus
 from gpf_extraction.gui.job_result_loader import load_results
@@ -188,7 +188,16 @@ class JobMonitorDialog(QDialog):
         JobRegistry.update_job(self._job.job_id, downloaded_path=self._downloaded_path)
         for downloaded_path in downloaded_paths:
             self._append_log(self.tr("Téléchargé : {}").format(downloaded_path))
-        self._append_generation_report(downloaded_paths)
+
+        removed_layers = remove_empty_layers(downloaded_paths)
+        if removed_layers:
+            self._append_log(
+                self.tr("{} couche(s) vide(s) (0 entité) retirée(s) : {}").format(
+                    len(removed_layers), ", ".join(sorted(removed_layers))
+                )
+            )
+
+        self._append_generation_report(downloaded_paths, removed_layers)
 
         if self._add_to_project:
             load_results(
@@ -202,33 +211,65 @@ class JobMonitorDialog(QDialog):
         self.finished_ok.emit(self._downloaded_path)
         self._finish_as_closable()
 
-    def _append_generation_report(self, downloaded_paths: list[Path]) -> None:
-        """Journalise un petit rapport de génération : nombre de tables
-        demandées à la soumission comparé au nombre de couches réellement
-        livrées par le serveur, et échecs de téléchargement éventuels
-        (fichiers individuels en échec, cf. `download_all_results`)."""
+    def _append_generation_report(
+        self, downloaded_paths: list[Path], removed_layers: list[str]
+    ) -> None:
+        """Construit un petit rapport de génération (nombre de tables
+        demandées comparé au nombre de couches réellement livrées, couches
+        vides retirées, échecs de téléchargement éventuels) et le
+        journalise à la fois dans cette fenêtre et dans le panneau de
+        messages QGIS.
+
+        Cette double journalisation est volontaire : cette fenêtre de
+        suivi n'est pas persistante (fermée, ou perdue en cas de plantage
+        de QGIS, l'utilisateur n'a alors plus accès au rapport), alors que
+        le panneau de messages QGIS reste consultable après coup.
+        """
+        report_lines: list[str] = []
+        if removed_layers:
+            report_lines.append(
+                self.tr("{} couche(s) vide(s) (0 entité) retirée(s) : {}").format(
+                    len(removed_layers), ", ".join(sorted(removed_layers))
+                )
+            )
+
         data_paths = [p for p in downloaded_paths if p.suffix.lower() != ".json"]
         delivered = count_layers(data_paths)
         if self._requested_tables:
-            self._append_log(
-                self.tr("Rapport : {} table(s) demandée(s), {} couche(s) livrée(s).").format(
+            report_lines.append(
+                self.tr("{} table(s) demandée(s), {} couche(s) livrée(s).").format(
                     self._requested_tables, delivered
                 )
             )
             if delivered != self._requested_tables:
-                self._append_log(
+                report_lines.append(
                     self.tr(
                         "⚠ Écart entre le nombre de tables demandées et de couches livrées "
                         "— vérifiez la sélection et les journaux ci-dessus."
                     )
                 )
+
         failures = getattr(self._client, "last_download_failures", None) or []
         if failures:
-            self._append_log(
-                self.tr("⚠ {} fichier(s) n'ont pas pu être téléchargés :").format(len(failures))
+            report_lines.append(
+                self.tr("⚠ {} fichier(s) n'ont pas pu être téléchargés : {}").format(
+                    len(failures), "; ".join(failures)
+                )
             )
-            for failure in failures:
-                self._append_log(f"  - {failure}")
+
+        if not report_lines:
+            return
+
+        self._append_log(self.tr("Rapport :"))
+        for line in report_lines:
+            self._append_log(f"  {line}")
+
+        self.log(
+            message="Rapport de génération ({}) :\n{}".format(
+                self._job.job_id, "\n".join(report_lines)
+            ),
+            log_level=Qgis.MessageLevel.Info,
+        )
 
     def _on_failure(self) -> None:
         self.progress_bar.setRange(0, 1)

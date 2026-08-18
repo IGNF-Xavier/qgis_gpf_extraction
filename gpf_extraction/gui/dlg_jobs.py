@@ -28,7 +28,7 @@ from qgis.PyQt.QtWidgets import (
 
 from gpf_extraction.core.exceptions import ApiRequestError, JobFailedError
 from gpf_extraction.core.extraction_api_client import ExtractionApiClient
-from gpf_extraction.core.gpkg_merge import count_layers
+from gpf_extraction.core.gpkg_merge import count_layers, remove_empty_layers
 from gpf_extraction.core.job_registry import JobRegistry, TrackedJob
 from gpf_extraction.gui.job_result_loader import load_results
 from gpf_extraction.toolbelt import PlgLogger, PlgOptionsManager
@@ -295,7 +295,15 @@ class JobsDialog(QDialog):
         self._reload_table()
 
         data_paths = [p for p in downloaded_paths if p.suffix.lower() != ".json"]
+
+        removed_layers = remove_empty_layers(data_paths)
         report_lines = []
+        if removed_layers:
+            report_lines.append(
+                self.tr("{} couche(s) vide(s) (0 entité) retirée(s) : {}").format(
+                    len(removed_layers), ", ".join(sorted(removed_layers))
+                )
+            )
         delivered = count_layers(data_paths)
         if job.requested_tables:
             report_lines.append(
@@ -317,6 +325,17 @@ class JobsDialog(QDialog):
                 )
             )
         report_text = ("\n\n" + "\n".join(report_lines)) if report_lines else ""
+        if report_lines:
+            # Journalisé en plus de la boîte de dialogue ci-dessous (message
+            # transitoire, perdu si QGIS se ferme ou plante avant que
+            # l'utilisateur ne l'ait lu) : reste consultable après coup dans
+            # le panneau des messages QGIS.
+            self.log(
+                message="Rapport de génération ({}) :\n{}".format(
+                    job.process_title or job.job_id, "\n".join(report_lines)
+                ),
+                log_level=Qgis.MessageLevel.Info,
+            )
 
         file_list = "\n".join(p.name for p in downloaded_paths)
         reply = QMessageBox.question(
