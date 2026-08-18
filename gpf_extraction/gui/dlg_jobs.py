@@ -336,7 +336,6 @@ class JobsDialog(QDialog):
                 job.product_name,
                 log=lambda msg: self.log(message=msg, log_level=Qgis.MessageLevel.NoLevel),
                 parent=self,
-                merge_name=job.gpkg_name,
             )
 
     def _open_folder_selected(self) -> None:

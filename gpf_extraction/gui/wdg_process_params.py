@@ -50,6 +50,15 @@ _RELATIONS_FIELD_ID = "relations"
 #: PARQUET, ...).
 _PREFERRED_ENUM_VALUES = ("GPKG", "GeoPackage", "ESRI SHAPEFILE", "GEOJSON")
 
+#: Libellés plus explicites que le nom brut d'un input tel que déclaré par
+#: l'API (`field.title`), pour certains champs dont le nom technique ne
+#: parle pas de lui-même à l'utilisateur. L'identifiant réellement envoyé
+#: au serveur (`field.id`) n'est pas affecté par cette table, seul le
+#: libellé affiché dans le formulaire change.
+_FIELD_LABEL_OVERRIDES = {
+    "append": "Fusionner toutes les tables en un seul fichier",
+}
+
 
 def _srid_from_crs(crs: str) -> int:
     """Extrait le code EPSG numérique d'une chaîne "EPSG:xxxx", avec repli
@@ -144,7 +153,7 @@ class ProcessParamsWidget(QWidget):
                 self._relations_widget = widget
                 widget.changed.connect(self._refresh_advanced_preview)
                 widget.changed.connect(self.changed)
-            label = field.title or field.id
+            label = _FIELD_LABEL_OVERRIDES.get(field.id.lower(), field.title or field.id)
             if field.required:
                 label += " *"
             self.simple_form.addRow(label, widget)

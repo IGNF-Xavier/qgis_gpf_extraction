@@ -53,7 +53,6 @@ class JobMonitorDialog(QDialog):
         project: QgsProject,
         poll_interval_seconds: int = 15,
         product_name: str = "",
-        gpkg_name: str = "",
         requested_tables: int = 0,
         parent=None,
     ):
@@ -70,7 +69,6 @@ class JobMonitorDialog(QDialog):
         self._add_to_project = add_to_project
         self._project = project
         self._product_name = product_name
-        self._gpkg_name = gpkg_name
         self._requested_tables = requested_tables
         self._downloaded_path: Optional[str] = None
 
@@ -199,7 +197,6 @@ class JobMonitorDialog(QDialog):
                 self._product_name,
                 log=self._append_log,
                 parent=self,
-                merge_name=self._gpkg_name,
             )
 
         self.finished_ok.emit(self._downloaded_path)

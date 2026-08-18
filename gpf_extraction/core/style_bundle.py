@@ -136,6 +136,18 @@ def _fix_mislabeled_sld_encoding(path: Path) -> None:
         pass
 
 
+#: Coquilles connues dans les noms de fichiers du paquet de styles
+#: Géoserver de la BD TOPO® publié par l'IGN : le style existe bel et bien
+#: pour la table visée, mais le nom de fichier ne correspond pas à celui
+#: de la table à cause d'une faute de frappe côté IGN (constaté en
+#: conditions réelles). Corrigé ici au cas par cas plutôt que d'assouplir
+#: la correspondance de nom pour tout le monde (risque de faux positifs
+#: entre tables au nom proche).
+_KNOWN_SLD_STEM_TYPOS = {
+    "bdtopo_v3_surface_hydrograpgique": "bdtopo_v3_surface_hydrographique",
+}
+
+
 def match_candidates_for_table(
     candidates: list[StyleCandidate], table_name: str
 ) -> list[StyleCandidate]:
@@ -160,7 +172,8 @@ def match_candidates_for_table(
         return []
     matches = []
     for candidate in candidates:
-        stem = normalize(candidate.sld_path.stem)
+        raw_stem = candidate.sld_path.stem.lower()
+        stem = normalize(_KNOWN_SLD_STEM_TYPOS.get(raw_stem, candidate.sld_path.stem))
         if stem == normalized_table or stem.endswith(normalized_table):
             matches.append(candidate)
     return matches

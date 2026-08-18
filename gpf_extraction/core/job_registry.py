@@ -29,10 +29,6 @@ class TrackedJob:
     product_name: str = ""
     output_dir: str = ""
     comment: str = ""
-    #: Nom (sans extension) souhaité pour le GeoPackage fusionné, si
-    #: plusieurs fichiers GeoPackage sont produits par le résultat
-    #: (cf. `core/gpkg_merge.py`). Vide = nom par défaut.
-    gpkg_name: str = ""
     #: Nombre de tables demandées à la soumission (sélection dans le
     #: sélecteur de tables), pour comparaison avec le nombre de fichiers
     #: effectivement reçus dans le rapport de génération.
