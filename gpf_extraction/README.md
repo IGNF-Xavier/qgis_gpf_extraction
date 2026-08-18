@@ -91,19 +91,46 @@ from the Géoplateforme.
   parameter explicitly set to `7zip`), the plugin does not extract it —
   7-Zip (or equivalent) is needed. Leaving `compression` unset avoids this
   entirely.
-- **Whether a style (SLD) exists for a product isn't exposed by the
-  extraction service itself.** The plugin infers it by querying the
-  Géoplateforme's general metadata catalog (CSW): it downloads the full
-  list of catalog records (~300, in pages of 100) to find the extracted
-  product's record by title matching, then looks for an online resource
-  that looks like a style. This is an indirect, costly workaround
-  (measured at about 35 seconds the first time in a QGIS session — cached
-  afterwards for the rest of the session) and a heuristic one (dependent
-  on how each record happens to describe its resources). **A dedicated
-  service, tied to the extraction service, that directly reports —
-  for a given product or stored data — whether one or more SLD styles
-  exist and where to fetch them, would make this feature considerably
-  simpler and more reliable.**
+### ⚠️ Style discovery via the CSW catalog is a workaround, not a real solution
+
+**Whether a style (SLD) exists for a product isn't exposed by the
+extraction service itself.** The plugin infers it by querying the
+Géoplateforme's general metadata catalog (CSW): it downloads the full
+list of catalog records to find the extracted product's record by title
+matching, then looks for an online resource that looks like a style, then
+matches each `.sld` file in the found package to a table through a
+name-matching heuristic (versioned product prefix, French articles
+tolerated). Findings from real-world testing on BD TOPO® (the
+better-covered of the two products tested):
+
+- **34 of the 59 tables** in the "BD TOPO® tous thèmes" product have
+  **no** style published in the corresponding IGN package (25 do) — a
+  genuine absence on IGN's side, verified one by one, not a plugin
+  matching defect.
+- **11 of the 36 SLD files** in that same package don't correspond to
+  **any** of the 59 tables (orphan styles — categories or tables absent
+  from this specific product).
+- **At least 4 distinct naming inconsistencies** between SLD files and
+  tables (an IGN typo, two missing French articles on either side, and a
+  genuine false positive — a runway style getting wrongly attributed to
+  the whole-airfield table) had to be fixed one by one on the client
+  side, through a non-trivial matching heuristic — with no guarantee it
+  covers every case for this product, let alone others.
+- **The CSW catalog isn't built for this kind of search**: server-side
+  full-text search (`GetRecords` with a CQL/OGC Filter constraint)
+  consistently fails (server error), forcing a full catalog download
+  (several hundred records) to filter client-side — measured at about 30
+  seconds. This cost is now hidden by a background prefetch when the
+  extraction dialog opens (while the user configures the rest), but it
+  remains entirely due to the lack of a search mechanism fit for this
+  purpose.
+
+**A dedicated service, tied to the extraction service, that directly
+reports — for a given product or stored data — whether one or more SLD
+styles exist and where to fetch them, would make this feature
+considerably simpler and more reliable,** instead of this costly,
+heuristic workaround through a general-purpose metadata catalog that
+wasn't designed for this use case.
 
 See also the [CHANGELOG](../CHANGELOG.md) for the detailed version history.
 

@@ -97,20 +97,48 @@ dialogue pour le retrouver depuis la Géoplateforme.
   (paramètre `compression` explicitement mis à `7zip`), le plugin ne la
   décompresse pas — 7-Zip (ou équivalent) est nécessaire. Laisser
   `compression` non renseigné évite complètement ce cas.
-- **La disponibilité d'un style (SLD) pour un produit n'est pas exposée
-  par le service d'extraction lui-même.** Le plugin la déduit en
-  interrogeant le catalogue général de métadonnées (CSW) de la
-  Géoplateforme : il télécharge la liste de l'ensemble des fiches du
-  catalogue (~300, par pages de 100) pour y retrouver, par
-  correspondance de titre, celle du produit extrait, puis y cherche une
-  ressource en ligne ressemblant à un style. C'est un contournement
-  indirect, coûteux (mesuré : environ 35 secondes la première fois dans
-  une session QGIS — mis en cache ensuite pour le reste de la session) et
-  heuristique (dépendant de la façon dont chaque fiche décrit ses
-  ressources). **Un service dédié, associé au service d'extraction, qui
-  indiquerait directement — pour un produit ou une donnée stockée
-  donnée — si un ou plusieurs styles SLD existent et où les récupérer,
-  simplifierait et fiabiliserait considérablement cette fonctionnalité.**
+### ⚠️ La découverte de styles via le catalogue CSW est un contournement, pas une solution
+
+**La disponibilité d'un style (SLD) pour un produit n'est pas exposée par
+le service d'extraction lui-même.** Le plugin la déduit en interrogeant le
+catalogue général de métadonnées (CSW) de la Géoplateforme : il télécharge
+la liste de l'ensemble des fiches du catalogue pour y retrouver, par
+correspondance de titre, celle du produit extrait, puis y cherche une
+ressource en ligne ressemblant à un style, puis fait correspondre chaque
+fichier `.sld` du paquet trouvé à une table par une heuristique de
+correspondance de nom (préfixe de produit, articles français tolérés).
+Constats faits en conditions réelles sur la BD TOPO® (produit le mieux
+couvert des deux testés) :
+
+- **34 des 59 tables** du produit « BD TOPO® tous thèmes » n'ont **aucun**
+  style publié dans le paquet IGN correspondant (25 en ont un) — une
+  absence réelle côté IGN, vérifiée une par une, pas un défaut de
+  correspondance du plugin.
+- **11 des 36 fichiers SLD** de ce même paquet ne correspondent à **aucune**
+  des 59 tables (styles orphelins — catégories ou tables absentes de ce
+  produit précis).
+- **Au moins 4 incohérences de nommage distinctes** rencontrées entre
+  fichiers SLD et tables (une faute de frappe IGN, deux absences
+  d'article français d'un côté ou de l'autre, et un vrai faux positif —
+  le style d'une piste d'atterrissage s'attribuait à tort à la table de
+  l'aérodrome entier) ont dû être corrigées une à une côté client, au prix
+  d'une heuristique de correspondance non triviale — sans garantie
+  qu'elle couvre tous les cas pour ce produit, ni pour d'autres.
+- **Le catalogue CSW n'est pas prévu pour ce type de recherche** : la
+  recherche plein texte côté serveur (`GetRecords` avec une contrainte
+  CQL/OGC Filter) échoue systématiquement (erreur serveur), ce qui oblige
+  à récupérer l'intégralité du catalogue (plusieurs centaines de fiches)
+  pour filtrer côté client — mesuré à environ 30 secondes. Ce coût est
+  désormais masqué par un préchargement en arrière-plan à l'ouverture du
+  dialogue d'extraction (pendant que l'utilisateur configure le reste),
+  mais reste entièrement dû à l'absence d'un moyen de recherche adapté.
+
+**Un service dédié, associé au service d'extraction, qui indiquerait
+directement — pour un produit ou une donnée stockée donnée — si un ou
+plusieurs styles SLD existent et où les récupérer, simplifierait et
+fiabiliserait considérablement cette fonctionnalité,** à la place de ce
+contournement heuristique et coûteux via un catalogue de métadonnées
+généraliste qui n'a pas été conçu pour cet usage.
 
 Voir aussi le [CHANGELOG](../CHANGELOG.md) pour l'historique détaillé des
 versions.
