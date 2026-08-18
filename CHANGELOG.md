@@ -74,3 +74,11 @@ Unreleased
 - Remove the drawn-extent rectangle left on the map canvas after closing the dialog
 - Replace a sublayer-loading API removed in recent QGIS versions (`QgsVectorLayer.sublayerSeparator`) with the current recommended one
 - A couple of PyQt6/QGIS 4 compatibility fixes (`exec_()` removed in Qt6)
+
+## 3.2.1 - 2026-08-18 [EXPERIMENTAL]
+- Fix a QGIS freeze with no recovery path: network calls had no timeout at all, so a stalled request (including a synchronous OAuth2 token refresh triggered internally by QGIS) could hang the whole UI thread indefinitely; requests now abort after 30s (10 minutes for downloads) with a clear error message instead
+- Fix the "Aide"/"Help" menu entry duplicating on every hot-reload of the plugin
+- Fix the BBox draw tool staying active after drawing a rectangle, causing further map clicks to keep redrawing it instead of behaving normally
+- The extraction service can produce one GeoPackage per table instead of a single multi-layer file, even with the `append` input set to `true`: results are now merged client-side into a single GeoPackage, which the user can name
+- `download_all_results` no longer loses the files it already downloaded successfully if one of several downloads fails partway through the batch
+- Add a small generation report after a job completes: number of tables requested vs. layers actually delivered, and any per-file download failures
