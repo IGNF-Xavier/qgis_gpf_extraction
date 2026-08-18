@@ -315,6 +315,13 @@ class GpfExtractionDialog(QDialog):
     def _on_rectangle_drawn(self) -> None:
         self.showNormal()
         self.activateWindow()
+        # Sans ça, l'outil de dessin reste l'outil actif du canevas
+        # indéfiniment : tout clic ultérieur sur la carte (y compris après
+        # la fermeture du dialogue) redéclenche un dessin de rectangle au
+        # lieu du comportement normal de QGIS (constaté en conditions
+        # réelles : le curseur restait "bloqué" en mode dessin d'emprise).
+        if self.canvas and self.canvas.mapTool() is self.rectangle_tool:
+            self.canvas.unsetMapTool(self.rectangle_tool)
         self.current_extent = self.rectangle_tool.new_extent
         self._update_extent_label()
         self._validate()
@@ -381,7 +388,7 @@ class GpfExtractionDialog(QDialog):
             return
         try:
             self._all_processes = self.client.list_processes(page=1, limit=200)
-        except ApiRequestError as exc:
+        except (ApiRequestError, ConnectionError) as exc:
             QMessageBox.critical(
                 self,
                 self.tr("Erreur"),
@@ -435,7 +442,7 @@ class GpfExtractionDialog(QDialog):
         self.selected_process = process
         try:
             self.selected_process_details = self.client.get_process(process.id)
-        except ApiRequestError as exc:
+        except (ApiRequestError, ConnectionError) as exc:
             QMessageBox.warning(
                 self,
                 self.tr("Avertissement"),
@@ -462,7 +469,7 @@ class GpfExtractionDialog(QDialog):
                     described_by_url
                 )
                 self.params_widget.set_stored_data(self.selected_stored_data)
-            except ApiRequestError as exc:
+            except (ApiRequestError, ConnectionError) as exc:
                 self.log(
                     message=f"Impossible de récupérer la description de la donnée "
                     f"stockée ({described_by_url}) : {exc}",
@@ -529,7 +536,7 @@ class GpfExtractionDialog(QDialog):
 
         try:
             job = self.client.execute(self.selected_process.id, body)
-        except ApiRequestError as exc:
+        except (ApiRequestError, ConnectionError) as exc:
             QMessageBox.critical(
                 self,
                 self.tr("Erreur"),

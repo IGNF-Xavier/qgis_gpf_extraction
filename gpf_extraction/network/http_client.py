@@ -25,8 +25,16 @@ from pathlib import Path
 from typing import Optional, Union
 
 from qgis.core import QgsApplication, QgsFileDownloader, QgsNetworkAccessManager
-from qgis.PyQt.QtCore import QByteArray, QEventLoop, QUrl
+from qgis.PyQt.QtCore import QByteArray, QEventLoop, QTimer, QUrl
 from qgis.PyQt.QtNetwork import QNetworkReply, QNetworkRequest
+
+#: Délai maximal d'attente d'une réponse, en secondes. Sans ça, une requête
+#: qui ne reçoit jamais de réponse (serveur qui ne répond pas, connexion qui
+#: reste ouverte sans rien envoyer...) bloque indéfiniment la boucle
+#: d'événements locale — et donc toute l'interface de QGIS, ces appels étant
+#: synchrones et exécutés sur le thread principal. Constaté en conditions
+#: réelles : plusieurs blocages complets de QGIS pendant les tests.
+DEFAULT_TIMEOUT_SECONDS = 30
 
 
 @dataclass
@@ -54,10 +62,32 @@ class NetworkClient:
             QgsApplication.authManager().updateNetworkRequest(request, self._authcfg)
 
     @staticmethod
-    def _wait(reply: QNetworkReply) -> QNetworkReply:
+    def _wait(
+        reply: QNetworkReply, timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS
+    ) -> QNetworkReply:
         loop = QEventLoop()
         reply.finished.connect(loop.quit)
+
+        timed_out = False
+
+        def _on_timeout():
+            nonlocal timed_out
+            timed_out = True
+            reply.abort()  # déclenche `finished`, donc `loop.quit()` aussi
+
+        timer = QTimer()
+        timer.setSingleShot(True)
+        timer.timeout.connect(_on_timeout)
+        timer.start(max(1, int(timeout_seconds * 1000)))
+
         loop.exec()  # pas de exec_() : supprimé en PyQt6/Qt6 (QGIS 4)
+        timer.stop()
+
+        if timed_out:
+            reply.deleteLater()
+            raise ConnectionError(
+                f"Délai dépassé ({timeout_seconds:.0f} s) en attente d'une réponse du serveur."
+            )
         return reply
 
     @staticmethod
@@ -184,9 +214,31 @@ class NetworkClient:
 
         downloader.downloadError.connect(_on_error)
 
+        # Filet de sécurité contre un téléchargement qui ne se termine
+        # jamais (connexion ouverte sans rien recevoir) : une durée bien
+        # plus généreuse que pour les autres appels (`_wait`), un
+        # téléchargement volumineux pouvant légitimement prendre plusieurs
+        # minutes.
+        timed_out = False
+
+        def _on_stall_timeout():
+            nonlocal timed_out
+            timed_out = True
+            loop.quit()
+
+        stall_timer = QTimer()
+        stall_timer.setSingleShot(True)
+        stall_timer.timeout.connect(_on_stall_timeout)
+        stall_timer.start(10 * 60 * 1000)  # 10 minutes
+
         downloader.startDownload()
         loop.exec()
+        stall_timer.stop()
 
+        if timed_out:
+            raise ConnectionError(
+                "Délai dépassé (10 min) en attente de la fin du téléchargement."
+            )
         if error_messages:
             raise ConnectionError("; ".join(str(m) for m in error_messages))
 

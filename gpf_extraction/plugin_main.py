@@ -162,7 +162,7 @@ class GpfExtractionPlugin:
         # -- Help menu
 
         # documentation
-        self.iface.pluginHelpMenu().addSeparator()
+        self._help_menu_separator = self.iface.pluginHelpMenu().addSeparator()
         self.action_help_plugin_menu_documentation = QAction(
             QIcon(str(__icon_path__)),
             f"{__plugin_name__} - Documentation",
@@ -211,6 +211,11 @@ class GpfExtractionPlugin:
         self.iface.removeToolBarIcon(self.action_launch)
         self.iface.removePluginMenu(f"{__plugin_name__}", self.action_jobs)
         self.iface.removePluginMenu(f"{__plugin_name__}", self.action_settings)
+        # Manquait ici : sans ce retrait, l'action restait affichée dans le
+        # sous-menu du plugin et une nouvelle était recréée à chaque
+        # rechargement (initGui), donnant l'impression d'un doublon à
+        # chaque rechargement à chaud (constaté en conditions réelles).
+        self.iface.removePluginMenu(f"{__plugin_name__}", self.action_help)
 
         # -- Clean up preferences panel in QGIS settings
         self.iface.unregisterOptionsWidgetFactory(self.options_factory)
@@ -223,6 +228,9 @@ class GpfExtractionPlugin:
             self.iface.pluginHelpMenu().removeAction(
                 self.action_help_plugin_menu_documentation
             )
+        if getattr(self, "_help_menu_separator", None):
+            self.iface.pluginHelpMenu().removeAction(self._help_menu_separator)
+            self._help_menu_separator = None
 
         # -- Remove close-event warning
         if getattr(self, "_close_guard", None):

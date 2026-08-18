@@ -192,7 +192,7 @@ class JobsDialog(QDialog):
             return
         try:
             server_jobs = client.list_jobs()
-        except ApiRequestError as exc:
+        except (ApiRequestError, ConnectionError) as exc:
             QMessageBox.warning(
                 self,
                 self.tr("Erreur"),
@@ -211,7 +211,7 @@ class JobsDialog(QDialog):
                     process_titles[server_job.process_id] = client.get_process(
                         server_job.process_id
                     ).title
-                except ApiRequestError:
+                except (ApiRequestError, ConnectionError):
                     process_titles[server_job.process_id] = server_job.process_id
             JobRegistry.add_job(
                 TrackedJob(
@@ -241,7 +241,7 @@ class JobsDialog(QDialog):
             return
         try:
             status = client.get_job(job.job_id)
-        except ApiRequestError as exc:
+        except (ApiRequestError, ConnectionError) as exc:
             QMessageBox.warning(
                 self,
                 self.tr("Erreur"),
@@ -259,7 +259,7 @@ class JobsDialog(QDialog):
 
         try:
             result = client.get_job_results(job.job_id)
-        except (ApiRequestError, JobFailedError) as exc:
+        except (ApiRequestError, JobFailedError, ConnectionError) as exc:
             QMessageBox.warning(
                 self,
                 self.tr("Erreur"),
