@@ -326,6 +326,28 @@ def fetch_style_resources(record_root: ET.Element) -> list[tuple[str, str]]:
     return candidates
 
 
+def extract_wfs_tms_mentions(record_root: ET.Element) -> tuple[list[str], list[str]]:
+    """Depuis les `CI_OnlineResource` d'une fiche complète : noms de couches WFS et
+    noms de produits TMS qu'elle mentionne elle-même — indépendamment de ce que le
+    service correspondant déclare en retour (`MetadataURL`/`Metadata`). Sert à
+    détecter l'asymétrie inverse de `wfs_lien_brise`/`tms_lien_brise` : une fiche qui
+    revendique un WFS/TMS que le service, lui, ne rattache pas (ou rattache à une
+    autre fiche)."""
+    wfs_names: list[str] = []
+    tms_names: list[str] = []
+    for online in record_root.iterfind(".//gmd:CI_OnlineResource", NS):
+        url = online.findtext("gmd:linkage/gmd:URL", default="", namespaces=NS).strip()
+        name = online.findtext("gmd:name/gco:CharacterString", default="", namespaces=NS).strip()
+        if not url or not name:
+            continue
+        upper = url.upper()
+        if "SERVICE=WFS" in upper and "GETCAPABILITIES" in upper:
+            wfs_names.append(name)
+        elif url.startswith(TMS_ROOT_URL):
+            tms_names.append(name)
+    return wfs_names, tms_names
+
+
 def resolve_style_files(resource_title: str, resource_url: str) -> list[StyleFile]:
     """Télécharge (avec cache) une ressource de style et renvoie les fichiers de
     style qu'elle contient (elle-même si fichier direct, son contenu si archive)."""
@@ -397,12 +419,29 @@ def build_rows(
         if ft.metadata_id:
             wfs_by_record.setdefault(ft.metadata_id, []).append(ft)
 
+    # Index inverse (nom -> service), pour la vérification "sens métadonnée -> service"
+    # ajoutée ci-dessous : une fiche peut mentionner elle-même une couche WFS ou un
+    # produit TMS dans ses propres ressources, sans que le service ne déclare le lien
+    # retour correspondant (l'asymétrie inverse de wfs_lien_brise/tms_lien_brise).
+    wfs_by_qualified_name: dict[str, FeatureTypeInfo] = {ft.qualified_name: ft for ft in wfs_types}
+    tms_by_name: dict[str, TmsEntry] = {tms.name: tms for tms in tms_entries}
+
     tms_by_record: dict[str, list[TmsEntry]] = {}
     for tms in tms_entries:
         if tms.metadata_id:
             tms_by_record.setdefault(tms.metadata_id, []).append(tms)
 
-    brief_records = load_brief_records()
+    all_brief_records = load_brief_records()
+    # Capturé sur le listing COMPLET, avant tout filtrage --limit/--record-id : sert à
+    # distinguer, en phase 4, "aucune métadonnée référencée" de "métadonnée référencée
+    # (MetadataURL/Metadata présent) mais qui ne correspond à AUCUNE fiche réelle du
+    # catalogue" (lien brisé côté service — constaté en conditions réelles avec
+    # IGNF_VALABRE_CARROYAGE-DFCI, référencé par le WFS mais absent du GetRecords).
+    # Sans cette distinction, un tel FeatureType/TMS disparaissait silencieusement des
+    # deux comptages (ni couche_wfs, ni wfs_orphelin).
+    known_record_ids = {rid for rid, _ in all_brief_records}
+
+    brief_records = all_brief_records
     if only_record_id:
         brief_records = [(rid, title) for rid, title in brief_records if rid == only_record_id]
     elif limit:
@@ -442,7 +481,9 @@ def build_rows(
         for res_title, res_url in style_candidates:
             style_files.extend(resolve_style_files(res_title, res_url))
 
-        if not record_layers and not record_tms and not style_files:
+        wfs_mentions, tms_mentions = extract_wfs_tms_mentions(record_root)
+
+        if not record_layers and not record_tms and not style_files and not wfs_mentions and not tms_mentions:
             continue  # rien d'intéressant sur cette fiche pour cet audit
         retained += 1
 
@@ -531,6 +572,52 @@ def build_rows(
                     )
                 )
 
+        # -- lignes "wfs_metadonnee_sans_lien_retour" / "tms_metadonnee_sans_lien_retour" :
+        #    sens inverse de wfs_lien_brise/tms_lien_brise — cette fiche mentionne
+        #    elle-même une couche WFS ou un produit TMS dans ses propres ressources,
+        #    mais le service correspondant ne déclare, de son côté, aucun lien retour
+        #    vers cette fiche (ou le déclare vers une AUTRE fiche).
+        for wfs_name in wfs_mentions:
+            ft = wfs_by_qualified_name.get(wfs_name)
+            if ft is None:
+                diag = "Couche WFS mentionnée par la métadonnée, introuvable dans le GetCapabilities WFS actuel"
+            elif ft.metadata_id is None:
+                diag = "Couche WFS mentionnée par la métadonnée, mais le WFS ne déclare aucun lien retour (MetadataURL absent)"
+            elif ft.metadata_id != record_id:
+                diag = f"Couche WFS mentionnée par la métadonnée, mais le WFS la rattache à une autre fiche ({ft.metadata_id})"
+            else:
+                continue  # cohérent dans les deux sens, déjà couvert par une ligne couche_wfs
+            rows.append(
+                Row(
+                    type_ligne="wfs_metadonnee_sans_lien_retour",
+                    id_metadonnee=record_id,
+                    titre_metadonnee=title,
+                    lien_metadonnee=lien_metadonnee,
+                    couche_qualifiee=wfs_name,
+                    diagnostic=diag,
+                )
+            )
+        for tms_name in tms_mentions:
+            tms = tms_by_name.get(tms_name)
+            if tms is None:
+                diag = "TMS mentionné par la métadonnée, introuvable parmi les tuiles .pbf actuelles"
+            elif tms.metadata_id is None:
+                diag = "TMS mentionné par la métadonnée, mais le TMS ne déclare aucun lien retour (Metadata ISO19115:2003 absent)"
+            elif tms.metadata_id != record_id:
+                diag = f"TMS mentionné par la métadonnée, mais le TMS le rattache à une autre fiche ({tms.metadata_id})"
+            else:
+                continue  # cohérent dans les deux sens, déjà couvert par une ligne tms_style (ou aucun style TMS)
+            rows.append(
+                Row(
+                    type_ligne="tms_metadonnee_sans_lien_retour",
+                    id_metadonnee=record_id,
+                    titre_metadonnee=title,
+                    lien_metadonnee=lien_metadonnee,
+                    tms_nom=tms_name,
+                    diagnostic=diag,
+                )
+            )
+
     # -- Phase 4 : écarts en sens inverse (services -> métadonnée)
     for ft in wfs_types:
         if ft.metadata_id is None:
@@ -540,6 +627,19 @@ def build_rows(
                     couche_qualifiee=ft.qualified_name,
                     couche=ft.bare_name,
                     diagnostic="FeatureType WFS sans métadonnée liée (aucun MetadataURL CSW)",
+                )
+            )
+        elif ft.metadata_id not in known_record_ids:
+            rows.append(
+                Row(
+                    type_ligne="wfs_lien_brise",
+                    id_metadonnee=ft.metadata_id,
+                    couche_qualifiee=ft.qualified_name,
+                    couche=ft.bare_name,
+                    diagnostic=(
+                        f"MetadataURL référence la fiche « {ft.metadata_id} », "
+                        "absente du catalogue (lien brisé côté WFS)"
+                    ),
                 )
             )
     for tms in tms_entries:
@@ -552,14 +652,33 @@ def build_rows(
                     diagnostic="TMS .pbf sans métadonnée liée (aucun Metadata ISO19115:2003)",
                 )
             )
+        elif tms.metadata_id not in known_record_ids:
+            rows.append(
+                Row(
+                    type_ligne="tms_lien_brise",
+                    id_metadonnee=tms.metadata_id,
+                    tms_nom=tms.name,
+                    ressource_url=tms.href,
+                    diagnostic=(
+                        f"Metadata ISO19115:2003 référence la fiche « {tms.metadata_id} », "
+                        "absente du catalogue (lien brisé côté TMS)"
+                    ),
+                )
+            )
 
     stats = {
-        "fiches_scannees": len(brief_records),
+        "fiches_scannees": len(all_brief_records),
         "fiches_retenues": retained,
         "wfs_total": len(wfs_types),
         "wfs_sans_metadonnee": sum(1 for ft in wfs_types if ft.metadata_id is None),
+        "wfs_lien_brise": sum(
+            1 for ft in wfs_types if ft.metadata_id is not None and ft.metadata_id not in known_record_ids
+        ),
         "tms_pbf_total": len(tms_entries),
         "tms_pbf_sans_metadonnee": sum(1 for t in tms_entries if t.metadata_id is None),
+        "tms_pbf_lien_brise": sum(
+            1 for t in tms_entries if t.metadata_id is not None and t.metadata_id not in known_record_ids
+        ),
     }
     return rows, stats
 
@@ -589,6 +708,10 @@ ROW_FILL_COLOR = {
     "tms_style": "FFE599",  # jaune : style déclaré par un TMS
     "wfs_orphelin": "EFEFEF",  # gris : service sans métadonnée
     "tms_orphelin": "EFEFEF",
+    "wfs_lien_brise": "EA9999",  # rouge : lien service -> métadonnée déclaré mais brisé
+    "tms_lien_brise": "EA9999",
+    "wfs_metadonnee_sans_lien_retour": "B4A7D6",  # violet : lien métadonnée -> service sans confirmation du service
+    "tms_metadonnee_sans_lien_retour": "B4A7D6",
 }
 
 
@@ -627,7 +750,7 @@ def write_excel(rows: list[Row], stats: dict, out_path: Path) -> None:
     # l'assertion juste après la liste plutôt que de silencieusement faire chevaucher
     # le résumé et l'en-tête du tableau (bug constaté en conditions réelles : 3
     # lignes de résumé écrasées par l'en-tête/les premières lignes de données).
-    SUMMARY_ROW_COUNT = 10
+    SUMMARY_ROW_COUNT = 14
     data_first_row = 4 + SUMMARY_ROW_COUNT + 1  # +1 = ligne vide de séparation
     data_last_row = data_first_row + len(rows) - 1
     type_col = "A"
@@ -646,9 +769,19 @@ def write_excel(rows: list[Row], stats: dict, out_path: Path) -> None:
         ("Styles orphelins (aucune couche correspondante)", f'=COUNTIF({type_range},"style_geoserver")'),
         ("Styles déclarés par un TMS .pbf", f'=COUNTIF({type_range},"tms_style")'),
         ("FeatureType WFS total", stats["wfs_total"]),
-        ("  dont SANS métadonnée liée", stats["wfs_sans_metadonnee"]),
+        ("  dont SANS métadonnée liée (aucun MetadataURL)", stats["wfs_sans_metadonnee"]),
+        ("  dont lien vers une fiche INEXISTANTE", stats["wfs_lien_brise"]),
+        (
+            "  dont mentionné par une fiche sans lien retour confirmé",
+            f'=COUNTIF({type_range},"wfs_metadonnee_sans_lien_retour")',
+        ),
         ("TMS .pbf total", stats["tms_pbf_total"]),
-        ("  dont SANS métadonnée liée", stats["tms_pbf_sans_metadonnee"]),
+        ("  dont SANS métadonnée liée (aucun Metadata ISO19115:2003)", stats["tms_pbf_sans_metadonnee"]),
+        ("  dont lien vers une fiche INEXISTANTE", stats["tms_pbf_lien_brise"]),
+        (
+            "  dont mentionné par une fiche sans lien retour confirmé",
+            f'=COUNTIF({type_range},"tms_metadonnee_sans_lien_retour")',
+        ),
     ]
     assert len(summary) == SUMMARY_ROW_COUNT, (
         f"SUMMARY_ROW_COUNT ({SUMMARY_ROW_COUNT}) doit rester égal au nombre de lignes "
