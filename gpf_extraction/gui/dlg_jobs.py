@@ -360,6 +360,9 @@ class JobsDialog(QDialog):
                 job.product_name,
                 log=lambda msg: self.log(message=msg, log_level=Qgis.MessageLevel.NoLevel),
                 parent=self,
+                gpkg_name=job.gpkg_name,
+                clip_wkt=job.extent_wkt if job.clip_to_extent else "",
+                clip_crs=job.extent_crs,
             )
 
     def _open_folder_selected(self) -> None:

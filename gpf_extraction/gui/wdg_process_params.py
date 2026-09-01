@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 from typing import Optional
 
-from qgis.core import QgsRectangle
+from qgis.core import QgsGeometry, QgsRectangle
 from qgis.PyQt.QtCore import QCoreApplication, Qt, pyqtSignal
 from qgis.PyQt.QtWidgets import (
     QCheckBox,
@@ -31,7 +31,7 @@ from qgis.PyQt.QtWidgets import (
 )
 
 from gpf_extraction.core.models import ProcessDetails, ProcessInputField, StoredDataDescription
-from gpf_extraction.gui.wdg_relations_builder import RelationsBuilderWidget
+from gpf_extraction.gui.wdg_relations_builder import DEFAULT_PREDICATES, RelationsBuilderWidget
 
 #: Fragments de nom de champ évoquant une emprise géographique, utilisés pour
 #: pré-remplir automatiquement la valeur avec l'emprise choisie par l'utilisateur.
@@ -59,6 +59,20 @@ _FIELD_LABEL_OVERRIDES = {
     "append": "Fusionner toutes les tables en un seul fichier",
 }
 
+#: Identifiant d'input observé pour la projection de sortie (`"La projection
+#: de sortie des données géométrie sous la forme EPSG:xxxx"`) : prend en
+#: charge son propre widget (QComboBox éditable) plutôt que le QLineEdit
+#: générique, pour proposer le SRS natif de la donnée stockée et quelques
+#: projections courantes en plus de la saisie libre.
+_SRS_FIELD_ID = "srs"
+
+#: Projections courantes proposées en plus du SRS natif de la donnée stockée
+#: (ajouté dynamiquement en tête de liste par `set_stored_data`, s'il est
+#: connu et différent de celles-ci). Pas de liste "officielle" des
+#: projections disponibles côté service : ce champ reste un texte libre
+#: (`EPSG:xxxx`) d'après sa description, cette liste n'est qu'un confort.
+_COMMON_SRS = ["EPSG:4326", "EPSG:2154", "EPSG:3857", "EPSG:4171"]
+
 
 def _srid_from_crs(crs: str) -> int:
     """Extrait le code EPSG numérique d'une chaîne "EPSG:xxxx", avec repli
@@ -84,8 +98,11 @@ class ProcessParamsWidget(QWidget):
         self._extent_bbox: Optional[list[float]] = None
         self._extent_crs: str = ""
         self._extent_rectangle: Optional[QgsRectangle] = None
+        self._extent_geometry: Optional[QgsGeometry] = None
+        self._predicates: list[str] = list(DEFAULT_PREDICATES)
         self._relations_widget: Optional[RelationsBuilderWidget] = None
         self._pending_stored_data: Optional[StoredDataDescription] = None
+        self._srs_widget: Optional[QComboBox] = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -120,6 +137,7 @@ class ProcessParamsWidget(QWidget):
         self._field_widgets = {}
         self._field_objs = {}
         self._relations_widget = None
+        self._srs_widget = None
         self.chk_advanced.setChecked(False)
 
         while self.simple_form.rowCount():
@@ -153,6 +171,12 @@ class ProcessParamsWidget(QWidget):
                 self._relations_widget = widget
                 widget.changed.connect(self._refresh_advanced_preview)
                 widget.changed.connect(self.changed)
+            elif field.id.lower() == _SRS_FIELD_ID and isinstance(widget, QComboBox):
+                self._srs_widget = widget
+                # Change de SRS => l'emprise envoyée doit être reprojetée dans
+                # cette même projection (cf. dlg_main.py::_validate) : signale
+                # au dialogue parent via `changed`, comme pour `relations`.
+                widget.currentTextChanged.connect(self.changed)
             label = _FIELD_LABEL_OVERRIDES.get(field.id.lower(), field.title or field.id)
             if field.required:
                 label += " *"
@@ -163,8 +187,11 @@ class ProcessParamsWidget(QWidget):
                 self._relations_widget.set_tables(self._pending_stored_data.tables)
             if self._extent_rectangle is not None:
                 self._relations_widget.set_extent(
-                    self._extent_rectangle, _srid_from_crs(self._extent_crs)
+                    self._extent_rectangle,
+                    _srid_from_crs(self._extent_crs),
+                    geometry=self._extent_geometry,
                 )
+            self._relations_widget.set_predicates(self._predicates)
 
         self._wire_format_append_compatibility()
         self._refresh_advanced_preview()
@@ -206,17 +233,66 @@ class ProcessParamsWidget(QWidget):
     def set_stored_data(self, description: Optional[StoredDataDescription]) -> None:
         """Fournit la liste des tables exploitables (obtenue via le lien
         `describedby` du processus) au sélecteur de tables, s'il est présent
-        dans le formulaire courant (input `relations`)."""
+        dans le formulaire courant (input `relations`). Met aussi à jour le
+        combo de projection avec le SRS natif de cette donnée, s'il en a un
+        et qu'un champ `srs` est présent dans ce formulaire."""
         self._pending_stored_data = description
         if self._relations_widget is not None:
             self._relations_widget.set_tables(description.tables if description else [])
             self._refresh_advanced_preview()
 
-    def set_extent(self, rectangle: QgsRectangle, crs: str) -> None:
+        if self._srs_widget is not None and description and description.srs:
+            native_srs = description.srs.strip()
+            idx = self._srs_widget.findText(native_srs)
+            if idx < 0:
+                self._srs_widget.insertItem(0, native_srs, native_srs)
+                idx = 0
+            self._srs_widget.setItemText(
+                idx, self.tr("{} (natif de la donnée)").format(native_srs)
+            )
+            self._srs_widget.setCurrentIndex(idx)
+
+    def get_selected_srs(self) -> str:
+        """Projection de sortie actuellement choisie dans le formulaire
+        (ex. `EPSG:2154`), ou une chaîne vide si ce processus n'a pas de champ
+        `srs` (l'appelant doit alors garder le CRS de travail par défaut)."""
+        if self._srs_widget is None:
+            return ""
+        combo = self._srs_widget
+        index = combo.currentIndex()
+        # Un QComboBox éditable ne réinitialise PAS `currentIndex()` quand le
+        # texte saisi ne correspond à aucun item (avec `NoInsert`) : il faut
+        # donc vérifier explicitement que le texte affiché correspond encore
+        # à l'item indexé avant de faire confiance à `currentData()` — sans
+        # quoi une saisie libre renvoyait à tort la dernière valeur choisie
+        # dans la liste (constaté en conditions réelles).
+        if index >= 0 and combo.itemText(index) == combo.currentText():
+            data = combo.itemData(index)
+            if data:
+                return str(data).strip()
+        # Saisie libre, ou pas de correspondance : le libellé du SRS natif
+        # porte un suffixe (" (natif de la donnée)") absent d'une saisie
+        # libre, mais on le retire quand même par sécurité.
+        return combo.currentText().split(" ", 1)[0].strip()
+
+    def set_extent(
+        self,
+        rectangle: Optional[QgsRectangle],
+        crs: str,
+        geometry: Optional[QgsGeometry] = None,
+    ) -> None:
         """Mémorise l'emprise choisie par l'utilisateur, pour pré-remplissage
         automatique des champs qui y ressemblent (bbox, emprise, ...) et pour
-        le sélecteur de tables (filtre spatial par table)."""
+        le sélecteur de tables (filtre spatial par table).
+
+        :param geometry: géométrie réelle de l'emprise (contour administratif
+            ou couche du projet), dans le même CRS que `rectangle` — transmise
+            telle quelle au sélecteur de tables pour un filtre `ST_GeomFromText`
+            plutôt qu'un simple `ST_MakeEnvelope`, quand disponible.
+        :type geometry: Optional[QgsGeometry], optional
+        """
         self._extent_rectangle = rectangle
+        self._extent_geometry = geometry
         if rectangle is None:
             self._extent_bbox = None
             self._extent_crs = ""
@@ -230,8 +306,16 @@ class ProcessParamsWidget(QWidget):
             self._extent_crs = crs
 
         if self._relations_widget is not None:
-            self._relations_widget.set_extent(rectangle, _srid_from_crs(crs))
+            self._relations_widget.set_extent(rectangle, _srid_from_crs(crs), geometry=geometry)
 
+        self._refresh_advanced_preview()
+
+    def set_predicates(self, predicates: list[str]) -> None:
+        """Transmet au sélecteur de tables les prédicats géométriques cochés
+        par l'utilisateur (combinés en OU dans le filtre de chaque table)."""
+        self._predicates = list(predicates) or list(DEFAULT_PREDICATES)
+        if self._relations_widget is not None:
+            self._relations_widget.set_predicates(self._predicates)
         self._refresh_advanced_preview()
 
     # ------------------------------------------------------------------
@@ -240,6 +324,23 @@ class ProcessParamsWidget(QWidget):
     def _build_field_widget(self, field: ProcessInputField) -> Optional[QWidget]:
         if field.id.lower() == _RELATIONS_FIELD_ID:
             return RelationsBuilderWidget()
+
+        if field.id.lower() == _SRS_FIELD_ID:
+            combo = QComboBox()
+            combo.setEditable(True)
+            combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+            for value in _COMMON_SRS:
+                combo.addItem(value, value)
+            # SRS natif de la donnée stockée (si déjà connue à ce stade) : mis
+            # en tête et présélectionné par set_stored_data, appelé après
+            # set_process dans le flux normal (dlg_main.py::_on_process_selected)
+            # — voir set_stored_data pour le cas où il arrive après coup.
+            if isinstance(field.default, str) and field.default:
+                idx = combo.findText(field.default)
+                combo.setCurrentIndex(idx if idx >= 0 else 0)
+            else:
+                combo.setCurrentIndex(0)
+            return combo
 
         if field.enum:
             combo = QComboBox()
@@ -330,6 +431,18 @@ class ProcessParamsWidget(QWidget):
                 # dans chaque filtre) : pas besoin du repli "bbox" générique.
                 if self._extent_rectangle is not None:
                     extent_field_filled = True
+            elif field_id.lower() == _SRS_FIELD_ID and isinstance(widget, QComboBox):
+                # `currentData()` brut n'est pas fiable ici : ce combo est
+                # éditable, et `setCurrentText`/une saisie libre ne réinitialise
+                # pas `currentIndex` quand le texte affiché ne correspond pas
+                # exactement à l'item resté sélectionné (constaté en conditions
+                # réelles : `currentData()` renvoyait encore le SRS natif après
+                # avoir choisi un autre SRS de la liste, envoyant la mauvaise
+                # projection de sortie au serveur). `get_selected_srs()` gère
+                # déjà ce cas correctement.
+                srs_value = self.get_selected_srs()
+                if srs_value:
+                    values[field_id] = srs_value
             elif isinstance(widget, QComboBox):
                 data = widget.currentData()
                 if data is not None:

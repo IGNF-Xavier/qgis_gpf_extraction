@@ -27,17 +27,32 @@ than the historical anonymous WFS.
    [QGIS Géoplateforme plugin](https://github.com/Geoplateforme/plugin-qgis-geoplateforme).
    (The built-in autonomous "Se connecter" flow is currently disabled —
    see *Known limitations*.)
-2. **Choose an extent**: a BBox drawn on the map, or an administrative
-   area (commune, département, région — homonyms are disambiguated with
-   the département/région code) searched by name.
+2. **Choose an extent**: a BBox drawn on the map, an administrative area
+   (commune, département, région — homonyms are disambiguated with the
+   département/région code) searched by name, or a polygon layer from
+   your project (all its features, or only the selected ones — several
+   features are merged into a single extent). Pick which spatial
+   predicate(s) apply (`Intersects`, `Contains`, `Within`, `Disjoint`,
+   `Touches`, `Crosses`, `Overlaps`, `Equals` — several can be checked at
+   once, combined with OR), and optionally clip the downloaded features
+   to the exact extent geometry (rather than getting the full geometry of
+   every feature that merely crosses it) — done client-side after
+   download, since the extraction service has no way to clip geometries
+   server-side (checked against the real API: an `ST_Intersection`
+   expression in the `attributes` input is rejected).
 3. **Choose a product** from the list of processes your account has
    access to (BD TOPO® is listed first when available).
 4. **Fill in the parameters**. For "ARCHIVE from VECTOR-DB" extraction
    processes (BD TOPO, GPU_EXTRACTION, ...), a dedicated table picker
    lets you check the tables you want, and automatically builds the
-   spatial filter (`ST_Intersects`) for each from your chosen extent. An
-   advanced raw-JSON editor is always available as a fallback for
-   whatever the generic form doesn't cover.
+   spatial filter for each from your chosen extent and predicate(s). The
+   output projection (`srs`) is a dropdown pre-filled with the stored
+   data's native projection plus a few common ones, editable for any
+   other `EPSG:xxxx` code — independent from the filter itself, which is
+   always evaluated against the source data's own projection regardless
+   of the output projection you pick. An advanced raw-JSON editor is
+   always available as a fallback for whatever the generic form doesn't
+   cover.
 5. **Launch the extraction**. This does **not** block QGIS: the job runs
    on the server (typically several minutes) and is tracked in the
    background. You can keep working, close the progress window, or even
@@ -46,7 +61,11 @@ than the historical anonymous WFS.
    are removed from the GeoPackage, a short generation report (requested
    tables vs. delivered layers, removed empty layers, any per-file
    download failures) is shown and logged to the QGIS message panel, and
-   the result is added to your project. Any style published for the
+   the result — renamed to whatever you entered in "Nom du GeoPackage", if
+   anything (one file per table gets its table name appended) — is added
+   to your project, clipped to the extent first if you asked for it (the
+   downloaded file on disk always keeps the untrimmed geometries; only the
+   layer added to the project is trimmed). Any style published for the
    product on the Géoplateforme's metadata catalog (CSW) is looked up and
    applied automatically per table — if several styles could match a
    table, you're asked which one to use. *(See Known limitations: this

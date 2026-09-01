@@ -33,6 +33,20 @@ class TrackedJob:
     #: sélecteur de tables), pour comparaison avec le nombre de fichiers
     #: effectivement reçus dans le rapport de génération.
     requested_tables: int = 0
+    #: Nom (sans extension) souhaité pour le GeoPackage téléchargé, à la
+    #: place du nom donné par le serveur. Vide = nom du serveur conservé.
+    gpkg_name: str = ""
+    #: Si vrai, les couches téléchargées sont découpées (clip) à l'emprise
+    #: `extent_wkt` après ajout au projet — aucun prédicat géométrique ni
+    #: paramètre serveur ne fait cela (vérifié : le serveur refuse une
+    #: expression de découpage dans `attributes`), uniquement une opération
+    #: cliente après coup.
+    clip_to_extent: bool = False
+    #: Géométrie de l'emprise (WKT) à utiliser pour le découpage, dans
+    #: `extent_crs` — persistée avec le job pour rester disponible même après
+    #: fermeture/réouverture de QGIS (reprise via « Jobs en cours »).
+    extent_wkt: str = ""
+    extent_crs: str = ""
     created_iso: str = field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat(timespec="seconds")
     )

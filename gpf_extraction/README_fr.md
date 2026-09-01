@@ -27,19 +27,36 @@ par job) plutôt que l'ancien WFS anonyme.
    [plugin officiel QGIS Géoplateforme](https://github.com/Geoplateforme/plugin-qgis-geoplateforme).
    (Le bouton « Se connecter » autonome intégré est actuellement
    désactivé — voir *Limitations connues*.)
-2. **Choisir une emprise** : une BBox dessinée sur la carte, ou une
-   emprise administrative (commune, département, région — les homonymes
-   sont désambiguïsés par le code département/région) recherchée par nom.
+2. **Choisir une emprise** : une BBox dessinée sur la carte, une emprise
+   administrative (commune, département, région — les homonymes sont
+   désambiguïsés par le code département/région) recherchée par nom, ou
+   une couche de polygones du projet (toutes ses entités, ou seulement
+   celles sélectionnées — plusieurs entités sont fusionnées en une seule
+   emprise). Choisissez le(s) prédicat(s) géométrique(s) à appliquer
+   (`Intersects`, `Contains`, `Within`, `Disjoint`, `Touches`, `Crosses`,
+   `Overlaps`, `Equals` — plusieurs peuvent être cochés en même temps,
+   combinés en OU), et optionnellement découpez les entités téléchargées
+   à la géométrie exacte de l'emprise (plutôt que d'obtenir la géométrie
+   entière de chaque entité qui la croise) — fait côté client après
+   téléchargement, le service d'extraction n'ayant aucun moyen de
+   découper les géométries côté serveur (vérifié en conditions réelles :
+   une expression `ST_Intersection` dans l'entrée `attributes` est
+   rejetée par l'API).
 3. **Choisir un produit** parmi les processus auxquels votre compte a
    accès (la BD TOPO® apparaît en premier dans la liste quand elle est
    disponible).
 4. **Renseigner les paramètres**. Pour les processus d'extraction
    « ARCHIVE depuis VECTOR-DB » (BD TOPO, GPU_EXTRACTION, ...), un
    sélecteur de tables dédié permet de cocher les tables voulues et
-   génère automatiquement le filtre spatial (`ST_Intersects`) de chacune
-   à partir de l'emprise choisie. Un éditeur JSON brut avancé reste
-   toujours disponible en secours pour ce que le formulaire générique ne
-   couvre pas.
+   génère automatiquement le filtre spatial de chacune à partir de
+   l'emprise et du/des prédicat(s) choisis. La projection de sortie
+   (`srs`) est une liste déroulante pré-remplie avec la projection native
+   de la donnée stockée puis quelques projections courantes, éditable
+   pour tout autre code `EPSG:xxxx` — indépendante du filtre lui-même,
+   toujours évalué dans la projection propre de la donnée source, quelle
+   que soit la projection de sortie choisie. Un éditeur JSON brut avancé
+   reste toujours disponible en secours pour ce que le formulaire
+   générique ne couvre pas.
 5. **Lancer l'extraction**. Cela **ne bloque pas QGIS** : le job tourne
    sur le serveur (généralement plusieurs minutes) et est suivi en
    arrière-plan. Vous pouvez continuer à travailler, fermer la fenêtre de
@@ -48,13 +65,17 @@ par job) plutôt que l'ancien WFS anonyme.
    demandée sont retirées du GeoPackage, un petit rapport de génération
    (tables demandées vs couches livrées, couches vides retirées, éventuels
    échecs de téléchargement) est affiché et journalisé dans le panneau de
-   messages QGIS, puis le résultat est ajouté à votre projet. Un éventuel
-   style publié pour ce produit dans le catalogue de métadonnées (CSW) de
-   la Géoplateforme est recherché et appliqué automatiquement par table —
-   si plusieurs styles correspondent à une même table, on vous demande
-   lequel utiliser. *(Voir Limitations connues : cette recherche de style
-   peut prendre environ 35 secondes la première fois dans une session
-   QGIS.)*
+   messages QGIS, puis le résultat — renommé d'après ce que vous avez
+   saisi dans « Nom du GeoPackage », le cas échéant (un fichier par table
+   reçoit le nom de la table en suffixe) — est ajouté à votre projet,
+   découpé à l'emprise au préalable si demandé (le fichier téléchargé sur
+   disque garde toujours les géométries non découpées ; seule la couche
+   ajoutée au projet est découpée). Un éventuel style publié pour ce
+   produit dans le catalogue de métadonnées (CSW) de la Géoplateforme est
+   recherché et appliqué automatiquement par table — si plusieurs styles
+   correspondent à une même table, on vous demande lequel utiliser. *(Voir
+   Limitations connues : cette recherche de style peut prendre environ 35
+   secondes la première fois dans une session QGIS.)*
 
 ### Suivre les jobs — « Jobs en cours »
 

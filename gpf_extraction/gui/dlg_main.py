@@ -13,8 +13,16 @@ import os
 from functools import partial
 
 # PyQGIS
-from qgis.core import Qgis, QgsProject, QgsRectangle
-from qgis.gui import QgisInterface
+from qgis.core import (
+    Qgis,
+    QgsCoordinateReferenceSystem,
+    QgsCoordinateTransform,
+    QgsGeometry,
+    QgsMapLayerProxyModel,
+    QgsProject,
+    QgsRectangle,
+)
+from qgis.gui import QgisInterface, QgsMapLayerComboBox
 from qgis.PyQt.QtCore import QCoreApplication, Qt, QTimer, QUrl
 from qgis.PyQt.QtGui import QDesktopServices
 from qgis.PyQt.QtWidgets import (
@@ -24,6 +32,7 @@ from qgis.PyQt.QtWidgets import (
     QDialogButtonBox,
     QFileDialog,
     QFrame,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -32,6 +41,7 @@ from qgis.PyQt.QtWidgets import (
     QListWidgetItem,
     QMessageBox,
     QPushButton,
+    QRadioButton,
     QScrollArea,
     QVBoxLayout,
     QWidget,
@@ -49,6 +59,7 @@ from gpf_extraction.core.stored_data import StoredDataClient
 from gpf_extraction.gui.dlg_authentication import AuthenticationDialog
 from gpf_extraction.gui.dlg_job_monitor import JobMonitorDialog
 from gpf_extraction.gui.wdg_process_params import ProcessParamsWidget
+from gpf_extraction.gui.wdg_relations_builder import PREDICATE_SQL, DEFAULT_PREDICATES
 from gpf_extraction.processing.rectangle_tool import RectangleDrawTool
 from gpf_extraction.toolbelt import PlgLogger, PlgOptionsManager
 
@@ -91,6 +102,10 @@ class GpfExtractionDialog(QDialog):
 
         self._all_processes: list = []
         self.current_extent: QgsRectangle | None = None
+        #: Géométrie réelle de l'emprise (contour administratif ou couche du
+        #: projet, en EPSG:4326), None pour une BBox purement rectangulaire.
+        self.current_extent_geometry: QgsGeometry | None = None
+        self._predicate_checkboxes: dict[str, QCheckBox] = {}
         self.selected_process = None
         self.selected_process_details = None
         self.selected_stored_data = None
@@ -189,12 +204,48 @@ class GpfExtractionDialog(QDialog):
         self.list_admin_results.itemSelectionChanged.connect(self._on_admin_selected)
         extent_layout.addWidget(self.list_admin_results)
 
+        self.chk_layer = QCheckBox(self.tr("Couche de polygones du projet"))
+        self._extent_mode_group.addButton(self.chk_layer)
+        extent_layout.addWidget(self.chk_layer)
+
+        self.cmb_layer = QgsMapLayerComboBox()
+        self.cmb_layer.setFilters(QgsMapLayerProxyModel.Filter.PolygonLayer)
+        self.cmb_layer.setEnabled(False)
+        self.cmb_layer.layerChanged.connect(self._on_layer_extent_changed)
+        extent_layout.addWidget(self.cmb_layer)
+
+        layer_scope_layout = QHBoxLayout()
+        self._layer_scope_group = QButtonGroup(self)
+        self.rad_layer_all = QRadioButton(self.tr("Toutes les entités"))
+        self.rad_layer_all.setChecked(True)
+        self.rad_layer_selected = QRadioButton(self.tr("Entités sélectionnées"))
+        self._layer_scope_group.addButton(self.rad_layer_all)
+        self._layer_scope_group.addButton(self.rad_layer_selected)
+        self.rad_layer_all.setEnabled(False)
+        self.rad_layer_selected.setEnabled(False)
+        self.rad_layer_all.toggled.connect(self._on_layer_extent_changed)
+        layer_scope_layout.addWidget(self.rad_layer_all)
+        layer_scope_layout.addWidget(self.rad_layer_selected)
+        layer_scope_layout.addStretch(1)
+        extent_layout.addLayout(layer_scope_layout)
+
         self.lbl_extent_value = QLabel(self.tr("Aucune emprise choisie."))
         self.lbl_extent_value.setWordWrap(True)
         extent_layout.addWidget(self.lbl_extent_value)
 
+        extent_layout.addWidget(QLabel(self.tr("Prédicat(s) géométrique(s) :")))
+        predicates_grid = QGridLayout()
+        for i, name in enumerate(PREDICATE_SQL):
+            checkbox = QCheckBox(name)
+            checkbox.setChecked(name in DEFAULT_PREDICATES)
+            checkbox.toggled.connect(self._on_predicate_toggled)
+            self._predicate_checkboxes[name] = checkbox
+            predicates_grid.addWidget(checkbox, i // 4, i % 4)
+        extent_layout.addLayout(predicates_grid)
+
         self.chk_bbox.toggled.connect(self._update_extent_mode)
         self.chk_admin.toggled.connect(self._update_extent_mode)
+        self.chk_layer.toggled.connect(self._update_extent_mode)
 
         layout.addWidget(self.grp_extent)
 
@@ -253,6 +304,28 @@ class GpfExtractionDialog(QDialog):
         comment_layout.addWidget(self.txt_comment, stretch=1)
         output_layout.addLayout(comment_layout)
 
+        gpkg_name_layout = QHBoxLayout()
+        gpkg_name_layout.addWidget(QLabel(self.tr("Nom du GeoPackage (optionnel) :")))
+        self.txt_gpkg_name = QLineEdit()
+        self.txt_gpkg_name.setPlaceholderText(
+            self.tr("Par défaut : nom donné par le serveur (ex. data.gpkg)")
+        )
+        gpkg_name_layout.addWidget(self.txt_gpkg_name, stretch=1)
+        output_layout.addLayout(gpkg_name_layout)
+
+        self.chk_clip_to_extent = QCheckBox(
+            self.tr("Découper les couches à l'emprise après téléchargement")
+        )
+        self.chk_clip_to_extent.setToolTip(
+            self.tr(
+                "Aucun prédicat géométrique ne modifie la géométrie des entités "
+                "(ils ne font que sélectionner lesquelles inclure) : le serveur ne "
+                "propose pas non plus de découpage (ST_Intersection) — testé et "
+                "refusé côté API. Cette option effectue le découpage après coup, "
+                "dans QGIS, sur les couches téléchargées."
+            )
+        )
+        output_layout.addWidget(self.chk_clip_to_extent)
 
         layout.addWidget(self.grp_output)
 
@@ -312,9 +385,16 @@ class GpfExtractionDialog(QDialog):
     # ------------------------------------------------------------------
     def _update_extent_mode(self) -> None:
         bbox_mode = self.chk_bbox.isChecked()
+        admin_mode = self.chk_admin.isChecked()
+        layer_mode = self.chk_layer.isChecked()
         self.btn_draw_rectangle.setEnabled(bbox_mode)
-        self.txt_admin_search.setEnabled(not bbox_mode)
-        self.list_admin_results.setEnabled(not bbox_mode)
+        self.txt_admin_search.setEnabled(admin_mode)
+        self.list_admin_results.setEnabled(admin_mode)
+        self.cmb_layer.setEnabled(layer_mode)
+        self.rad_layer_all.setEnabled(layer_mode)
+        self.rad_layer_selected.setEnabled(layer_mode)
+        if layer_mode:
+            self._on_layer_extent_changed()
 
     def _start_draw_rectangle(self) -> None:
         if not self.rectangle_tool:
@@ -334,6 +414,7 @@ class GpfExtractionDialog(QDialog):
         if self.canvas and self.canvas.mapTool() is self.rectangle_tool:
             self.canvas.unsetMapTool(self.rectangle_tool)
         self.current_extent = self.rectangle_tool.new_extent
+        self.current_extent_geometry = None  # BBox : pas de vraie géométrie
         self._update_extent_label()
         self._validate()
 
@@ -351,7 +432,121 @@ class GpfExtractionDialog(QDialog):
                 ymax=rect.yMaximum(),
             )
         )
-        self.params_widget.set_extent(self.current_extent, DEFAULT_WORKING_CRS)
+        # La transmission au formulaire de paramètres (reprojetée dans la
+        # projection de sortie choisie) est centralisée dans `_validate()`,
+        # appelée juste après par tous les appelants de cette méthode.
+
+    # ------------------------------------------------------------------
+    # Emprise : couche du projet
+    # ------------------------------------------------------------------
+    def _on_layer_extent_changed(self, *_args) -> None:
+        if not self.chk_layer.isChecked():
+            return
+        layer = self.cmb_layer.currentLayer()
+        if layer is None:
+            self.current_extent = None
+            self.current_extent_geometry = None
+            self._update_extent_label()
+            self._validate()
+            return
+
+        use_selected = self.rad_layer_selected.isChecked()
+        features = list(layer.getSelectedFeatures()) if use_selected else list(layer.getFeatures())
+        geometries = [f.geometry() for f in features if f.hasGeometry()]
+
+        if not geometries:
+            self.current_extent = None
+            self.current_extent_geometry = None
+            self._update_extent_label()
+            self._validate()
+            return
+
+        merged = QgsGeometry.unaryUnion(geometries)
+        if merged is None or merged.isNull() or merged.isEmpty():
+            # Repli si l'union topologique échoue (ex. géométries invalides) :
+            # simple collecte, sans fusion des contours partagés.
+            merged = QgsGeometry.collectGeometry(geometries)
+
+        working_crs = QgsCoordinateReferenceSystem(DEFAULT_WORKING_CRS)
+        layer_crs = layer.crs()
+        if layer_crs.isValid() and layer_crs != working_crs:
+            transform = QgsCoordinateTransform(layer_crs, working_crs, QgsProject.instance())
+            merged.transform(transform)
+
+        self.current_extent_geometry = merged
+        self.current_extent = merged.boundingBox()
+        self._update_extent_label()
+        self._validate()
+
+    # ------------------------------------------------------------------
+    # Prédicats géométriques
+    # ------------------------------------------------------------------
+    def _checked_predicates(self) -> list[str]:
+        checked = [name for name, cb in self._predicate_checkboxes.items() if cb.isChecked()]
+        return checked or list(DEFAULT_PREDICATES)
+
+    def _on_predicate_toggled(self, _checked: bool = False) -> None:
+        # Empêche de tout décocher : au moins un prédicat actif en permanence
+        # (sans quoi `relations` n'aurait aucun filtre spatial du tout).
+        if not any(cb.isChecked() for cb in self._predicate_checkboxes.values()):
+            default_cb = self._predicate_checkboxes.get(DEFAULT_PREDICATES[0])
+            if default_cb is not None:
+                default_cb.blockSignals(True)
+                default_cb.setChecked(True)
+                default_cb.blockSignals(False)
+        self._validate()
+
+    # ------------------------------------------------------------------
+    # Reprojection de l'emprise dans la SRID native de la donnée stockée
+    # ------------------------------------------------------------------
+    def _apply_extent_to_params(self) -> None:
+        """Pousse l'emprise et les prédicats courants vers le formulaire de
+        paramètres, en reprojetant l'emprise dans la SRID **native de la
+        donnée stockée** (`StoredDataDescription.srs`) plutôt que dans la
+        projection de sortie choisie par l'utilisateur (champ `srs` du
+        processus).
+
+        Ces deux projections sont indépendantes côté API : `filters` est une
+        clause WHERE PostGIS évaluée directement contre la colonne géométrie
+        de la table source (dans sa SRID de stockage réelle), tandis que
+        `srs` ne fait que reprojeter le résultat téléchargé — aucune
+        reprojection serveur du filtre n'a jamais lieu, contrairement à ce
+        qui avait été supposé initialement. Envoyer le filtre dans la
+        projection de sortie choisie (si elle diffère de la SRID de
+        stockage) fait échouer silencieusement le filtre spatial (0 entité
+        renvoyée, sans erreur) : constaté en conditions réelles avec une
+        donnée native EPSG:4326 et une sortie demandée en EPSG:2154."""
+        stored_srs = (
+            self.selected_stored_data.srs
+            if self.selected_stored_data and self.selected_stored_data.srs
+            else DEFAULT_WORKING_CRS
+        )
+        target_srs = stored_srs
+        rectangle = self.current_extent
+        geometry = self.current_extent_geometry
+
+        if rectangle is not None and target_srs != DEFAULT_WORKING_CRS:
+            working_crs = QgsCoordinateReferenceSystem(DEFAULT_WORKING_CRS)
+            target_crs = QgsCoordinateReferenceSystem(target_srs)
+            if target_crs.isValid() and working_crs != target_crs:
+                transform = QgsCoordinateTransform(working_crs, target_crs, QgsProject.instance())
+                try:
+                    rectangle = transform.transformBoundingBox(rectangle)
+                    if geometry is not None:
+                        geometry = QgsGeometry(geometry)  # copie : ne pas modifier l'original en 4326
+                        geometry.transform(transform)
+                except Exception as exc:  # noqa: BLE001 - reprojection best-effort
+                    self.log(
+                        message=f"Reprojection de l'emprise vers {target_srs} échouée : {exc}",
+                        log_level=Qgis.MessageLevel.Warning,
+                    )
+                    rectangle, geometry = self.current_extent, self.current_extent_geometry
+                    target_srs = DEFAULT_WORKING_CRS
+
+        self.params_widget.set_extent(
+            rectangle, target_srs if rectangle is not None else DEFAULT_WORKING_CRS, geometry=geometry
+        )
+        self.params_widget.set_predicates(self._checked_predicates())
 
     # ------------------------------------------------------------------
     # Emprise : administrative
@@ -387,6 +582,10 @@ class GpfExtractionDialog(QDialog):
         result = items[0].data(Qt.ItemDataRole.UserRole)
         if result is None:
             return
+        # Conserve le contour réel (pas seulement sa bbox) : permet un filtre
+        # spatial `ST_GeomFromText` fidèle à l'emprise administrative, plutôt
+        # qu'un simple rectangle englobant.
+        self.current_extent_geometry = result.geometry
         self.current_extent = result.geometry.boundingBox()
         self._update_extent_label()
         self._validate()
@@ -465,8 +664,8 @@ class GpfExtractionDialog(QDialog):
             self.selected_process_details = None
 
         self.params_widget.set_process(self.selected_process_details)
-        if self.current_extent:
-            self.params_widget.set_extent(self.current_extent, DEFAULT_WORKING_CRS)
+        # L'emprise (reprojetée si besoin) et les prédicats sont poussés au
+        # formulaire fraîchement reconstruit via `_validate()` ci-dessous.
 
         described_by_url = (
             self.selected_process_details.described_by_url
@@ -516,6 +715,11 @@ class GpfExtractionDialog(QDialog):
     # Validation / soumission
     # ------------------------------------------------------------------
     def _validate(self) -> None:
+        # Point central : rejoué à chaque changement pertinent (emprise,
+        # prédicats, processus sélectionné, projection de sortie choisie dans
+        # le formulaire) pour que le filtre spatial envoyé reste à jour.
+        self._apply_extent_to_params()
+
         ok = bool(self.client) and self.current_extent is not None and self.selected_process is not None
 
         params_message = ""
@@ -572,6 +776,17 @@ class GpfExtractionDialog(QDialog):
         relations_value = body.get("inputs", {}).get("relations")
         requested_tables = len(relations_value) if isinstance(relations_value, dict) else 0
 
+        gpkg_name = self.txt_gpkg_name.text().strip()
+        clip_to_extent = self.chk_clip_to_extent.isChecked()
+        # Toujours en EPSG:4326 (CRS de travail interne, cf. DEFAULT_WORKING_CRS) —
+        # indépendant de la projection de sortie éventuellement choisie pour
+        # l'extraction elle-même : le découpage reprojette à la volée vers le
+        # CRS de chaque couche téléchargée au moment de l'appliquer.
+        extent_geometry = self.current_extent_geometry or (
+            QgsGeometry.fromRect(self.current_extent) if self.current_extent else None
+        )
+        extent_wkt = extent_geometry.asWkt() if extent_geometry else ""
+
         JobRegistry.add_job(
             TrackedJob(
                 job_id=job.job_id,
@@ -581,6 +796,10 @@ class GpfExtractionDialog(QDialog):
                 output_dir=output_dir or "",
                 comment=self.txt_comment.text().strip(),
                 requested_tables=requested_tables,
+                gpkg_name=gpkg_name,
+                clip_to_extent=clip_to_extent,
+                extent_wkt=extent_wkt,
+                extent_crs=DEFAULT_WORKING_CRS,
                 last_known_status=job.status,
             )
         )
@@ -597,6 +816,10 @@ class GpfExtractionDialog(QDialog):
             poll_interval_seconds=settings.status_check_sleep,
             product_name=product_name,
             requested_tables=requested_tables,
+            gpkg_name=gpkg_name,
+            clip_to_extent=clip_to_extent,
+            extent_wkt=extent_wkt,
+            extent_crs=DEFAULT_WORKING_CRS,
             parent=self.iface.mainWindow() if self.iface else None,
         )
         monitor.show()

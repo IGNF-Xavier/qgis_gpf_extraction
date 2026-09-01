@@ -54,6 +54,10 @@ class JobMonitorDialog(QDialog):
         poll_interval_seconds: int = 15,
         product_name: str = "",
         requested_tables: int = 0,
+        gpkg_name: str = "",
+        clip_to_extent: bool = False,
+        extent_wkt: str = "",
+        extent_crs: str = "",
         parent=None,
     ):
         super().__init__(parent)
@@ -70,6 +74,10 @@ class JobMonitorDialog(QDialog):
         self._project = project
         self._product_name = product_name
         self._requested_tables = requested_tables
+        self._gpkg_name = gpkg_name
+        self._clip_to_extent = clip_to_extent
+        self._extent_wkt = extent_wkt
+        self._extent_crs = extent_crs
         self._downloaded_path: Optional[str] = None
 
         layout = QVBoxLayout(self)
@@ -208,6 +216,9 @@ class JobMonitorDialog(QDialog):
                 self._product_name,
                 log=self._append_log,
                 parent=self,
+                gpkg_name=self._gpkg_name,
+                clip_wkt=self._extent_wkt if self._clip_to_extent else "",
+                clip_crs=self._extent_crs,
             )
 
         self.finished_ok.emit(self._downloaded_path)
