@@ -118,6 +118,16 @@ dialogue pour le retrouver depuis la Géoplateforme.
   (paramètre `compression` explicitement mis à `7zip`), le plugin ne la
   décompresse pas — 7-Zip (ou équivalent) est nécessaire. Laisser
   `compression` non renseigné évite complètement ce cas.
+- **Limite serveur sur la fusion de tables** : avec « Fusionner toutes les
+  tables en un seul fichier » activé, le service refuse la requête
+  (`HTTP 500`) au-delà de 58 tables sélectionnées — non documenté par
+  l'API, constaté en conditions réelles avec la BD TOPO® (59 tables au
+  total), reproductible indépendamment de la table exclue pour redescendre
+  à 58 (donc une limite sur le nombre de relations fusionnées, pas un
+  problème lié au contenu d'une table précise). Sans fusion, les 59 tables
+  sont acceptées sans problème. Le plugin bloque désormais la soumission
+  dans ce cas avec un message explicite plutôt que de laisser passer
+  l'erreur 500 opaque du serveur.
 ### ⚠️ La découverte de styles via le catalogue CSW est un contournement, pas une solution
 
 **La disponibilité d'un style (SLD) pour un produit n'est pas exposée par

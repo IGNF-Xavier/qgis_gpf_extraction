@@ -73,6 +73,16 @@ _SRS_FIELD_ID = "srs"
 #: (`EPSG:xxxx`) d'après sa description, cette liste n'est qu'un confort.
 _COMMON_SRS = ["EPSG:4326", "EPSG:2154", "EPSG:3857", "EPSG:4171"]
 
+#: Limite constatée en conditions réelles (pas documentée par l'API) : au-delà
+#: de ce nombre de tables sélectionnées avec `append` (fusion en un seul
+#: fichier) activé, le service refuse la requête (HTTP 500 "Erreur lors de la
+#: création du processus d'extraction"). Reproduit de façon fiable avec le
+#: produit BD TOPO® (59 tables au total) : 58 tables passent, 59 échouent,
+#: quelle que soit la table exclue — donc une limite sur le nombre de
+#: relations fusionnables, pas un problème lié à une table précise. Sans
+#: fusion (`append=false`), les 59 tables sont acceptées sans problème.
+_MAX_MERGED_TABLES = 58
+
 
 def _srid_from_crs(crs: str) -> int:
     """Extrait le code EPSG numérique d'une chaîne "EPSG:xxxx", avec repli
@@ -225,6 +235,10 @@ class ProcessParamsWidget(QWidget):
             )
 
         format_widget.currentIndexChanged.connect(_sync)
+        # Re-valide immédiatement (bouton OK) quand la fusion est
+        # activée/désactivée : la limite de _MAX_MERGED_TABLES dépend de cet
+        # état, pas seulement du nombre de tables cochées.
+        append_widget.toggled.connect(self.changed)
         _sync()
         append_field = self._field_objs.get("append")
         if _is_multilayer_format() and append_field is not None and append_field.default is None:
@@ -522,6 +536,17 @@ class ProcessParamsWidget(QWidget):
             return False, self.tr(
                 "Sélectionnez au moins une table dans le sélecteur ci-dessus."
             )
+        if self._relations_widget is not None:
+            append_widget = self._field_widgets.get("append")
+            merged = isinstance(append_widget, QCheckBox) and append_widget.isChecked()
+            table_count = self._relations_widget.checked_count()
+            if merged and table_count > _MAX_MERGED_TABLES:
+                return False, self.tr(
+                    "{} tables sélectionnées avec « Fusionner toutes les tables en un "
+                    "seul fichier » : le service refuse la requête au-delà de {} tables "
+                    "fusionnées (constaté en conditions réelles, non documenté par "
+                    "l'API). Décochez la fusion, ou sélectionnez {} tables ou moins."
+                ).format(table_count, _MAX_MERGED_TABLES, _MAX_MERGED_TABLES)
         return True, ""
 
     def get_body(self) -> dict:

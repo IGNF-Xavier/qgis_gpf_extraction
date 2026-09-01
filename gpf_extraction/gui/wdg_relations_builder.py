@@ -226,3 +226,6 @@ class RelationsBuilderWidget(QWidget):
 
     def has_selection(self) -> bool:
         return len(self._checked_items()) > 0
+
+    def checked_count(self) -> int:
+        return len(self._checked_items())
