@@ -57,11 +57,4 @@ non authentifié de l'ancien plugin.
   (`HTTP 500`, limite non documentée constatée en conditions réelles) — le
   plugin bloque ce cas avant l'envoi plutôt que de laisser passer l'erreur.
 
-
-
-Distributed under the terms of the [`GNU General Public License v2.0` license](LICENSE).
-
-
-
-
 Distributed under the terms of the [`GNU General Public License v2.0` license](LICENSE).
