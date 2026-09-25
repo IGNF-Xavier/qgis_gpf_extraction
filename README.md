@@ -1,3 +1,4 @@
+
 # GPF Extraction - QGIS Plugin
 
 > ⚠️ **Plugin expérimental — ne pas utiliser en production.**
@@ -20,7 +21,7 @@ non authentifié de l'ancien plugin.
 ## Périmètre fonctionnel actuel
 
 - **Connexion** à la Géoplateforme via une configuration d'authentification
-  QGIS existante (OAuth2).
+  QGIS existante (OAuth2). (celle du plugin Geoplateforme pour QGIS fonctionne)
 - **Choix de l'emprise** : BBox dessinée sur la carte, emprise
   administrative (commune, département, région, recherchée par nom), ou une
   couche de polygones du projet (toutes ses entités, ou seulement celles
@@ -56,9 +57,5 @@ non authentifié de l'ancien plugin.
   (ex. un `HTTP 500` sur 59 tables fusionnées le 2026-09-01, disparu le
   2026-09-25 ; une nouvelle sortie `jobName` refusée si demandée vide) : en
   cas de refus, le plugin affiche la requête et la réponse, copiables.
-
-Détail complet (avec constats chiffrés) dans le
-[README du plugin](gpf_extraction/README_fr.md) — voir aussi la
-[documentation en anglais](gpf_extraction/README.md).
 
 Distributed under the terms of the [`GNU General Public License v2.0` license](LICENSE).
