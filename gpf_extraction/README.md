@@ -81,9 +81,9 @@ download / downloaded, with its destination folder), an optional comment
 you can set when launching to tell jobs apart, and actions to refresh its
 status, download its result, open its folder, or forget it.
 
-If you close QGIS while a job is still running, you'll be asked to
-confirm — it keeps running on the server regardless, and stays listed
-next time you open QGIS. If a job isn't listed (e.g. it was launched
+Closing QGIS loses nothing: the job keeps running on the server and stays
+listed next time you open QGIS. You are only asked to confirm if a result
+download is in progress at that moment (it would be interrupted). If a job isn't listed (e.g. it was launched
 before an update of the plugin, or from a different installation), use
 **"Importer les jobs du serveur"** in that same dialog to fetch it back
 from the Géoplateforme.

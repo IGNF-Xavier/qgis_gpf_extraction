@@ -22,6 +22,7 @@ from ..network.http_client import HttpResponse, NetworkClient
 from .atom_feed import DownloadEntry, parse_download_entries
 from .constants import DEFAULT_API_BASE
 from .exceptions import ApiRequestError, JobFailedError
+from .job_registry import download_in_progress
 from .models import JobResult, JobStatus, ProcessDetails, ProcessSummary
 
 
@@ -241,17 +242,18 @@ class ExtractionApiClient:
         :return: chemins des fichiers téléchargés (échecs partiels exclus).
         :rtype: list[Path]
         """
-        entries = self.resolve_download_files(extract_data_href)
         downloaded: list[Path] = []
         failures: list[str] = []
-        for entry in entries:
-            dest_path = Path(dest_dir) / entry.filename
-            try:
-                self.download_result(entry.href, dest_path)
-            except (ApiRequestError, ConnectionError) as exc:
-                failures.append(f"{entry.filename} : {exc}")
-                continue
-            downloaded.append(dest_path)
+        with download_in_progress():
+            entries = self.resolve_download_files(extract_data_href)
+            for entry in entries:
+                dest_path = Path(dest_dir) / entry.filename
+                try:
+                    self.download_result(entry.href, dest_path)
+                except (ApiRequestError, ConnectionError) as exc:
+                    failures.append(f"{entry.filename} : {exc}")
+                    continue
+                downloaded.append(dest_path)
 
         if failures and not downloaded:
             raise ApiRequestError(

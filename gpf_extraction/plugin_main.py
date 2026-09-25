@@ -23,7 +23,7 @@ from gpf_extraction.__about__ import (
     __title__,
     __uri_homepage__,
 )
-from gpf_extraction.core.job_registry import JobRegistry
+from gpf_extraction.core.job_registry import is_download_in_progress
 from gpf_extraction.gui.dlg_jobs import JobsDialog
 from gpf_extraction.gui.dlg_main import GpfExtractionDialog
 from gpf_extraction.gui.dlg_settings import PlgOptionsFactory
@@ -32,12 +32,13 @@ from gpf_extraction.toolbelt import PlgLogger
 
 
 class _MainWindowCloseGuard(QObject):
-    """Avertit l'utilisateur, à la fermeture de QGIS, si des jobs
-    d'extraction sont encore suivis (cf. `core/job_registry.py`).
+    """Avertit l'utilisateur, à la fermeture de QGIS, uniquement si un
+    téléchargement de résultat d'extraction est en cours.
 
-    Les jobs continuent de tourner sur le serveur indépendamment de QGIS et
-    restent retrouvables à la prochaine ouverture (menu « Jobs en cours »)
-    : cet avertissement est informatif, pas bloquant par défaut.
+    Les jobs, eux, tournent sur le serveur indépendamment de QGIS et restent
+    retrouvables à la prochaine ouverture (menu « Jobs en cours ») : fermer
+    QGIS ne leur fait rien perdre, donc aucun avertissement pour eux. Seul un
+    téléchargement actif serait interrompu (fichiers partiels).
     """
 
     def __init__(self, tr_func):
@@ -45,26 +46,23 @@ class _MainWindowCloseGuard(QObject):
         self._tr = tr_func
 
     def eventFilter(self, obj, event) -> bool:
-        if event.type() == QEvent.Type.Close:
-            jobs = JobRegistry.list_jobs()
-            pending = [j for j in jobs if not j.downloaded_path]
-            if pending:
-                titles = ", ".join(j.process_title or j.job_id for j in pending[:5])
-                reply = QMessageBox.question(
-                    obj,
-                    self._tr("Extractions en cours"),
-                    self._tr(
-                        "{} extraction(s) GPF Extraction sont encore suivies ({}). "
-                        "Elles continueront sur le serveur et resteront accessibles "
-                        "via le menu « Jobs en cours » à la prochaine ouverture de "
-                        "QGIS.\n\nQuitter quand même ?"
-                    ).format(len(pending), titles),
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                    QMessageBox.StandardButton.Yes,
-                )
-                if reply == QMessageBox.StandardButton.No:
-                    event.ignore()
-                    return True
+        if event.type() == QEvent.Type.Close and is_download_in_progress():
+            reply = QMessageBox.question(
+                obj,
+                self._tr("Téléchargement en cours"),
+                self._tr(
+                    "Un résultat d'extraction GPF Extraction est en cours de "
+                    "téléchargement : quitter maintenant l'interrompt (fichiers "
+                    "partiels). Le job reste disponible côté serveur et pourra "
+                    "être retéléchargé via le menu « Jobs en cours ».\n\n"
+                    "Quitter quand même ?"
+                ),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if reply == QMessageBox.StandardButton.No:
+                event.ignore()
+                return True
         return False
 
 # ############################################################################

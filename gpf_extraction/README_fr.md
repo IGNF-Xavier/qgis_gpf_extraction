@@ -87,9 +87,9 @@ un commentaire optionnel que vous pouvez renseigner au lancement pour les
 distinguer, et des actions pour rafraîchir leur statut, télécharger leur
 résultat, ouvrir leur dossier, ou les oublier.
 
-Si vous fermez QGIS alors qu'un job est encore en cours, une confirmation
-vous est demandée — il continue de toute façon sur le serveur, et reste
-listé à la prochaine ouverture de QGIS. Si un job n'apparaît pas dans la
+Fermer QGIS ne fait rien perdre : le job continue sur le serveur et reste
+listé à la prochaine ouverture. Une confirmation n'est demandée que si un
+téléchargement de résultat est en cours à ce moment-là (il serait interrompu). Si un job n'apparaît pas dans la
 liste (ex. lancé avant une mise à jour du plugin, ou depuis une autre
 installation), utilisez **« Importer les jobs du serveur »** dans ce même
 dialogue pour le retrouver depuis la Géoplateforme.

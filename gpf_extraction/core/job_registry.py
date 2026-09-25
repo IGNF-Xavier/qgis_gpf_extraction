@@ -10,6 +10,7 @@ cours, prêts à télécharger, ou déjà téléchargés — via `gui/dlg_jobs.p
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
@@ -19,6 +20,27 @@ from qgis.core import QgsSettings
 from .constants import PLUGIN_NAMESPACE
 
 SETTINGS_KEY_TRACKED_JOBS = f"{PLUGIN_NAMESPACE}/tracked_jobs"
+
+#: Nombre de téléchargements de résultat en cours dans cette session QGIS.
+#: Seul un téléchargement actif justifie d'avertir à la fermeture de QGIS : un
+#: job qui tourne (ou qui est terminé) côté serveur y reste quoi qu'il arrive
+#: et se retrouve à la prochaine ouverture, il n'y a rien à perdre.
+_active_downloads = 0
+
+
+@contextmanager
+def download_in_progress():
+    """Signale, le temps du bloc, qu'un téléchargement de résultat est actif."""
+    global _active_downloads
+    _active_downloads += 1
+    try:
+        yield
+    finally:
+        _active_downloads -= 1
+
+
+def is_download_in_progress() -> bool:
+    return _active_downloads > 0
 
 
 @dataclass
