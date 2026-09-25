@@ -110,15 +110,15 @@ from the Géoplateforme.
   parameter explicitly set to `7zip`), the plugin does not extract it —
   7-Zip (or equivalent) is needed. Leaving `compression` unset avoids this
   entirely.
-- **Server-side limit on merging tables**: with "Fusionner toutes les
-  tables en un seul fichier" (merge into one file) enabled, the service
-  rejects the request (`HTTP 500`) beyond 58 selected tables — undocumented
-  by the API, found through live testing on BD TOPO® (59 tables in total),
-  reproducible regardless of which table is excluded to get back to 58 (so
-  a limit on the number of merged relations, not an issue tied to a
-  specific table's content). Without merging, all 59 tables are accepted
-  fine. The plugin now blocks submission in this case with a clear message
-  instead of letting the server's opaque 500 error through.
+- **Service errors**: when the service rejects a request, a window shows
+  the request sent and the response received (selectable text, "Copier"
+  button), so it can be replayed or reported as is. History: on 2026-09-01,
+  with "Fusionner toutes les tables en un seul fichier" (merge into one
+  file) enabled, the service returned `HTTP 500` from 59 tables (BD TOPO®
+  all themes) while 58 went through, whichever table was excluded; this was
+  no longer reproducible on 2026-09-25 (59 merged tables accepted). The
+  plugin doesn't prevent anything upfront; on a 500 with merging enabled, a
+  message adds this lead to the error dialog.
 ### ⚠️ Style discovery via the CSW catalog is a workaround, not a real solution
 
 **Whether a style (SLD) exists for a product isn't exposed by the

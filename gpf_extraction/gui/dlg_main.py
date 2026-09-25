@@ -56,6 +56,7 @@ from gpf_extraction.core.exceptions import AdminBoundaryNotFoundError, ApiReques
 from gpf_extraction.core.extraction_api_client import ExtractionApiClient
 from gpf_extraction.core.job_registry import JobRegistry, TrackedJob
 from gpf_extraction.core.stored_data import StoredDataClient
+from gpf_extraction.gui.dlg_api_error import ApiErrorDialog
 from gpf_extraction.gui.dlg_authentication import AuthenticationDialog
 from gpf_extraction.gui.dlg_job_monitor import JobMonitorDialog
 from gpf_extraction.gui.wdg_process_params import ProcessParamsWidget
@@ -599,13 +600,19 @@ class GpfExtractionDialog(QDialog):
         try:
             self._all_processes = self.client.list_processes(page=1, limit=200)
         except (ApiRequestError, ConnectionError) as exc:
-            QMessageBox.critical(
-                self,
-                self.tr("Erreur"),
-                self.tr("Impossible de récupérer la liste des produits disponibles :\n{}").format(
-                    exc
-                ),
-            )
+            message = self.tr("Impossible de récupérer la liste des produits disponibles.")
+            if isinstance(exc, ApiRequestError):
+                ApiErrorDialog(
+                    self.tr("Erreur"),
+                    message,
+                    method=exc.method,
+                    url=exc.url,
+                    status_code=exc.status_code,
+                    response_body=exc.body,
+                    parent=self,
+                ).exec()
+            else:
+                QMessageBox.critical(self, self.tr("Erreur"), f"{message}\n{exc}")
             self._all_processes = []
 
         def sort_key(process):
@@ -752,11 +759,41 @@ class GpfExtractionDialog(QDialog):
         try:
             job = self.client.execute(self.selected_process.id, body)
         except (ApiRequestError, ConnectionError) as exc:
-            QMessageBox.critical(
-                self,
-                self.tr("Erreur"),
-                self.tr("Le lancement de l'extraction a échoué :\n{}").format(exc),
-            )
+            message = self.tr("Le lancement de l'extraction a échoué.")
+            # Aucun blocage en amont : la requête part toujours telle que
+            # configurée, et cette piste n'est suggérée qu'après un vrai refus
+            # du serveur. Constaté en conditions réelles (BD TOPO®, 59 tables) :
+            # HTTP 500 dès la création du job avec la fusion (`append`) activée
+            # au-delà de 58 tables, alors que les 59 passent sans fusion.
+            merged = body.get("inputs", {}).get("append") is True
+            relations = body.get("inputs", {}).get("relations")
+            if (
+                isinstance(exc, ApiRequestError)
+                and exc.status_code == 500
+                and merged
+                and isinstance(relations, dict)
+                and len(relations) > 1
+            ):
+                message += self.tr(
+                    "\n\nPiste : {} tables sont demandées avec « Fusionner toutes les "
+                    "tables en un seul fichier ». Un refus serveur (HTTP 500) avait été "
+                    "constaté début septembre 2026 avec cette option à 59 tables sur la "
+                    "BD TOPO® (non reproduit depuis). Essayez en décochant la fusion, "
+                    "ou avec moins de tables."
+                ).format(len(relations))
+            if isinstance(exc, ApiRequestError):
+                ApiErrorDialog(
+                    self.tr("Erreur"),
+                    message,
+                    method=exc.method,
+                    url=exc.url,
+                    request_body=body,
+                    status_code=exc.status_code,
+                    response_body=exc.body,
+                    parent=self,
+                ).exec()
+            else:
+                QMessageBox.critical(self, self.tr("Erreur"), f"{message}\n{exc}")
             return
 
         settings = self.plg_settings_mngr.get_plg_settings()

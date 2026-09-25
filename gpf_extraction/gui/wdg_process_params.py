@@ -73,16 +73,12 @@ _SRS_FIELD_ID = "srs"
 #: (`EPSG:xxxx`) d'après sa description, cette liste n'est qu'un confort.
 _COMMON_SRS = ["EPSG:4326", "EPSG:2154", "EPSG:3857", "EPSG:4171"]
 
-#: Limite constatée en conditions réelles (pas documentée par l'API) : au-delà
-#: de ce nombre de tables sélectionnées avec `append` (fusion en un seul
-#: fichier) activé, le service refuse la requête (HTTP 500 "Erreur lors de la
-#: création du processus d'extraction"). Reproduit de façon fiable avec le
-#: produit BD TOPO® (59 tables au total) : 58 tables passent, 59 échouent,
-#: quelle que soit la table exclue — donc une limite sur le nombre de
-#: relations fusionnables, pas un problème lié à une table précise. Sans
-#: fusion (`append=false`), les 59 tables sont acceptées sans problème.
-_MAX_MERGED_TABLES = 58
-
+#: Outputs déclarés par le service mais à ne pas demander dans le corps
+#: d'exécution. `jobName` (« Nom du job d'extraction »), apparu côté service
+#: après la 3.4.0, est refusé quand on le demande vide comme les autres :
+#: HTTP 400 « Erreur indéterminée dans le JSON » (constaté en conditions
+#: réelles). Le job se crée normalement sans lui.
+_OUTPUTS_NOT_REQUESTED = frozenset({"jobName"})
 
 def _srid_from_crs(crs: str) -> int:
     """Extrait le code EPSG numérique d'une chaîne "EPSG:xxxx", avec repli
@@ -235,10 +231,6 @@ class ProcessParamsWidget(QWidget):
             )
 
         format_widget.currentIndexChanged.connect(_sync)
-        # Re-valide immédiatement (bouton OK) quand la fusion est
-        # activée/désactivée : la limite de _MAX_MERGED_TABLES dépend de cet
-        # état, pas seulement du nombre de tables cochées.
-        append_widget.toggled.connect(self.changed)
         _sync()
         append_field = self._field_objs.get("append")
         if _is_multilayer_format() and append_field is not None and append_field.default is None:
@@ -501,7 +493,11 @@ class ProcessParamsWidget(QWidget):
         ne doit pas être null`). Une entrée vide par output déclaré par le
         processus laisse le mode de transmission au choix du serveur."""
         output_ids = self._process.output_ids if self._process else []
-        return {output_id: {} for output_id in output_ids}
+        return {
+            output_id: {}
+            for output_id in output_ids
+            if output_id not in _OUTPUTS_NOT_REQUESTED
+        }
 
     def _refresh_advanced_preview(self) -> None:
         if self.chk_advanced.isChecked():
@@ -536,17 +532,6 @@ class ProcessParamsWidget(QWidget):
             return False, self.tr(
                 "Sélectionnez au moins une table dans le sélecteur ci-dessus."
             )
-        if self._relations_widget is not None:
-            append_widget = self._field_widgets.get("append")
-            merged = isinstance(append_widget, QCheckBox) and append_widget.isChecked()
-            table_count = self._relations_widget.checked_count()
-            if merged and table_count > _MAX_MERGED_TABLES:
-                return False, self.tr(
-                    "{} tables sélectionnées avec « Fusionner toutes les tables en un "
-                    "seul fichier » : le service refuse la requête au-delà de {} tables "
-                    "fusionnées (constaté en conditions réelles, non documenté par "
-                    "l'API). Décochez la fusion, ou sélectionnez {} tables ou moins."
-                ).format(table_count, _MAX_MERGED_TABLES, _MAX_MERGED_TABLES)
         return True, ""
 
     def get_body(self) -> dict:
