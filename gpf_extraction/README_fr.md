@@ -135,6 +135,19 @@ dialogue pour le retrouver depuis la Géoplateforme.
   comportement n'a plus été reproduit le 2026-09-25 (59 tables fusionnées
   acceptées). Le plugin n'empêche rien en amont ; en cas de 500 avec la
   fusion activée, un message ajoute cette piste au message d'erreur.
+- **Recherche administrative** : interroge désormais l'API de géocodage de
+  la Géoplateforme (`index=poi&category=administratif`,
+  `returntruegeometry=true`) plutôt que `geo.api.gouv.fr`, utilisée jusqu'en
+  3.4.3 (elle a cessé de renvoyer le contour des départements et des régions
+  — seules les communes fonctionnaient encore) ou le WFS ADMIN EXPRESS brut
+  utilisé brièvement en 3.4.4 (trois requêtes séparées, une par niveau, à
+  trier soi-même) : l'API de géocodage cherche les trois niveaux en une
+  seule requête, avec sa propre pertinence, et peut renvoyer le contour réel
+  sur demande plutôt qu'un simple point. La France métropolitaine reste un
+  rectangle englobant (aucune entité « pays » n'existe) ; les DOM en
+  préréglage gardent leur vrai contour, obtenu directement par code INSEE
+  via le WFS (aucune ambiguïté à lever là, pas besoin de la pertinence de
+  l'API de géocodage).
 ### ⚠️ La découverte de styles via le catalogue CSW est un contournement, pas une solution
 
 **La disponibilité d'un style (SLD) pour un produit n'est pas exposée par

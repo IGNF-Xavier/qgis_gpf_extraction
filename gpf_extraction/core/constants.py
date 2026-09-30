@@ -36,14 +36,21 @@ DEFAULT_OAUTH_CLIENT_ID = "gpf-swagger"
 OAUTH_DECLARED_REDIRECT_PORTS: list[int] = [7070, 7071]
 OAUTH_REDIRECT_URL = "callback"
 
-#: WFS public (non authentifié) de la Géoplateforme, utilisé pour la
-#: recherche d'emprise administrative par nom (commune / département /
-#: région) — diffuse ADMIN EXPRESS (limites administratives officielles de
-#: l'IGN, mises à jour en continu). Remplace `geo.api.gouv.fr`, constaté en
-#: conditions réelles ne plus renvoyer le contour des départements ni des
-#: régions (seules les communes restaient exploitables) ; voir CHANGELOG.md
-#: 3.4.3/3.4.4.
+#: WFS public (non authentifié) de la Géoplateforme, diffusant ADMIN EXPRESS
+#: (limites administratives officielles de l'IGN, mises à jour en continu) —
+#: utilisé pour les préréglages DOM (recherche déterministe par code INSEE,
+#: cf. `preset_results`). Remplace `geo.api.gouv.fr`, constaté en conditions
+#: réelles ne plus renvoyer le contour des départements ni des régions
+#: (seules les communes restaient exploitables) ; voir CHANGELOG.md 3.4.3/3.4.4.
 ADMIN_BOUNDARY_API_BASE = "https://data.geopf.fr/wfs/ows"
+
+#: API de géocodage de la Géoplateforme (même service, différent endpoint),
+#: utilisée pour la recherche libre par nom (commune / département / région)
+#: — `index=poi&category=administratif` avec `returntruegeometry=true`
+#: renvoie une géométrie précise (pas seulement un point), avec un score de
+#: pertinence déjà calculé (pas besoin de trier nous-mêmes par population
+#: comme avec l'ancienne API). Voir CHANGELOG.md 3.4.5.
+GEOCODING_SEARCH_BASE = "https://data.geopf.fr/geocodage/search"
 
 #: Intervalle par défaut (secondes) entre deux vérifications de statut d'un job.
 DEFAULT_STATUS_CHECK_SLEEP = 15

@@ -1,19 +1,24 @@
 """Recherche d'emprises administratives (commune, département, région) par nom.
 
-Utilise le WFS public et non authentifié de la Géoplateforme
-(https://data.geopf.fr/wfs/ows), qui diffuse ADMIN EXPRESS — les limites
-administratives officielles de l'IGN, mises à jour en continu
-(`LIMITES_ADMINISTRATIVES_EXPRESS.LATEST`) — en GeoJSON (EPSG:4326).
+La recherche libre par nom (`AdminBoundaryClient.search`) utilise l'API de
+géocodage de la Géoplateforme (https://data.geopf.fr/geocodage/search,
+`index=poi&category=administratif`), avec `returntruegeometry=true` pour
+obtenir une géométrie précise plutôt que le point renvoyé par défaut — cette
+API est conçue pour la recherche interactive (score de pertinence déjà
+calculé, pas besoin de trier nous-mêmes), contrairement au WFS brut utilisé
+en 3.4.4 (trois requêtes séparées, une par niveau administratif, triées à la
+main). Les préréglages DOM (`preset_results`), eux, restent sur le WFS ADMIN
+EXPRESS (`https://data.geopf.fr/wfs/ows`) : une recherche par code INSEE
+exact n'a pas besoin de score de pertinence, et le WFS s'y prête bien.
 
-Remplace l'API tierce "Découpage administratif" (geo.api.gouv.fr), utilisée
-jusqu'en 3.4.3 : constaté en conditions réelles qu'elle ne renvoie plus le
-contour (`contour`) des départements ni des régions, quels que soient les
-paramètres essayés (`fields=contour`, `geometry=contour`, avec ou sans
-filtre `nom`/`code`) — seules les communes restaient exploitables. Le WFS de
-la Géoplateforme, déjà utilisé par ailleurs dans ce plugin, n'a pas cette
-limitation et renvoie les trois niveaux avec le même schéma d'attributs
-(`nom_officiel`, `code_insee`, ...) que les tables BD TOPO du service
-d'extraction.
+Historique : jusqu'en 3.4.3, la recherche passait par l'API tierce
+"Découpage administratif" (geo.api.gouv.fr), qui a cessé de renvoyer le
+contour des départements et des régions (constaté en conditions réelles,
+quels que soient les paramètres essayés) — seules les communes restaient
+exploitables. La 3.4.4 avait basculé vers le WFS de la Géoplateforme pour
+corriger ça ; la 3.4.5 passe à l'API de géocodage pour la recherche libre,
+plus adaptée à cet usage (une seule requête pour les trois niveaux, triée
+par pertinence).
 """
 
 from __future__ import annotations
@@ -21,25 +26,27 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from typing import Optional
+from urllib.parse import quote
 
 from qgis.core import QgsGeometry
 
 from ..network.http_client import NetworkClient
-from .constants import ADMIN_BOUNDARY_API_BASE
+from .constants import ADMIN_BOUNDARY_API_BASE, GEOCODING_SEARCH_BASE
 from .exceptions import AdminBoundaryNotFoundError
 
 _WFS_LAYER_PREFIX = "LIMITES_ADMINISTRATIVES_EXPRESS.LATEST"
 
-#: (type WFS, libellé affiché, champ de désambiguïsation ou None, tri par
-#: population) pour chaque niveau administratif recherché. Le tri par
-#: population (communes seulement : les deux autres niveaux n'ont pas ce
-#: champ) reproduit le comportement de l'ancienne API (`boost=population`) :
-#: entre deux communes homonymes, la plus peuplée apparaît en premier.
-_ADMIN_KINDS = (
-    ("commune", "Commune", "code_insee_du_departement", True),
-    ("departement", "Département", "code_insee_de_la_region", False),
-    ("region", "Région", None, False),
-)
+#: (catégorie renvoyée par l'API de géocodage, libellé affiché, champ de
+#: désambiguïsation dans `properties` ou None). Seules ces trois catégories
+#: sont retenues parmi celles que `category=administratif` peut renvoyer
+#: (elle inclut aussi les EPCI, hors périmètre de cette recherche). Pas de
+#: désambiguïsation pour département/région : contrairement aux communes,
+#: leurs noms sont uniques en France, une confusion n'est pas possible.
+_ADMIN_KINDS = {
+    "commune": ("Commune", "depcode"),
+    "département": ("Département", None),
+    "région": ("Région", None),
+}
 
 
 @dataclass
@@ -121,21 +128,25 @@ def preset_results() -> list[AdminBoundaryResult]:
 
 
 class AdminBoundaryClient:
-    """Client pour le WFS ADMIN EXPRESS de la Géoplateforme."""
+    """Client pour la recherche d'emprise administrative (API de géocodage +
+    WFS ADMIN EXPRESS de la Géoplateforme, cf. le docstring du module)."""
 
     def __init__(self, api_base: str = ADMIN_BOUNDARY_API_BASE):
         self._api_base = api_base.rstrip("/")
         self._network = NetworkClient(authcfg="")
 
-    def search(self, text: str, limit: int = 8) -> list[AdminBoundaryResult]:
+    def search(self, text: str, limit: int = 20) -> list[AdminBoundaryResult]:
         """Recherche des entités administratives par nom (commune, département,
-        région confondus).
+        région confondus), via l'API de géocodage de la Géoplateforme.
 
-        :param text: texte recherché, n'importe où dans le nom (insensible à
-            la casse et aux accents grâce à `ILIKE`).
+        :param text: texte recherché, n'importe où dans le nom.
         :type text: str
-        :param limit: nombre maximum de résultats par niveau administratif,
-            defaults to 8
+        :param limit: nombre maximum de résultats demandés à l'API avant
+            filtrage (elle mélange commune/département/région/EPCI, seuls
+            les trois premiers nous intéressent ici — un EPCI bien classé
+            peut donc réduire le nombre de résultats utiles reçus). 20 est le
+            maximum accepté par l'API avec `returntruegeometry` activé,
+            defaults to 20
         :type limit: int, optional
 
         :return: liste des correspondances trouvées, avec leur géométrie.
@@ -145,51 +156,64 @@ class AdminBoundaryClient:
         if len(text) < 2:
             return []
 
-        # Échappement CQL : une quote simple s'échappe en la doublant (comme
-        # en SQL standard, dont CQL_FILTER reprend la syntaxe des littéraux).
-        escaped = text.replace("'", "''")
+        url = (
+            f"{GEOCODING_SEARCH_BASE}?q={quote(text)}&index=poi"
+            f"&category=administratif&returntruegeometry=true&limit={limit}"
+        )
+        response = self._network.get(url)
+        if not response.ok:
+            raise AdminBoundaryNotFoundError(
+                f"Aucune entité administrative ne correspond à « {text} »."
+            )
+        try:
+            data = json.loads(response.body.decode("utf-8"))
+        except (UnicodeDecodeError, ValueError) as exc:
+            raise AdminBoundaryNotFoundError(
+                f"Aucune entité administrative ne correspond à « {text} »."
+            ) from exc
+        features = data.get("features") if isinstance(data, dict) else None
 
         results: list[AdminBoundaryResult] = []
-        for type_name, kind_label, extra_field, sort_by_population in _ADMIN_KINDS:
-            fields = "nom_officiel,code_insee,geometrie"
-            if extra_field:
-                fields += f",{extra_field}"
-            url = (
-                f"{self._api_base}?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature"
-                f"&TYPENAME={_WFS_LAYER_PREFIX}:{type_name}&OUTPUTFORMAT=application/json"
-                f"&PROPERTYNAME={fields}&COUNT={limit}"
-                f"&CQL_FILTER=nom_officiel ILIKE '%25{escaped}%25'"
+        for feature in features or []:
+            props = feature.get("properties", {}) or {}
+            categories = props.get("category") or []
+            kind_info = next(
+                (_ADMIN_KINDS[c] for c in categories if c in _ADMIN_KINDS), None
             )
-            if sort_by_population:
-                url += "&SORTBY=population D"
-            response = self._network.get(url)
-            if not response.ok:
+            if kind_info is None:
+                continue  # ex. "epci" : hors périmètre de cette recherche
+            kind_label, disambiguator_field = kind_info
+
+            # `truegeometry` est un GeoJSON encodé en chaîne (pas un objet
+            # imbriqué) ; sans lui, `geometry` n'est qu'un point représentatif
+            # — inutilisable comme emprise pour un filtre spatial, donc
+            # ignoré plutôt que de construire une emprise trompeuse.
+            true_geometry_raw = props.get("truegeometry")
+            if not true_geometry_raw:
                 continue
             try:
-                data = json.loads(response.body.decode("utf-8"))
-            except (UnicodeDecodeError, ValueError):
+                true_geometry = json.loads(true_geometry_raw)
+            except (TypeError, ValueError):
                 continue
-            features = data.get("features") if isinstance(data, dict) else None
-            if not isinstance(features, list):
+            geometry = _geojson_geometry_to_qgs_geometry(true_geometry)
+            if geometry is None or geometry.isEmpty():
                 continue
-            for feature in features:
-                props = feature.get("properties", {}) or {}
-                geometry = _geojson_geometry_to_qgs_geometry(feature.get("geometry"))
-                if geometry is None or geometry.isEmpty():
-                    continue
-                disambiguator = props.get(extra_field) if extra_field else None
-                label = f"{props.get('nom_officiel', text)} ({kind_label}"
-                if disambiguator:
-                    label += f" {disambiguator}"
-                label += ")"
-                results.append(
-                    AdminBoundaryResult(
-                        label=label,
-                        kind=kind_label,
-                        code=str(props.get("code_insee", "")),
-                        geometry=geometry,
-                    )
-                )
+
+            disambiguator = None
+            if disambiguator_field:
+                values = props.get(disambiguator_field)
+                disambiguator = values[0] if isinstance(values, list) and values else values
+            toponym = props.get("toponym") or text
+            label = f"{toponym} ({kind_label}"
+            if disambiguator:
+                label += f" {disambiguator}"
+            label += ")"
+
+            citycodes = props.get("citycode")
+            code = citycodes[0] if isinstance(citycodes, list) and citycodes else ""
+            results.append(
+                AdminBoundaryResult(label=label, kind=kind_label, code=str(code), geometry=geometry)
+            )
 
         if not results:
             raise AdminBoundaryNotFoundError(

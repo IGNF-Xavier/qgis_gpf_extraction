@@ -136,14 +136,18 @@ from the Géoplateforme.
   treated as an intermittent service-side issue rather than a plugin bug.
   The plugin now blocks on this with a clear warning instead of silently
   leaving an unreadable-looking result.
-- **Administrative search** now queries the Géoplateforme's own WFS
-  (ADMIN EXPRESS) instead of `geo.api.gouv.fr`: the latter, used until
-  3.4.3, stopped returning a boundary (`contour`) for départements and
-  régions at all — only for communes — regardless of the query parameters
-  tried, silently breaking département/région search. The "France
-  métropolitaine" preset remains a fixed bounding box (no single "country"
-  entity exists at WFS level); the overseas département presets now use
-  their real boundary, fetched from the same WFS.
+- **Administrative search** now queries the Géoplateforme's own geocoding
+  API (`index=poi&category=administratif&returntruegeometry=true`), instead
+  of `geo.api.gouv.fr` used until 3.4.3 (which stopped returning a boundary
+  for départements and régions entirely, only communes) or the raw ADMIN
+  EXPRESS WFS used briefly in 3.4.4 (three separate queries, one per
+  administrative level, sorted by hand) — the geocoding API searches all
+  three levels in a single call with its own relevance ranking, and can
+  return the actual boundary on request rather than just a point. The
+  "France métropolitaine" preset remains a fixed bounding box (no single
+  "country" entity exists); the overseas département presets use their real
+  boundary, fetched from the WFS directly by INSEE code (no ambiguity to
+  resolve there, so no need for the geocoding API's relevance ranking).
 ### ⚠️ Style discovery via the CSW catalog is a workaround, not a real solution
 
 **Whether a style (SLD) exists for a product isn't exposed by the
