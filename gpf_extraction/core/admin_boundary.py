@@ -34,6 +34,54 @@ class AdminBoundaryResult:
     geometry: QgsGeometry  # EPSG:4326
 
 
+#: Rectangles englobants (EPSG:4326) pour la France métropolitaine et chaque
+#: département d'outre-mer, en repli à la recherche par nom ci-dessus.
+#:
+#: `geo.api.gouv.fr` ne renvoie plus le contour (`contour`) des départements
+#: ni des régions — constaté en conditions réelles, quel que soit le
+#: paramètre essayé (`fields=contour`, `geometry=contour`, avec ou sans
+#: filtre `nom`/`code`) : seul le contour des *communes* est encore fourni.
+#: Un contour précis à l'échelle d'un département ou de la France entière
+#: n'est donc plus disponible via cette API ; ces rectangles, volontairement
+#: un peu généreux (incluent une marge de mer autour des côtes), servent de
+#: préréglage pratique — l'utilisateur reste libre de dessiner une BBox plus
+#: précise si besoin. Aucun contour pour les collectivités d'outre-mer
+#: (Saint-Martin, Saint-Barthélemy, Saint-Pierre-et-Miquelon, ...) : elles ne
+#: sont pas des départements au sens de cette API.
+#: (libellé, WKT du rectangle, code INSEE du département — vide pour la
+#: métropole, qui n'en a pas un seul) : ce code sert aussi à repérer, côté
+#: `dlg_main.py`, qu'une emprise DOM est sélectionnée, pour avertir si le
+#: produit choisi ne semble pas couvrir les DOM (cf. `DOM_DEPARTMENT_CODES`).
+PRESET_EXTENTS: tuple[tuple[str, str, str], ...] = (
+    ("France métropolitaine", "POLYGON((-5.5 41.0, 10.0 41.0, 10.0 51.5, -5.5 51.5, -5.5 41.0))", ""),
+    ("Guadeloupe (971)", "POLYGON((-61.85 15.83, -60.95 15.83, -60.95 16.55, -61.85 16.55, -61.85 15.83))", "971"),
+    ("Martinique (972)", "POLYGON((-61.25 14.35, -60.77 14.35, -60.77 14.90, -61.25 14.90, -61.25 14.35))", "972"),
+    ("Guyane (973)", "POLYGON((-54.60 2.05, -51.55 2.05, -51.55 5.85, -54.60 5.85, -54.60 2.05))", "973"),
+    ("La Réunion (974)", "POLYGON((55.20 -21.40, 55.85 -21.40, 55.85 -20.85, 55.20 -20.85, 55.20 -21.40))", "974"),
+    ("Mayotte (976)", "POLYGON((45.00 -13.05, 45.35 -13.05, 45.35 -12.60, 45.00 -12.60, 45.00 -13.05))", "976"),
+)
+
+#: Codes INSEE des 5 départements d'outre-mer parmi les préréglages
+#: ci-dessus — utilisé pour savoir si l'emprise actuellement choisie est un
+#: DOM, indépendamment du libellé (dont la traduction pourrait changer).
+DOM_DEPARTMENT_CODES = frozenset(code for _, _, code in PRESET_EXTENTS if code)
+
+
+def preset_results() -> list[AdminBoundaryResult]:
+    """Résultats préréglés (France métropolitaine, chaque DOM) : aucun appel
+    réseau, la géométrie est un rectangle englobant construit localement —
+    voir `PRESET_EXTENTS`."""
+    return [
+        AdminBoundaryResult(
+            label=f"{label} (préréglage)",
+            kind="Préréglage",
+            code=code,
+            geometry=QgsGeometry.fromWkt(wkt),
+        )
+        for label, wkt, code in PRESET_EXTENTS
+    ]
+
+
 class AdminBoundaryClient:
     """Client pour l'API "Découpage administratif" (geo.api.gouv.fr)."""
 

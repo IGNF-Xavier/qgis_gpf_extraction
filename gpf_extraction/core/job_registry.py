@@ -20,6 +20,12 @@ from qgis.core import QgsSettings
 from .constants import PLUGIN_NAMESPACE
 
 SETTINGS_KEY_TRACKED_JOBS = f"{PLUGIN_NAMESPACE}/tracked_jobs"
+SETTINGS_KEY_IGNORED_JOBS = f"{PLUGIN_NAMESPACE}/ignored_jobs"
+
+#: Nombre max d'identifiants gardés en mémoire pour « Importer les jobs du
+#: serveur » (cf. `JobRegistry.ignore_job`) : une simple protection contre une
+#: croissance indéfinie, largement au-delà de tout usage réel.
+_MAX_IGNORED_JOBS = 500
 
 #: Nombre de téléchargements de résultat en cours dans cette session QGIS.
 #: Seul un téléchargement actif justifie d'avertir à la fermeture de QGIS : un
@@ -130,6 +136,40 @@ class JobRegistry:
     def remove_job(cls, job_id: str) -> None:
         jobs = [j for j in cls.list_jobs() if j.job_id != job_id]
         cls._save(jobs)
+
+    # ------------------------------------------------------------------
+    # Jobs explicitement oubliés
+    # ------------------------------------------------------------------
+    # `remove_job` retire un job du suivi mais n'en garde aucune trace : sans
+    # ça, « Importer les jobs du serveur » (qui compare seulement à la liste
+    # actuellement suivie) le réimportait aussitôt à l'identique, rendant tout
+    # « Oublier » ou annulation sans effet dès le prochain import — constaté
+    # en conditions réelles. Cette liste, distincte des jobs suivis, retient
+    # les identifiants que l'utilisateur a explicitement écartés pour que
+    # l'import les respecte.
+
+    @staticmethod
+    def list_ignored_ids() -> set[str]:
+        raw = QgsSettings().value(SETTINGS_KEY_IGNORED_JOBS, "")
+        if not raw:
+            return set()
+        try:
+            items = json.loads(raw)
+        except (TypeError, ValueError):
+            return set()
+        return {str(item) for item in items} if isinstance(items, list) else set()
+
+    @classmethod
+    def ignore_job(cls, job_id: str) -> None:
+        if not job_id:
+            return
+        ids = cls.list_ignored_ids()
+        ids.add(job_id)
+        # Ordre non significatif ; la troncature garde simplement la liste bornée.
+        QgsSettings().setValue(
+            SETTINGS_KEY_IGNORED_JOBS,
+            json.dumps(list(ids)[-_MAX_IGNORED_JOBS:], ensure_ascii=False),
+        )
 
     @classmethod
     def get_job(cls, job_id: str) -> Optional[TrackedJob]:

@@ -27,12 +27,20 @@ par job) plutôt que l'ancien WFS anonyme.
    [plugin officiel QGIS Géoplateforme](https://github.com/Geoplateforme/plugin-qgis-geoplateforme).
    (Le bouton « Se connecter » autonome intégré est actuellement
    désactivé — voir *Limitations connues*.)
-2. **Choisir une emprise** : une BBox dessinée sur la carte, une emprise
-   administrative (commune, département, région — les homonymes sont
-   désambiguïsés par le code département/région) recherchée par nom, ou
-   une couche de polygones du projet (toutes ses entités, ou seulement
-   celles sélectionnées — plusieurs entités sont fusionnées en une seule
-   emprise). Choisissez le(s) prédicat(s) géométrique(s) à appliquer
+2. **Choisir une emprise** : une BBox dessinée sur la carte, une commune
+   recherchée par nom (les homonymes sont désambiguïsés par le code
+   département), un préréglage (France métropolitaine ou l'un des DOM —
+   Guadeloupe, Martinique, Guyane, La Réunion, Mayotte — affichés dès que
+   le champ de recherche est vide ; ce sont des rectangles englobants, pas
+   des contours précis, voir *Limitations connues*), ou une couche de
+   polygones du projet (toutes ses entités, ou seulement celles
+   sélectionnées — plusieurs entités sont fusionnées en une seule emprise).
+   En choisissant un DOM, un avertissement s'affiche si le titre du produit
+   sélectionné indique explicitement ne pas couvrir les DOM (ex. « France
+   entière (hors DOM) ») — une heuristique basée sur une convention de
+   nommage, pas une vérification réelle de disponibilité (aucune API ne
+   l'expose), et donc muette si le titre ne dit rien dans un sens ou
+   l'autre. Choisissez le(s) prédicat(s) géométrique(s) à appliquer
    (`Intersects`, `Contains`, `Within`, `Disjoint`, `Touches`, `Crosses`,
    `Overlaps`, `Equals` — plusieurs peuvent être cochés en même temps,
    combinés en OU), et optionnellement découpez les entités téléchargées

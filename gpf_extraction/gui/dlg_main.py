@@ -49,7 +49,12 @@ from qgis.PyQt.QtWidgets import (
 
 # project
 from gpf_extraction.__about__ import __plugin_name__, __uri_homepage__
-from gpf_extraction.core.admin_boundary import AdminBoundaryClient
+from gpf_extraction.core.admin_boundary import (
+    AdminBoundaryClient,
+    AdminBoundaryResult,
+    DOM_DEPARTMENT_CODES,
+    preset_results,
+)
 from gpf_extraction.core.constants import DEFAULT_WORKING_CRS
 from gpf_extraction.core.csw_client import prefetch_catalog_async
 from gpf_extraction.core.exceptions import AdminBoundaryNotFoundError, ApiRequestError
@@ -107,6 +112,10 @@ class GpfExtractionDialog(QDialog):
         #: projet, en EPSG:4326), None pour une BBox purement rectangulaire.
         self.current_extent_geometry: QgsGeometry | None = None
         self._predicate_checkboxes: dict[str, QCheckBox] = {}
+        #: Résultat administratif actuellement choisi (recherche ou
+        #: préréglage), pour l'avertissement de couverture DOM — None si
+        #: l'emprise vient d'un autre mode (BBox, couche du projet).
+        self._current_admin_result: AdminBoundaryResult | None = None
         self.selected_process = None
         self.selected_process_details = None
         self.selected_stored_data = None
@@ -185,13 +194,13 @@ class GpfExtractionDialog(QDialog):
         bbox_layout.addWidget(self.btn_draw_rectangle)
         extent_layout.addLayout(bbox_layout)
 
-        self.chk_admin = QCheckBox(self.tr("Emprise administrative (commune, département, région)"))
+        self.chk_admin = QCheckBox(self.tr("Emprise administrative (commune, ou préréglage)"))
         self._extent_mode_group.addButton(self.chk_admin)
         extent_layout.addWidget(self.chk_admin)
 
         self.txt_admin_search = QLineEdit()
         self.txt_admin_search.setPlaceholderText(
-            self.tr("Rechercher une commune, un département, une région...")
+            self.tr("Rechercher une commune... (laisser vide pour les préréglages)")
         )
         self.txt_admin_search.setEnabled(False)
         self.txt_admin_search.textChanged.connect(
@@ -233,6 +242,12 @@ class GpfExtractionDialog(QDialog):
         self.lbl_extent_value = QLabel(self.tr("Aucune emprise choisie."))
         self.lbl_extent_value.setWordWrap(True)
         extent_layout.addWidget(self.lbl_extent_value)
+
+        self.lbl_dom_warning = QLabel()
+        self.lbl_dom_warning.setWordWrap(True)
+        self.lbl_dom_warning.setStyleSheet("color: #a33;")
+        self.lbl_dom_warning.setVisible(False)
+        extent_layout.addWidget(self.lbl_dom_warning)
 
         extent_layout.addWidget(QLabel(self.tr("Prédicat(s) géométrique(s) :")))
         predicates_grid = QGridLayout()
@@ -396,6 +411,8 @@ class GpfExtractionDialog(QDialog):
         self.rad_layer_selected.setEnabled(layer_mode)
         if layer_mode:
             self._on_layer_extent_changed()
+        if admin_mode and not self.txt_admin_search.text().strip():
+            self._populate_admin_presets()
 
     def _start_draw_rectangle(self) -> None:
         if not self.rectangle_tool:
@@ -416,7 +433,9 @@ class GpfExtractionDialog(QDialog):
             self.canvas.unsetMapTool(self.rectangle_tool)
         self.current_extent = self.rectangle_tool.new_extent
         self.current_extent_geometry = None  # BBox : pas de vraie géométrie
+        self._current_admin_result = None
         self._update_extent_label()
+        self._update_dom_coverage_warning()
         self._validate()
 
     def _update_extent_label(self) -> None:
@@ -443,6 +462,8 @@ class GpfExtractionDialog(QDialog):
     def _on_layer_extent_changed(self, *_args) -> None:
         if not self.chk_layer.isChecked():
             return
+        self._current_admin_result = None
+        self._update_dom_coverage_warning()
         layer = self.cmb_layer.currentLayer()
         if layer is None:
             self.current_extent = None
@@ -552,8 +573,24 @@ class GpfExtractionDialog(QDialog):
     # ------------------------------------------------------------------
     # Emprise : administrative
     # ------------------------------------------------------------------
+    def _populate_admin_presets(self) -> None:
+        """Remplit la liste avec des préréglages pratiques (France
+        métropolitaine, chaque DOM) — aucun appel réseau, affiché tant que
+        le champ de recherche est vide. Voir `core/admin_boundary.py` pour
+        pourquoi ce sont des rectangles englobants plutôt que des contours
+        précis (l'API utilisée ne fournit plus le contour des départements
+        ni des régions)."""
+        self.list_admin_results.clear()
+        for result in preset_results():
+            item = QListWidgetItem(result.label)
+            item.setData(Qt.ItemDataRole.UserRole, result)
+            self.list_admin_results.addItem(item)
+
     def _search_admin(self) -> None:
         text = self.txt_admin_search.text().strip()
+        if not text:
+            self._populate_admin_presets()
+            return
         self.list_admin_results.clear()
         if len(text) < 2:
             return
@@ -588,8 +625,41 @@ class GpfExtractionDialog(QDialog):
         # qu'un simple rectangle englobant.
         self.current_extent_geometry = result.geometry
         self.current_extent = result.geometry.boundingBox()
+        self._current_admin_result = result
         self._update_extent_label()
+        self._update_dom_coverage_warning()
         self._validate()
+
+    def _update_dom_coverage_warning(self) -> None:
+        """Avertit si l'emprise actuelle est un DOM (préréglage ou commune
+        d'un DOM trouvée par recherche) et que le titre du produit choisi
+        indique explicitement ne pas couvrir les DOM (ex. « France entière
+        (hors DOM) », observé sur BDFORET®).
+
+        Reste muet si le titre ne dit rien sur les DOM dans un sens ou
+        l'autre (ex. GPU_EXTRACTION, dont la couverture dépend en réalité de
+        la commune) : l'absence de mention n'est pas une preuve d'absence de
+        donnée, seule la mention explicite « hors DOM » l'est. Pas d'API
+        dédiée pour vérifier la disponibilité réelle par territoire — ce
+        n'est qu'une heuristique basée sur une convention de nommage
+        observée sur les produits actuels, pas une garantie.
+        """
+        is_dom = (
+            self._current_admin_result is not None
+            and self._current_admin_result.code in DOM_DEPARTMENT_CODES
+        )
+        title = (self.selected_process.title if self.selected_process else "") or ""
+        if is_dom and "hors dom" in title.lower():
+            self.lbl_dom_warning.setText(
+                self.tr(
+                    "⚠ Le produit choisi indique ne pas couvrir les DOM "
+                    "(titre : « {} ») : aucune donnée n'est probablement "
+                    "disponible sur ce territoire pour ce produit."
+                ).format(title)
+            )
+            self.lbl_dom_warning.setVisible(True)
+        else:
+            self.lbl_dom_warning.setVisible(False)
 
     # ------------------------------------------------------------------
     # Produits (processus)
@@ -652,6 +722,7 @@ class GpfExtractionDialog(QDialog):
             self.selected_process_details = None
             self.selected_stored_data = None
             self.params_widget.set_process(None)
+            self._update_dom_coverage_warning()
             self._validate()
             return
 
@@ -696,6 +767,7 @@ class GpfExtractionDialog(QDialog):
         else:
             self.params_widget.set_stored_data(None)
 
+        self._update_dom_coverage_warning()
         self._validate()
 
     # ------------------------------------------------------------------

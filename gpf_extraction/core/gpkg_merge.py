@@ -86,6 +86,68 @@ def merge_geopackages(paths: list[Path], dest_path: Path) -> tuple[Path, list[st
     return dest_path, added_layers
 
 
+def build_generation_report(
+    requested_tables: int,
+    delivered: int,
+    removed_layers: list[str],
+    download_failures: list[str],
+) -> tuple[list[str], bool]:
+    """Construit les lignes du rapport de génération affiché après un
+    téléchargement, et signale le cas où le résultat est **entièrement
+    vide** malgré un job signalé réussi par le serveur.
+
+    Ce dernier cas est distinct d'un simple écart partiel (une ou deux
+    tables sans entité dans l'emprise est courant et normal) : quand
+    *toutes* les couches livrées finissent vides, le GeoPackage résultant
+    n'a plus aucune couche exploitable — constaté en conditions réelles
+    avec une extraction multi-tables (hydrographie) sur une emprise à
+    l'échelle de la France entière, avec fusion (`append`) activée : le
+    serveur répond « SUCCESS » pour chaque table en quelques secondes à
+    peine (bien trop rapide pour un vrai traitement à cette échelle), et le
+    fichier livré est un GeoPackage valide mais sans aucune donnée. Ce cas
+    mérite un avertissement qu'on ne peut pas manquer, pas seulement une
+    ligne dans un rapport qu'on peut facilement ne pas lire.
+
+    :return: (lignes du rapport, True si le résultat est entièrement vide).
+    :rtype: tuple[list[str], bool]
+    """
+    report_lines: list[str] = []
+    all_empty = False
+
+    if requested_tables:
+        report_lines.append(
+            f"{requested_tables} table(s) demandée(s), {delivered} couche(s) livrée(s) par le serveur."
+        )
+        remaining = delivered - len(removed_layers)
+        # `remaining <= 0` couvre aussi bien le cas où le serveur n'a livré
+        # aucune couche du tout (`delivered == 0`, ex. GeoPackage sans une
+        # seule entrée `gpkg_contents` — constaté en conditions réelles) que
+        # celui où des couches ont été livrées mais toutes vidées ensuite par
+        # `remove_empty_layers` : dans les deux cas, il ne reste absolument
+        # rien d'exploitable malgré un job signalé réussi.
+        if remaining <= 0:
+            all_empty = True
+        elif delivered != requested_tables:
+            report_lines.append(
+                "⚠ Écart entre le nombre de tables demandées et de couches livrées "
+                "— vérifiez la sélection et les journaux ci-dessus."
+            )
+
+    if removed_layers:
+        report_lines.append(
+            f"{len(removed_layers)} couche(s) vide(s) (0 entité) retirée(s) : "
+            + ", ".join(sorted(removed_layers))
+        )
+
+    if download_failures:
+        report_lines.append(
+            f"⚠ {len(download_failures)} fichier(s) n'ont pas pu être téléchargés : "
+            + "; ".join(download_failures)
+        )
+
+    return report_lines, all_empty
+
+
 def count_layers(paths: list[Path]) -> int:
     """Compte le nombre total de couches exploitables dans une liste de
     fichiers (somme sur chaque fichier), sans les charger entièrement.

@@ -21,6 +21,7 @@ from qgis.PyQt.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QLabel,
+    QMessageBox,
     QPlainTextEdit,
     QProgressBar,
     QVBoxLayout,
@@ -28,7 +29,7 @@ from qgis.PyQt.QtWidgets import (
 
 from gpf_extraction.core.exceptions import ApiRequestError, JobFailedError
 from gpf_extraction.core.extraction_api_client import ExtractionApiClient
-from gpf_extraction.core.gpkg_merge import count_layers, remove_empty_layers
+from gpf_extraction.core.gpkg_merge import build_generation_report, count_layers, remove_empty_layers
 from gpf_extraction.core.job_registry import JobRegistry
 from gpf_extraction.core.models import JobStatus
 from gpf_extraction.gui.job_result_loader import load_results
@@ -207,7 +208,9 @@ class JobMonitorDialog(QDialog):
 
         removed_layers = remove_empty_layers(downloaded_paths)
 
-        self._append_generation_report(delivered, removed_layers)
+        all_empty = self._append_generation_report(delivered, removed_layers)
+        if all_empty:
+            self._warn_all_empty()
 
         if self._add_to_project:
             load_results(
@@ -224,7 +227,7 @@ class JobMonitorDialog(QDialog):
         self.finished_ok.emit(self._downloaded_path)
         self._finish_as_closable()
 
-    def _append_generation_report(self, delivered: int, removed_layers: list[str]) -> None:
+    def _append_generation_report(self, delivered: int, removed_layers: list[str]) -> bool:
         """Construit un petit rapport de génération (nombre de tables
         demandées comparé au nombre de couches réellement livrées par le
         serveur, couches vides retirées, échecs de téléchargement
@@ -242,49 +245,51 @@ class JobMonitorDialog(QDialog):
             chaque table sans entité dans l'emprise — un cas normal, pas
             une anomalie).
         :type delivered: int
+
+        :return: True si le résultat est entièrement vide (voir
+            `build_generation_report`) — un cas qui mérite, en plus, un
+            avertissement qu'on ne peut pas manquer (cf. `_warn_all_empty`).
+        :rtype: bool
         """
-        report_lines: list[str] = []
-        if self._requested_tables:
-            report_lines.append(
-                self.tr("{} table(s) demandée(s), {} couche(s) livrée(s) par le serveur.").format(
-                    self._requested_tables, delivered
-                )
-            )
-            if delivered != self._requested_tables:
-                report_lines.append(
-                    self.tr(
-                        "⚠ Écart entre le nombre de tables demandées et de couches livrées "
-                        "— vérifiez la sélection et les journaux ci-dessus."
-                    )
-                )
-
-        if removed_layers:
-            report_lines.append(
-                self.tr("{} couche(s) vide(s) (0 entité) retirée(s) : {}").format(
-                    len(removed_layers), ", ".join(sorted(removed_layers))
-                )
-            )
-
         failures = getattr(self._client, "last_download_failures", None) or []
-        if failures:
-            report_lines.append(
-                self.tr("⚠ {} fichier(s) n'ont pas pu être téléchargés : {}").format(
-                    len(failures), "; ".join(failures)
-                )
+        report_lines, all_empty = build_generation_report(
+            self._requested_tables, delivered, removed_layers, failures
+        )
+
+        if report_lines:
+            self._append_log(self.tr("Rapport :"))
+            for line in report_lines:
+                self._append_log(f"  {line}")
+
+            self.log(
+                message="Rapport de génération ({}) :\n{}".format(
+                    self._job.job_id, "\n".join(report_lines)
+                ),
+                log_level=Qgis.MessageLevel.Warning if all_empty else Qgis.MessageLevel.Info,
             )
 
-        if not report_lines:
-            return
+        return all_empty
 
-        self._append_log(self.tr("Rapport :"))
-        for line in report_lines:
-            self._append_log(f"  {line}")
-
-        self.log(
-            message="Rapport de génération ({}) :\n{}".format(
-                self._job.job_id, "\n".join(report_lines)
-            ),
-            log_level=Qgis.MessageLevel.Info,
+    def _warn_all_empty(self) -> None:
+        """Avertissement bloquant pour le cas où toutes les couches livrées
+        sont revenues vides malgré un job signalé réussi par le serveur —
+        voir `build_generation_report` pour le détail de ce constat."""
+        QMessageBox.warning(
+            self,
+            self.tr("Résultat vide"),
+            self.tr(
+                "Le serveur a signalé ce job comme réussi, mais aucune des {} table(s) "
+                "demandée(s) ne contient de donnée : le GeoPackage téléchargé n'a plus "
+                "aucune couche après le retrait des couches vides.\n\n"
+                "Ce cas a été observé en conditions réelles sur une extraction "
+                "multi-tables avec fusion (« Fusionner toutes les tables en un seul "
+                "fichier ») sur une emprise à l'échelle de la France entière : le "
+                "serveur répond en quelques secondes à peine pour chaque table (bien "
+                "trop rapide pour un vrai traitement à cette échelle), signe que "
+                "quelque chose s'est mal passé côté service plutôt qu'une absence "
+                "réelle de données. Essayez de décocher la fusion, de réduire le "
+                "nombre de tables ou l'emprise, ou de relancer plus tard."
+            ).format(self._requested_tables),
         )
 
     def _on_failure(self) -> None:
@@ -316,6 +321,7 @@ class JobMonitorDialog(QDialog):
                     log_level=Qgis.MessageLevel.Warning,
                 )
             JobRegistry.remove_job(self._job.job_id)
+            JobRegistry.ignore_job(self._job.job_id)
             self.reject()
         else:
             self.accept()

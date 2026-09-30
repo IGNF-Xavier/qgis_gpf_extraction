@@ -28,7 +28,7 @@ from qgis.PyQt.QtWidgets import (
 
 from gpf_extraction.core.exceptions import ApiRequestError, JobFailedError
 from gpf_extraction.core.extraction_api_client import ExtractionApiClient
-from gpf_extraction.core.gpkg_merge import count_layers, remove_empty_layers
+from gpf_extraction.core.gpkg_merge import build_generation_report, count_layers, remove_empty_layers
 from gpf_extraction.core.job_registry import JobRegistry, TrackedJob
 from gpf_extraction.gui.job_result_loader import load_results
 from gpf_extraction.toolbelt import PlgLogger, PlgOptionsManager
@@ -201,7 +201,7 @@ class JobsDialog(QDialog):
             )
             return
 
-        known_ids = {job.job_id for job in JobRegistry.list_jobs()}
+        known_ids = {job.job_id for job in JobRegistry.list_jobs()} | JobRegistry.list_ignored_ids()
         imported = 0
         process_titles: dict[str, str] = {}
         for server_job in server_jobs:
@@ -303,32 +303,10 @@ class JobsDialog(QDialog):
         delivered = count_layers(data_paths)
         removed_layers = remove_empty_layers(data_paths)
 
-        report_lines = []
-        if job.requested_tables:
-            report_lines.append(
-                self.tr("{} table(s) demandée(s), {} couche(s) livrée(s) par le serveur.").format(
-                    job.requested_tables, delivered
-                )
-            )
-            if delivered != job.requested_tables:
-                report_lines.append(
-                    self.tr(
-                        "⚠ Écart entre le nombre de tables demandées et de couches livrées."
-                    )
-                )
-        if removed_layers:
-            report_lines.append(
-                self.tr("{} couche(s) vide(s) (0 entité) retirée(s) : {}").format(
-                    len(removed_layers), ", ".join(sorted(removed_layers))
-                )
-            )
         failures = getattr(client, "last_download_failures", None) or []
-        if failures:
-            report_lines.append(
-                self.tr("⚠ {} fichier(s) n'ont pas pu être téléchargés : {}").format(
-                    len(failures), "; ".join(failures)
-                )
-            )
+        report_lines, all_empty = build_generation_report(
+            job.requested_tables, delivered, removed_layers, failures
+        )
         report_text = ("\n\n" + "\n".join(report_lines)) if report_lines else ""
         if report_lines:
             # Journalisé en plus de la boîte de dialogue ci-dessous (message
@@ -339,7 +317,24 @@ class JobsDialog(QDialog):
                 message="Rapport de génération ({}) :\n{}".format(
                     job.process_title or job.job_id, "\n".join(report_lines)
                 ),
-                log_level=Qgis.MessageLevel.Info,
+                log_level=Qgis.MessageLevel.Warning if all_empty else Qgis.MessageLevel.Info,
+            )
+
+        if all_empty:
+            # Avertissement qu'on ne peut pas manquer, distinct de la boîte
+            # de dialogue générique ci-dessous : voir `build_generation_report`.
+            QMessageBox.warning(
+                self,
+                self.tr("Résultat vide"),
+                self.tr(
+                    "Le serveur a signalé ce job comme réussi, mais aucune des {} "
+                    "table(s) demandée(s) ne contient de donnée : le GeoPackage "
+                    "téléchargé n'a plus aucune couche après le retrait des couches "
+                    "vides. Ce cas a été observé en conditions réelles sur une "
+                    "extraction multi-tables avec fusion à l'échelle de la France "
+                    "entière — signe probable d'un problème côté service plutôt "
+                    "qu'une absence réelle de données."
+                ).format(job.requested_tables),
             )
 
         file_list = "\n".join(p.name for p in downloaded_paths)
@@ -396,4 +391,5 @@ class JobsDialog(QDialog):
                 return
 
         JobRegistry.remove_job(job.job_id)
+        JobRegistry.ignore_job(job.job_id)
         self._reload_table()

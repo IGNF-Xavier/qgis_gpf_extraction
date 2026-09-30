@@ -27,11 +27,18 @@ than the historical anonymous WFS.
    [QGIS Géoplateforme plugin](https://github.com/Geoplateforme/plugin-qgis-geoplateforme).
    (The built-in autonomous "Se connecter" flow is currently disabled —
    see *Known limitations*.)
-2. **Choose an extent**: a BBox drawn on the map, an administrative area
-   (commune, département, région — homonyms are disambiguated with the
-   département/région code) searched by name, or a polygon layer from
-   your project (all its features, or only the selected ones — several
-   features are merged into a single extent). Pick which spatial
+2. **Choose an extent**: a BBox drawn on the map, a commune searched by
+   name (homonyms are disambiguated with the département code), a preset
+   (mainland France, or one of the five overseas départements — Guadeloupe,
+   Martinique, Guyane, La Réunion, Mayotte — shown as soon as the search
+   field is empty; these are bounding boxes, not precise boundaries, see
+   *Known limitations*), or a polygon layer from your project (all its
+   features, or only the selected ones — several features are merged into
+   a single extent). Picking an overseas département shows a warning if
+   the selected product's title explicitly says it doesn't cover them (e.g.
+   "France entière (hors DOM)") — a heuristic based on a naming convention,
+   not an actual availability check (no API exposes one), so it stays
+   silent when the title says nothing either way. Pick which spatial
    predicate(s) apply (`Intersects`, `Contains`, `Within`, `Disjoint`,
    `Touches`, `Crosses`, `Overlaps`, `Equals` — several can be checked at
    once, combined with OR), and optionally clip the downloaded features
@@ -119,6 +126,22 @@ from the Géoplateforme.
   no longer reproducible on 2026-09-25 (59 merged tables accepted). The
   plugin doesn't prevent anything upfront; on a 500 with merging enabled, a
   message adds this lead to the error dialog.
+- **Silent empty results**: separately from the above, a job can be
+  reported successful by the service while delivering a well-formed but
+  entirely empty GeoPackage (no layer at all) — observed once, in a few
+  seconds, on a 10-table nationwide extraction, far too fast for genuine
+  nationwide processing (a real one took ~40 minutes and 6.9 GB with the
+  exact same request replayed right after). Not reproduced on demand, so
+  treated as an intermittent service-side issue rather than a plugin bug.
+  The plugin now blocks on this with a clear warning instead of silently
+  leaving an unreadable-looking result.
+- **Administrative search**: `geo.api.gouv.fr`, used for administrative
+  extents, no longer returns a boundary (`contour`) for départements or
+  régions — only for communes — regardless of the query parameters tried.
+  Searching a commune by name still works; a département or région search
+  currently returns nothing. The "France métropolitaine" and overseas
+  département presets work around this with fixed bounding boxes (a
+  generous rectangle, not the actual coastline) rather than a real search.
 ### ⚠️ Style discovery via the CSW catalog is a workaround, not a real solution
 
 **Whether a style (SLD) exists for a product isn't exposed by the
