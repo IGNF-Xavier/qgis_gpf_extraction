@@ -27,13 +27,13 @@ par job) plutôt que l'ancien WFS anonyme.
    [plugin officiel QGIS Géoplateforme](https://github.com/Geoplateforme/plugin-qgis-geoplateforme).
    (Le bouton « Se connecter » autonome intégré est actuellement
    désactivé — voir *Limitations connues*.)
-2. **Choisir une emprise** : une BBox dessinée sur la carte, une commune
-   recherchée par nom (les homonymes sont désambiguïsés par le code
-   département), un préréglage (France métropolitaine ou l'un des DOM —
-   Guadeloupe, Martinique, Guyane, La Réunion, Mayotte — affichés dès que
-   le champ de recherche est vide ; ce sont des rectangles englobants, pas
-   des contours précis, voir *Limitations connues*), ou une couche de
-   polygones du projet (toutes ses entités, ou seulement celles
+2. **Choisir une emprise** : une BBox dessinée sur la carte, une commune, un
+   département ou une région recherchés par nom (les homonymes sont
+   désambiguïsés par le code département/région), un préréglage (France
+   métropolitaine — un rectangle englobant, aucune entité « pays » n'existe
+   — ou l'un des DOM avec son vrai contour — Guadeloupe, Martinique, Guyane,
+   La Réunion, Mayotte — affichés dès que le champ de recherche est vide),
+   ou une couche de polygones du projet (toutes ses entités, ou seulement celles
    sélectionnées — plusieurs entités sont fusionnées en une seule emprise).
    En choisissant un DOM, un avertissement s'affiche si le titre du produit
    sélectionné indique explicitement ne pas couvrir les DOM (ex. « France

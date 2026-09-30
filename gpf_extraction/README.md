@@ -27,12 +27,13 @@ than the historical anonymous WFS.
    [QGIS Géoplateforme plugin](https://github.com/Geoplateforme/plugin-qgis-geoplateforme).
    (The built-in autonomous "Se connecter" flow is currently disabled —
    see *Known limitations*.)
-2. **Choose an extent**: a BBox drawn on the map, a commune searched by
-   name (homonyms are disambiguated with the département code), a preset
-   (mainland France, or one of the five overseas départements — Guadeloupe,
-   Martinique, Guyane, La Réunion, Mayotte — shown as soon as the search
-   field is empty; these are bounding boxes, not precise boundaries, see
-   *Known limitations*), or a polygon layer from your project (all its
+2. **Choose an extent**: a BBox drawn on the map, a commune, département or
+   région searched by name (homonyms are disambiguated with the
+   département/région code), a preset (mainland France — a bounding box, no
+   single "country" entity exists — or one of the five overseas départements
+   with their real boundary — Guadeloupe, Martinique, Guyane, La Réunion,
+   Mayotte — shown as soon as the search field is empty), or a polygon layer
+   from your project (all its
    features, or only the selected ones — several features are merged into
    a single extent). Picking an overseas département shows a warning if
    the selected product's title explicitly says it doesn't cover them (e.g.
@@ -135,13 +136,14 @@ from the Géoplateforme.
   treated as an intermittent service-side issue rather than a plugin bug.
   The plugin now blocks on this with a clear warning instead of silently
   leaving an unreadable-looking result.
-- **Administrative search**: `geo.api.gouv.fr`, used for administrative
-  extents, no longer returns a boundary (`contour`) for départements or
-  régions — only for communes — regardless of the query parameters tried.
-  Searching a commune by name still works; a département or région search
-  currently returns nothing. The "France métropolitaine" and overseas
-  département presets work around this with fixed bounding boxes (a
-  generous rectangle, not the actual coastline) rather than a real search.
+- **Administrative search** now queries the Géoplateforme's own WFS
+  (ADMIN EXPRESS) instead of `geo.api.gouv.fr`: the latter, used until
+  3.4.3, stopped returning a boundary (`contour`) for départements and
+  régions at all — only for communes — regardless of the query parameters
+  tried, silently breaking département/région search. The "France
+  métropolitaine" preset remains a fixed bounding box (no single "country"
+  entity exists at WFS level); the overseas département presets now use
+  their real boundary, fetched from the same WFS.
 ### ⚠️ Style discovery via the CSW catalog is a workaround, not a real solution
 
 **Whether a style (SLD) exists for a product isn't exposed by the

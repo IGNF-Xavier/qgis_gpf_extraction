@@ -36,9 +36,14 @@ DEFAULT_OAUTH_CLIENT_ID = "gpf-swagger"
 OAUTH_DECLARED_REDIRECT_PORTS: list[int] = [7070, 7071]
 OAUTH_REDIRECT_URL = "callback"
 
-#: API publique (non authentifiée) "Découpage administratif" utilisée pour la
-#: recherche d'emprise administrative par nom (commune / département / région).
-ADMIN_BOUNDARY_API_BASE = "https://geo.api.gouv.fr"
+#: WFS public (non authentifié) de la Géoplateforme, utilisé pour la
+#: recherche d'emprise administrative par nom (commune / département /
+#: région) — diffuse ADMIN EXPRESS (limites administratives officielles de
+#: l'IGN, mises à jour en continu). Remplace `geo.api.gouv.fr`, constaté en
+#: conditions réelles ne plus renvoyer le contour des départements ni des
+#: régions (seules les communes restaient exploitables) ; voir CHANGELOG.md
+#: 3.4.3/3.4.4.
+ADMIN_BOUNDARY_API_BASE = "https://data.geopf.fr/wfs/ows"
 
 #: Intervalle par défaut (secondes) entre deux vérifications de statut d'un job.
 DEFAULT_STATUS_CHECK_SLEEP = 15
