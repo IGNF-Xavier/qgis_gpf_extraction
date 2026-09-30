@@ -443,15 +443,28 @@ class GpfExtractionDialog(QDialog):
             self.lbl_extent_value.setText(self.tr("Aucune emprise choisie."))
             return
         rect = self.current_extent
-        self.lbl_extent_value.setText(
-            self.tr("Emprise ({crs}) : {xmin:.4f}, {ymin:.4f} → {xmax:.4f}, {ymax:.4f}").format(
-                crs=DEFAULT_WORKING_CRS,
-                xmin=rect.xMinimum(),
-                ymin=rect.yMinimum(),
-                xmax=rect.xMaximum(),
-                ymax=rect.yMaximum(),
-            )
+        # Ce résumé est toujours la simple bounding box, même quand l'emprise
+        # a un contour précis (administrative ou couche du projet) : le
+        # préciser évite de laisser croire, à tort, que seul ce rectangle
+        # sera envoyé au serveur — le filtre spatial utilise le vrai contour
+        # (`current_extent_geometry`, `ST_GeomFromText`) dès qu'il est
+        # disponible, cf. `_apply_extent_to_params` et `get_value` dans
+        # `wdg_relations_builder.py`. Seule une BBox dessinée à la main n'a
+        # pas de contour propre : la bounding box affichée EST alors
+        # l'emprise réellement utilisée (`ST_MakeEnvelope`).
+        text = self.tr("Emprise ({crs}) : {xmin:.4f}, {ymin:.4f} → {xmax:.4f}, {ymax:.4f}").format(
+            crs=DEFAULT_WORKING_CRS,
+            xmin=rect.xMinimum(),
+            ymin=rect.yMinimum(),
+            xmax=rect.xMaximum(),
+            ymax=rect.yMaximum(),
         )
+        if self.current_extent_geometry is not None:
+            text += self.tr(
+                " (rectangle englobant affiché à titre indicatif ; le contour "
+                "précis est utilisé pour le filtre envoyé au serveur)"
+            )
+        self.lbl_extent_value.setText(text)
         # La transmission au formulaire de paramètres (reprojetée dans la
         # projection de sortie choisie) est centralisée dans `_validate()`,
         # appelée juste après par tous les appelants de cette méthode.
