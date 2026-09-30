@@ -35,6 +35,12 @@ par job) plutôt que l'ancien WFS anonyme.
    La Réunion, Mayotte — affichés dès que le champ de recherche est vide),
    ou une couche de polygones du projet (toutes ses entités, ou seulement celles
    sélectionnées — plusieurs entités sont fusionnées en une seule emprise).
+   Choisir une commune, un département, une région ou un préréglage zoome la
+   carte dessus en arrière-plan (repère visuel immédiat, notamment utile pour
+   les homonymes) — sauté silencieusement si la projection du canevas n'est
+   pas définie pour cette zone (ex. Lambert-93 pour un DOM). Le libellé
+   d'emprise affiché reste un simple rectangle englobant même dans ce cas :
+   le contour précis est bien celui envoyé au serveur.
    En choisissant un DOM, un avertissement s'affiche si le titre du produit
    sélectionné indique explicitement ne pas couvrir les DOM (ex. « France
    entière (hors DOM) ») — une heuristique basée sur une convention de

@@ -641,7 +641,52 @@ class GpfExtractionDialog(QDialog):
         self._current_admin_result = result
         self._update_extent_label()
         self._update_dom_coverage_warning()
+        self._zoom_canvas_to_current_extent()
         self._validate()
+
+    def _zoom_canvas_to_current_extent(self) -> None:
+        """Zoome la carte sur l'emprise choisie, en arrière-plan (le focus
+        reste sur ce dialogue) : un repère visuel immédiat sur l'entité
+        trouvée, sans avoir à fermer ou déplacer la fenêtre pour vérifier
+        qu'il s'agit bien de la bonne (utile en particulier pour les
+        homonymes, ou simplement pour confirmer un préréglage DOM/métropole).
+        Best-effort : une reprojection échouée ne bloque jamais la sélection
+        elle-même, seul le zoom est alors sauté."""
+        if not self.canvas or self.current_extent is None:
+            return
+        working_crs = QgsCoordinateReferenceSystem(DEFAULT_WORKING_CRS)
+        canvas_crs = self.canvas.mapSettings().destinationCrs()
+        rect = QgsRectangle(self.current_extent)  # toujours en EPSG:4326 à ce stade
+        if canvas_crs.isValid() and canvas_crs != working_crs:
+            # Une projection définie seulement pour la métropole (ex. Lambert-93)
+            # extrapole silencieusement des coordonnées absurdes pour une
+            # emprise hors de sa zone de validité (constaté en conditions
+            # réelles : un préréglage DOM avec un canevas en EPSG:2154). Skip
+            # plutôt que d'envoyer le canevas dans le vide si l'emprise choisie
+            # ne recoupe même pas la zone de validité (en EPSG:4326) de la
+            # projection courante du canevas.
+            crs_bounds = canvas_crs.bounds()
+            if not crs_bounds.isEmpty() and not crs_bounds.intersects(rect):
+                self.log(
+                    message=(
+                        f"Zoom sur l'emprise choisie ignoré : hors de la zone de "
+                        f"validité de la projection du canevas ({canvas_crs.authid()})."
+                    ),
+                    log_level=Qgis.MessageLevel.Info,
+                )
+                return
+            try:
+                transform = QgsCoordinateTransform(working_crs, canvas_crs, QgsProject.instance())
+                rect = transform.transformBoundingBox(rect)
+            except Exception as exc:  # noqa: BLE001 - zoom best-effort
+                self.log(
+                    message=f"Zoom sur l'emprise choisie échoué (reprojection) : {exc}",
+                    log_level=Qgis.MessageLevel.Warning,
+                )
+                return
+        rect.scale(1.15)  # petite marge : l'entité ne touche pas les bords
+        self.canvas.setExtent(rect)
+        self.canvas.refresh()
 
     def _update_dom_coverage_warning(self) -> None:
         """Avertit si l'emprise actuelle est un DOM (préréglage ou commune

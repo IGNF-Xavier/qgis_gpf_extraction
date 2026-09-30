@@ -35,7 +35,12 @@ than the historical anonymous WFS.
    Mayotte — shown as soon as the search field is empty), or a polygon layer
    from your project (all its
    features, or only the selected ones — several features are merged into
-   a single extent). Picking an overseas département shows a warning if
+   a single extent). Picking a commune, département, région or preset zooms
+   the map to it in the background (an immediate visual check, handy for
+   homonyms), silently skipped if the canvas's projection isn't defined for
+   that area (e.g. Lambert-93 for an overseas département). The extent
+   summary label stays a plain bounding box even then: the precise boundary
+   is still what's sent to the server. Picking an overseas département shows a warning if
    the selected product's title explicitly says it doesn't cover them (e.g.
    "France entière (hors DOM)") — a heuristic based on a naming convention,
    not an actual availability check (no API exposes one), so it stays
