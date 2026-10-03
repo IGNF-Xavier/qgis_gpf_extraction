@@ -95,3 +95,26 @@ test("messages d'erreur : 401, 429, piste 500 avec fusion", () => {
   assert.match(describeApiError(new ApiError("POST", "u", 500, ""), { merge: true, tables: 59 }), /fusion/);
   assert.doesNotMatch(describeApiError(new ApiError("POST", "u", 500, ""), { merge: false, tables: 59 }), /fusion/);
 });
+
+test("liste des jobs : suit les liens next jusqu'à la dernière page, sans demander de page hors limite", async () => {
+  const pages = [
+    { jobs: [{ jobID: "a", status: "SUCCESSFUL" }, { jobID: "b", status: "FAILED" }], links: [{ rel: "next" }] },
+    { jobs: [{ jobID: "c", status: "RUNNING" }], links: [{ rel: "prev" }] },
+  ];
+  const urls = [];
+  const fetchImpl = async (url) => { urls.push(url); return response(200, pages[urls.length - 1]); };
+  const api = new ExtractionApi({ fetchImpl });
+  const jobs = await api.listAllJobs({ limit: 2 });
+  assert.deepEqual(jobs.map((j) => j.jobId), ["a", "b", "c"]);
+  assert.equal(urls.length, 2);
+  assert.match(urls[0], /\/jobs\?page=1&limit=2$/);
+  assert.match(urls[1], /\/jobs\?page=2&limit=2$/);
+});
+
+test("liste des jobs : garde-fou maxPages si le service annonce toujours une page suivante", async () => {
+  let calls = 0;
+  const fetchImpl = async () => { calls++; return response(200, { jobs: [{ jobID: String(calls) }], links: [{ rel: "next" }] }); };
+  const jobs = await new ExtractionApi({ fetchImpl }).listAllJobs({ maxPages: 3 });
+  assert.equal(jobs.length, 3);
+  assert.equal(calls, 3);
+});

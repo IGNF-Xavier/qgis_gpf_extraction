@@ -16,8 +16,10 @@ Publiée par GitHub Pages : <https://ignf-xavier.github.io/qgis_gpf_extraction/>
 - **Requête** : le corps JSON est affiché (modifiable en mode avancé), copiable en JSON ou en `curl`.
   Le filtre spatial utilise le contour précis, exprimé dans la projection *native* de la donnée
   (indépendante de la projection de sortie choisie).
-- **Jobs** : lancement, suivi, annulation, import des jobs du serveur, liens de téléchargement directs
-  (aucun fichier ne transite par cette page), avertissements sur les résultats suspects.
+- **Jobs** : lancement, suivi, annulation, liens de téléchargement directs (aucun fichier ne transite par
+  cette page), avertissements sur les résultats suspects. Une liste des **jobs du serveur** (du plus récent
+  au plus ancien, filtre par statut, 5 par page) se pagine sans recharger la page : le service ne donne ni
+  total ni tri, la liste complète est donc chargée une fois puis découpée dans le navigateur.
 - Les erreurs du service s'affichent avec la requête envoyée et la réponse reçue, copiables.
 
 ## Ce qu'elle ne fait pas (par rapport au plugin QGIS)

@@ -12,6 +12,7 @@ import {
   bboxToPolygon, domCoverageWarning, geometryBounds, loadPresets, makeTransformFrom4326,
   reprojectGeometry, searchAdmin, srid, transformBbox,
 } from "./geo.js";
+import { JOB_FILTERS, pageWindow, paginateJobs, sortNewestFirst } from "./jobs-list.js";
 import { createMap } from "./map.js";
 import { fieldEnum, fieldType, isFailed, isRunning, isSuccessful } from "./models.js";
 import proj4 from "proj4";
@@ -49,7 +50,7 @@ const state = {
   extent: null,           // { label, geometry (EPSG:4326), bbox, code, precise }
   checkedTables: new Set(), predicates: new Set(DEFAULT_PREDICATES),
   values: {}, body: null,
-  jobs: store.get("gpf_web_jobs", []), ignored: new Set(store.get("gpf_web_ignored_jobs", [])),
+  jobs: store.get("gpf_web_jobs", []),
   results: new Map(),     // jobId -> { files, summary, warnings } (en mémoire seulement)
 };
 
@@ -102,7 +103,10 @@ function refreshAuthUI() {
 }
 auth.onChange = () => {
   refreshAuthUI();
-  if (auth.authenticated) loadProducts();
+  if (auth.authenticated) {
+    loadProducts();
+    loadServerJobs();
+  }
 };
 $("tokenUse").addEventListener("click", () => {
   auth.setToken($("tokenInput").value, $("tokenRemember").checked);
@@ -112,6 +116,7 @@ $("tokenClear").addEventListener("click", () => {
   auth.clear();
   state.processes = [];
   renderProducts();
+  resetServerJobs();
 });
 $("oidcLogin").addEventListener("click", () => startLogin());
 setInterval(refreshAuthUI, 30000);
@@ -217,6 +222,7 @@ async function loadProducts() {
     state.processes = await api.listProcesses();
     $("productStatus").textContent = `${state.processes.length} produit(s) disponible(s).`;
     renderProducts();
+    renderServerJobs(); // les titres de produits sont maintenant connus
   } catch (error) {
     $("productStatus").textContent = "Impossible de lister les produits.";
     showError(error);
@@ -553,12 +559,26 @@ $("launch").addEventListener("click", async () => {
 });
 
 // ------------------------------------------------------------------ 6. Jobs
-const saveJobs = () => {
-  store.set("gpf_web_jobs", state.jobs);
-  store.set("gpf_web_ignored_jobs", [...state.ignored].slice(-500));
-};
+try { localStorage.removeItem("gpf_web_ignored_jobs"); } catch { /* ancienne clé de l'import en bloc, devenue inutile */ }
+const saveJobs = () => store.set("gpf_web_jobs", state.jobs);
 
 const STATUS_LABEL = { successful: "terminé", running: "en cours", accepted: "en attente", failed: "échec", dismissed: "annulé" };
+
+function jobHeader(title, status) {
+  const badge = isSuccessful(status) ? "success" : isFailed(status) ? "error" : "info";
+  return el("header", {}, el("strong", { textContent: title }),
+    el("span", { className: `fr-badge fr-badge--sm fr-badge--${badge}`, textContent: STATUS_LABEL[status] || status || "inconnu" }));
+}
+
+function jobActions() {
+  const actions = el("ul", { className: "fr-btns-group fr-btns-group--sm fr-btns-group--inline-md" });
+  const button = (text, handler, secondary = true) => {
+    const b = el("button", { type: "button", textContent: text, className: `fr-btn${secondary ? " fr-btn--secondary" : ""}` });
+    b.addEventListener("click", handler);
+    actions.append(el("li", {}, b));
+  };
+  return { actions, button };
+}
 
 function renderJobs() {
   const box = $("jobList");
@@ -566,16 +586,9 @@ function renderJobs() {
   if (!state.jobs.length) box.append(el("p", { className: "fr-hint-text fr-mt-2w", textContent: "Aucun job suivi dans ce navigateur." }));
   for (const job of state.jobs) {
     const status = String(job.status || "").toLowerCase();
-    const badge = isSuccessful(status) ? "success" : isFailed(status) ? "error" : "info";
-    const head = el("header", {}, el("strong", { textContent: job.title || job.processId }),
-      el("span", { className: `fr-badge fr-badge--sm fr-badge--${badge}`, textContent: STATUS_LABEL[status] || status || "inconnu" }));
+    const head = jobHeader(job.title || job.processId, status);
     const meta = el("p", { className: "fr-text--sm fr-mb-1w", textContent: `${job.jobId} · ${new Date(job.created).toLocaleString("fr-FR")}${job.tables ? ` · ${job.tables} table(s)` : ""}${job.message ? ` · ${job.message}` : ""}` });
-    const actions = el("ul", { className: "fr-btns-group fr-btns-group--sm fr-btns-group--inline-md" });
-    const button = (text, handler, secondary = true) => {
-      const b = el("button", { type: "button", textContent: text, className: `fr-btn${secondary ? " fr-btn--secondary" : ""}` });
-      b.addEventListener("click", handler);
-      actions.append(el("li", {}, b));
-    };
+    const { actions, button } = jobActions();
     button("Rafraîchir", () => refreshJob(job.jobId, true));
     if (isRunning(status)) button("Annuler", () => cancelJob(job));
     if (isSuccessful(status)) button("Résultats", () => showResults(job), false);
@@ -632,10 +645,10 @@ async function cancelJob(job) {
 
 function forgetJob(jobId) {
   state.jobs = state.jobs.filter((j) => j.jobId !== jobId);
-  state.ignored.add(jobId); // sinon « Importer » le ferait réapparaître aussitôt
   state.results.delete(jobId);
   saveJobs();
   renderJobs();
+  renderServerJobs();
 }
 
 async function showResults(job) {
@@ -664,31 +677,136 @@ async function showResults(job) {
     }
     state.results.set(job.jobId, { files, summary, warnings });
     renderJobs();
+    renderServerJobs();
   } catch (error) {
     showError(error);
   }
 }
 
 $("jobsRefresh").addEventListener("click", () => pollJobs(true));
-$("jobsImport").addEventListener("click", async () => {
+$("jobsRefresh").addEventListener("click", () => pollJobs(true));
+
+// ---- Jobs du serveur : liste complète chargée une fois, paginée côté navigateur (sans appel réseau).
+const SERVER_PAGE_SIZE = 5;
+const server = { jobs: [], loaded: false, filter: "all", page: 1 };
+
+for (const [key, { label }] of Object.entries(JOB_FILTERS)) $("serverFilter").append(el("option", { value: key, textContent: label }));
+$("serverFilter").addEventListener("change", () => {
+  server.filter = $("serverFilter").value;
+  server.page = 1;
+  renderServerJobs();
+});
+$("serverLoad").addEventListener("click", () => loadServerJobs(true));
+
+const processTitle = (processId) => (state.processes.find((p) => p.id === processId) || {}).title || processId;
+
+async function loadServerJobs(interactive = false) {
+  if (!auth.authenticated) return;
+  $("serverStatus").textContent = "Chargement des jobs du serveur…";
   try {
-    const known = new Set(state.jobs.map((j) => j.jobId));
-    const titles = new Map(state.processes.map((p) => [p.id, p.title]));
-    for (const job of await api.listJobs()) {
-      if (!job.jobId || known.has(job.jobId) || state.ignored.has(job.jobId)) continue;
-      state.jobs.push({
-        jobId: job.jobId, processId: job.processId, title: titles.get(job.processId) || job.processId,
-        status: job.status, message: job.message, created: job.created || new Date().toISOString(), tables: 0,
-        comment: "Importé depuis le serveur",
+    server.jobs = await api.listAllJobs();
+    server.loaded = true;
+    server.page = 1;
+    renderServerJobs();
+  } catch (error) {
+    $("serverStatus").textContent = "Impossible de lister les jobs du serveur.";
+    if (interactive) showError(error);
+  }
+}
+
+function resetServerJobs() {
+  server.jobs = [];
+  server.loaded = false;
+  $("serverStatus").textContent = "Connectez-vous pour lister les jobs du serveur.";
+  renderServerJobs();
+}
+
+function followJob(job) {
+  if (state.jobs.some((j) => j.jobId === job.jobId)) return;
+  state.jobs.push({
+    jobId: job.jobId, processId: job.processId, title: processTitle(job.processId), status: job.status,
+    message: job.message, created: job.created || new Date().toISOString(), tables: 0, comment: "Suivi depuis la liste du serveur",
+  });
+  state.jobs = sortNewestFirst(state.jobs);
+  saveJobs();
+  renderJobs();
+  renderServerJobs();
+}
+
+function serverJobCard(job) {
+  const status = String(job.status || "").toLowerCase();
+  const date = job.created ? new Date(job.created).toLocaleString("fr-FR") : "date inconnue";
+  const meta = el("p", { className: "fr-text--sm fr-mb-1w", textContent: `${job.jobId} · ${date}${job.message ? ` · ${job.message}` : ""}` });
+  const { actions, button } = jobActions();
+  if (isSuccessful(status)) button("Résultats", () => showResults(job), false);
+  if (!state.jobs.some((j) => j.jobId === job.jobId)) button("Suivre", () => followJob(job));
+  const card = el("div", { className: "job" }, jobHeader(processTitle(job.processId), status), meta);
+  if (actions.children.length) card.append(actions);
+  const result = state.results.get(job.jobId);
+  if (result) card.append(renderResult(result));
+  return card;
+}
+
+function renderServerJobs({ focusPager = false } = {}) {
+  const box = $("serverJobs");
+  box.replaceChildren();
+  if (!server.loaded) {
+    $("serverPager").hidden = true;
+    return;
+  }
+  const view = paginateJobs(server.jobs, { filter: server.filter, page: server.page, pageSize: SERVER_PAGE_SIZE });
+  server.page = view.page;
+  $("serverStatus").textContent = !view.count
+    ? (view.total ? "Aucun job ne correspond à ce statut." : "Aucun job sur le serveur.")
+    : `Jobs ${view.from} à ${view.to} sur ${view.count}${view.count !== view.total ? ` (${view.total} au total)` : ""}.`;
+  for (const job of view.items) box.append(serverJobCard(job));
+  renderPager(view, focusPager);
+}
+
+// Pagination au format DSFR (fr-pagination) ; un lien désactivé n'a ni href ni clic.
+function renderPager(view, focus) {
+  const pager = $("serverPager");
+  pager.replaceChildren();
+  pager.hidden = view.pages <= 1;
+  if (view.pages <= 1) return;
+  const item = (label, page, extraClass = "", title = label) => {
+    const link = el("a", { className: `fr-pagination__link ${extraClass}`.trim(), textContent: label });
+    if (page === null) {
+      link.setAttribute("aria-disabled", "true");
+      link.setAttribute("role", "link");
+    } else {
+      link.href = "#serverJobs";
+      link.title = title;
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        server.page = page;
+        renderServerJobs({ focusPager: true });
       });
     }
-    state.jobs.sort((a, b) => String(b.created).localeCompare(String(a.created)));
-    saveJobs();
-    renderJobs();
-  } catch (error) {
-    showError(error);
+    return { li: el("li", {}, link), link };
+  };
+  const list = el("ul", { className: "fr-pagination__list" });
+  const { page, pages } = view;
+  list.append(item("Première page", page > 1 ? 1 : null, "fr-pagination__link--first").li);
+  list.append(item("Page précédente", page > 1 ? page - 1 : null, "fr-pagination__link--prev fr-pagination__link--lg-label").li);
+  for (const entry of pageWindow(page, pages)) {
+    if (entry === "…") {
+      list.append(item("…", null).li);
+      continue;
+    }
+    const hideOnMobile = Math.abs(entry - page) > 1 && entry !== 1 && entry !== pages;
+    const { li, link } = item(String(entry), entry, hideOnMobile ? "fr-displayed-lg" : "", `Page ${entry}`);
+    if (entry === page) link.setAttribute("aria-current", "page");
+    list.append(li);
   }
-});
+  list.append(item("Page suivante", page < pages ? page + 1 : null, "fr-pagination__link--next fr-pagination__link--lg-label").li);
+  list.append(item("Dernière page", page < pages ? pages : null, "fr-pagination__link--last").li);
+  pager.append(list);
+  if (focus) {
+    const current = pager.querySelector('[aria-current="page"]');
+    if (current) current.focus();
+  }
+}
 
 async function pollJobs(interactive = false) {
   if (!auth.authenticated) return;
@@ -714,5 +832,8 @@ if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
   }
   refreshAuthUI();
   renderJobs();
-  if (auth.authenticated) loadProducts();
+  if (auth.authenticated) {
+    loadProducts();
+    loadServerJobs();
+  }
 })();

@@ -84,10 +84,24 @@ export class ExtractionApi {
     return parseJob(await this._json("GET", `${this.base}/jobs/${jobId}`));
   }
 
-  async listJobs(limit = 50) {
-    const data = await this._json("GET", `${this.base}/jobs?limit=${limit}`);
+  // Une page de la liste des jobs (`page` commence à 1, du plus ancien au plus récent). Le service ne
+  // donne pas de total : un lien `next` signale qu'il reste des pages (une page hors limite : HTTP 500).
+  async listJobsPage(page = 1, limit = 100) {
+    const data = await this._json("GET", `${this.base}/jobs?page=${page}&limit=${limit}`);
     const items = Array.isArray(data) ? data : data.jobs;
-    return Array.isArray(items) ? items.map(parseJob) : [];
+    const links = Array.isArray(data.links) ? data.links : [];
+    return { jobs: Array.isArray(items) ? items.map(parseJob) : [], hasNext: links.some((link) => link.rel === "next") };
+  }
+
+  // Tous les jobs du compte, en suivant les liens `next` (au plus `maxPages` pages, par prudence).
+  async listAllJobs({ limit = 100, maxPages = 50 } = {}) {
+    const all = [];
+    for (let page = 1; page <= maxPages; page++) {
+      const { jobs, hasNext } = await this.listJobsPage(page, limit);
+      all.push(...jobs);
+      if (!hasNext || !jobs.length) break;
+    }
+    return all;
   }
 
   async getJobResults(jobId) {

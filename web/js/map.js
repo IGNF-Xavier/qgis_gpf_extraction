@@ -72,13 +72,15 @@ export function createMap({ target, onBox, onDrawChange = () => {} }) {
     const limits = new LayerWMS({ layer: "LIMITES_ADMINISTRATIVES_EXPRESS.LATEST" });
     ortho.setVisible(false);
     limits.setVisible(false);
-    const extentLayer = new VectorLayer({ source: extentSource, style: extentStyle, zIndex: 1000 });
     map = new Map({
       target,
-      layers: [plan, ortho, limits, extentLayer],
+      layers: [plan, ortho, limits],
       controls: [],
       view: new View({ center: fromLonLat([2.5, 46.6]), zoom: 5, maxZoom: 19 }),
     });
+    // Couche de l'emprise « non gérée » : affichée au-dessus de tout mais absente de la liste des
+    // couches de la carte, donc invisible pour le sélecteur de couches (on ne peut pas la supprimer).
+    new VectorLayer({ source: extentSource, style: extentStyle }).setMap(map);
     map.addControl(new GeoportalZoom());
     map.addControl(new SearchEngine({ collapsed: true }));
     map.addControl(new LayerSwitcher({ options: { collapsed: true } }));
