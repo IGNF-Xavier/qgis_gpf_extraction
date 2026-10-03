@@ -11,13 +11,15 @@ Publiée par GitHub Pages : <https://ignf-xavier.github.io/qgis_gpf_extraction/>
   Géoplateforme, contour précis), préréglages (France métropolitaine, chacun des 5 DOM avec son
   vrai contour), rectangle dessiné ou saisi, le tout visualisé sur le Plan IGN (carte OpenLayers avec les
   extensions Géoplateforme : changement de couche, recherche d'adresse, coordonnées du curseur).
+- **Étapes repliables** : connexion, emprise, produit, paramètres, requête et jobs sont des accordéons DSFR
+  avec un badge d'état ; « Continuer » ouvre l'étape suivante et les étapes sans objet sont désactivées.
 - **Produit et tables** : liste des produits du compte, sélecteur de tables, prédicats géométriques
   multiples combinés en OU, projection de sortie, format, fusion en un seul fichier, durée de rétention.
 - **Requête** : le corps JSON est affiché (modifiable en mode avancé), copiable en JSON ou en `curl`.
   Le filtre spatial utilise le contour précis, exprimé dans la projection *native* de la donnée
   (indépendante de la projection de sortie choisie).
-- **Jobs** : lancement, suivi, annulation, liens de téléchargement directs (aucun fichier ne transite par
-  cette page), avertissements sur les résultats suspects. Une liste des **jobs du serveur** (du plus récent
+- **Jobs** : lancement, suivi paginé (5 par page), annulation, liens de téléchargement directs (aucun fichier
+  ne transite par cette page), avertissements sur les résultats suspects. Une liste des **jobs du serveur** (du plus récent
   au plus ancien, filtre par statut, 5 par page) se pagine sans recharger la page : le service ne donne ni
   total ni tri, la liste complète est donc chargée une fois puis découpée dans le navigateur.
 - Les erreurs du service s'affichent avec la requête envoyée et la réponse reçue, copiables.
@@ -26,6 +28,8 @@ Publiée par GitHub Pages : <https://ignf-xavier.github.io/qgis_gpf_extraction/>
 
 - Pas de découpage des couches à l'emprise, de renommage du GeoPackage, ni d'application automatique
   de styles : ce sont des opérations côté QGIS, après téléchargement.
+- Un seul produit par extraction : un job ne porte que sur un produit et le service refuse un second job
+  tant que le premier tourne (HTTP 429, pas de file d'attente côté serveur).
 - Pas de connexion automatique : voir ci-dessous.
 
 ## Connexion

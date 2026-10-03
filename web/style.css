@@ -18,10 +18,15 @@ pre {
 .map { height: 30rem; border: 1px solid var(--border-default-grey); }
 .map.map-error { display: flex; align-items: center; padding: 1rem; height: auto; min-height: 6rem; }
 
-/* Listes à défilement (produits, tables) */
-.scroll-box { max-height: 18rem; overflow: auto; padding: 0.5rem 0.75rem; border: 1px solid var(--border-default-grey); width: 100%; }
-.scroll-box .fr-radio-group + .fr-radio-group { margin-top: 0.5rem; }
-.tables { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 0.25rem 1rem; margin: 0.5rem 0; }
+/* Étapes repliables (accordéons DSFR) avec badge d'état */
+.step .fr-accordion__btn { display: flex; align-items: center; flex-wrap: wrap; gap: 0.25rem 0.75rem; font-size: 1.125rem; font-weight: 700; }
+.step-badge { flex: none; }
+.fr-accordion__btn:disabled { color: var(--text-disabled-grey); cursor: not-allowed; }
+.steps .step { margin-bottom: 0.5rem; }
+
+/* Produits (boutons radio) et tables */
+.products .fr-radio-group + .fr-radio-group { margin-top: 0.75rem; }
+.tables { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 0.25rem 1rem; margin: 0.75rem 0; }
 
 .fr-fieldset__element--inline-group { display: flex; flex-wrap: wrap; gap: 0.25rem 1.5rem; }
 

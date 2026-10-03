@@ -86,6 +86,10 @@ export function createMap({ target, onBox, onDrawChange = () => {} }) {
     map.addControl(new LayerSwitcher({ options: { collapsed: true } }));
     map.addControl(new MousePosition({ collapsed: true }));
     map.addControl(new GeoportalAttribution());
+    // La carte vit dans une étape repliable : elle est créée à taille nulle et se redimensionne à l'ouverture.
+    if (typeof ResizeObserver !== "undefined") {
+      new ResizeObserver(() => map.updateSize()).observe(container);
+    }
     if (pending) applyExtent(pending);
   }
 

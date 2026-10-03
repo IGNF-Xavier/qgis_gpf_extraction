@@ -1,6 +1,6 @@
 // Configuration de l'interface web. Aucun secret ici : ce fichier est publié tel quel.
 
-export const WEB_VERSION = "0.3.0";
+export const WEB_VERSION = "0.4.0";
 export const REPO_URL = "https://github.com/IGNF-Xavier/qgis_gpf_extraction";
 
 // Services de la Géoplateforme (tous en CORS ouvert, vérifié en conditions réelles).
