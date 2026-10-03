@@ -218,7 +218,7 @@ export function fitExtent(geom, { mode = "auto", maxVertices = 5000, maxRects = 
 
 // Budget de sommets par filtre : le contour est recopié dans le filtre de chaque table, pour
 // chaque prédicat. `maxBytes` / (tables × prédicats × octets par sommet), borné.
-export function vertexBudget({ tables, predicates = 1, maxBytes = 1_000_000, bytesPerVertex = 22 }) {
+export function vertexBudget({ tables, predicates = 1, maxBytes = 60_000, bytesPerVertex = 22 }) {
   const copies = Math.max(1, tables) * Math.max(1, predicates);
   return Math.max(100, Math.min(50000, Math.floor(maxBytes / (copies * bytesPerVertex))));
 }

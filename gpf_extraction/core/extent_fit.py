@@ -20,7 +20,9 @@ Chaque étape recouvre l'emprise : on peut récupérer un peu plus de données,
 pratiquement jamais moins (résidu mesuré sur la Guadeloupe à 10 m : 192 m² sur
 ~1 600 km²). L'option « découper à l'emprise » du plugin retire l'excédent
 après téléchargement. Le seuil réel du service
-n'est pas documenté : le budget par défaut est une valeur prudente.
+n'est pas documenté. Mesuré sur la Guadeloupe (3 tables) : filtres de ~190 Ko chacun → HTTP 500,
+filtres de ~10 Ko → accepté. Le budget par défaut (60 Ko par requête) reste donc proche de la
+valeur qui a fonctionné ; le seuil exact n'est pas connu.
 
 Module indépendant de l'interface (uniquement `qgis.core`), donc testable seul.
 """
@@ -49,7 +51,7 @@ FIT_MODES = (FIT_AUTO, FIT_PRECISE, FIT_ENVELOPES, FIT_BBOX)
 TOLERANCES_M = (10, 25, 50, 100, 250)
 
 #: Poids visé pour les filtres spatiaux d'une requête (le contour est recopié dans chaque table).
-DEFAULT_BUDGET_BYTES = 1_000_000
+DEFAULT_BUDGET_BYTES = 60_000
 BYTES_PER_VERTEX = 22
 MIN_VERTICES = 100
 MAX_VERTICES = 50_000

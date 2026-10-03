@@ -112,7 +112,7 @@ test("la requête Guadeloupe à 3 tables reste sous le budget en mode automatiqu
   const fit = fitExtent(geom, { maxVertices });
   const body = JSON.stringify(buildRelations(tables, { srid: 4326, geometry: fit.geometry, bbox: geometryBounds(fit.geometry) }, ["Intersects"]));
   const raw = JSON.stringify(buildRelations(tables, { srid: 4326, geometry: geom, bbox: geometryBounds(geom) }, ["Intersects"]));
-  assert.ok(body.length < 1_300_000, `corps simplifié : ${body.length} octets`);
+  assert.ok(body.length < 100_000, `corps simplifié : ${body.length} octets`);
   assert.ok(raw.length > 5 * body.length);
 });
 
