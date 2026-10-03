@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { bboxToPolygon, geojsonToWkt, geometryBounds, wktDecimals } from "../js/geo.js";
 import { buildRelations } from "../js/builder.js";
+import "jsts/org/locationtech/jts/monkey.js"; // ajoute difference(), union()… aux géométries (tests seulement)
+import GeoJSONReader from "jsts/org/locationtech/jts/io/GeoJSONReader.js";
 import { clusterRects, countVertices, describeFit, fitExtent, simplifyGeometry, vertexBudget } from "../js/extent-fit.js";
 
 // Île à contour très découpé : cercle de rayon `r` degrés, bruité de ±2 % à haute fréquence.
@@ -21,16 +23,28 @@ const archipelago = () => ({
   coordinates: [island(-61.5, 16.2, 0.25, 60000), island(-61.3, 15.95, 0.1, 5000), island(-62.6, 15.0, 0.03, 800), island(-60.2, 17.0, 0.04, 800)],
 });
 
-test("simplification : moins de sommets, écart borné par la tolérance", () => {
-  const geom = archipelago();
-  const simple = simplifyGeometry(geom, 50);
-  assert.ok(countVertices(simple) < countVertices(geom) / 10);
-  assert.equal(simple.coordinates.length, 4);
-  // les bornes ne bougent que de quelques dizaines de mètres au plus (50 m ≈ 0,00045°)
+test("simplification : moins de sommets et l'emprise d'origine reste entièrement couverte", () => {
+  // Version plus légère de l'archipel (la différence booléenne sur 60 000 sommets serait lente).
+  const geom = {
+    type: "MultiPolygon",
+    coordinates: [island(-61.5, 16.2, 0.25, 4000), island(-61.3, 15.95, 0.1, 1500), island(-62.6, 15.0, 0.03, 600), island(-60.2, 17.0, 0.04, 600)],
+  };
+  const simple = simplifyGeometry(geom, 100);
+  assert.ok(countVertices(simple) < countVertices(geom) / 3);
+  // Chaque sommet d'origine est dans le contour élargi (à 1 cm près) : rien n'est rogné, aucune
+  // partie n'est perdue. (Une différence booléenne n'est pas utilisable ici : le bruit de l'île de test
+  // la rend elle-même invalide.)
+  const reader = new GeoJSONReader();
+  const grown = reader.read(simple).buffer(1e-7);
+  let outside = 0;
+  for (const poly of geom.coordinates) {
+    for (const [x, y] of poly[0]) if (!grown.covers(reader.read({ type: "Point", coordinates: [x, y] }))) outside++;
+  }
+  assert.equal(outside, 0, `${outside} sommets d'origine hors du contour élargi`);
+  assert.ok(simple.coordinates.length >= 1);
+  // les bornes ont grandi d'au plus ~2 tolérances (100 m ≈ 0,0009°)
   const [a, b] = [geometryBounds(geom), geometryBounds(simple)];
-  a.forEach((v, i) => assert.ok(Math.abs(v - b[i]) < 0.0006, `borne ${i}`));
-  // chaque anneau reste fermé
-  for (const poly of simple.coordinates) for (const ring of poly) assert.deepEqual(ring[0], ring[ring.length - 1]);
+  [a[0] - b[0], a[1] - b[1], b[2] - a[2], b[3] - a[3]].forEach((d, i) => assert.ok(d >= -1e-9 && d < 0.003, `borne ${i} : ${d}`));
 });
 
 test("simplification : un îlot qui s'effondre devient son rectangle, un trou qui s'effondre disparaît", () => {

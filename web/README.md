@@ -21,9 +21,10 @@ Publiée par GitHub Pages : <https://ignf-xavier.github.io/qgis_gpf_extraction/>
   table : un contour très détaillé (Guadeloupe : ~103 000 sommets, requête de 6,8 Mo) fait refuser la
   requête (HTTP 500). Le choix « Contour envoyé au serveur » est donc **automatique** par défaut :
   contour précis s'il tient dans le budget, sinon simplifié (10 à 250 m), sinon rectangles englobants,
-  sinon bbox ; le résumé de la requête indique ce qui part réellement. Ici la simplification n'élargit
-  pas le contour (pas de bibliothèque géométrique dans la page) : il peut être rogné de la tolérance
-  au bord ; les modes « précis » et « rectangles » restent au choix.
+  sinon bbox ; le résumé de la requête indique ce qui part réellement. Le contour simplifié est élargi
+  de sa tolérance (JSTS : simplification puis buffer, partie par partie), comme dans le plugin : rien
+  n'est rogné au bord, on récupère au plus un peu de données en plus ; les modes « précis » et
+  « rectangles » restent au choix.
 - **Jobs** : lancement, suivi paginé (5 par page), annulation, liens de téléchargement directs (aucun fichier
   ne transite par cette page), avertissements sur les résultats suspects. Une liste des **jobs du serveur** (du plus récent
   au plus ancien, filtre par statut, 5 par page) se pagine sans recharger la page : le service ne donne ni

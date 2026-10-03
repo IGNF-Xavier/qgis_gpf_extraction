@@ -11,9 +11,16 @@
 //   3. rectangles englobants (un par groupe de parties proches) : emprise entièrement couverte,
 //      et plus lourde seulement de quelques dizaines de sommets ;
 //   4. rectangle unique (bbox).
-// Les étapes 3 et 4 sont des sur-ensembles de l'emprise (on récupère un peu plus de données,
-// jamais moins). L'étape 2, elle, peut rogner la côte de quelques mètres, d'où sa tolérance bornée.
+// Chaque étape recouvre l'emprise : on récupère un peu plus de données, pratiquement jamais moins
+// (l'étape 2 est élargie de sa tolérance après simplification, les étapes 3 et 4 sont des rectangles).
 
+import ArrayList from "jsts/java/util/ArrayList.js";
+import GeoJSONReader from "jsts/org/locationtech/jts/io/GeoJSONReader.js";
+import GeoJSONWriter from "jsts/org/locationtech/jts/io/GeoJSONWriter.js";
+import BufferOp from "jsts/org/locationtech/jts/operation/buffer/BufferOp.js";
+import BufferParameters from "jsts/org/locationtech/jts/operation/buffer/BufferParameters.js";
+import UnaryUnionOp from "jsts/org/locationtech/jts/operation/union/UnaryUnionOp.js";
+import DouglasPeuckerSimplifier from "jsts/org/locationtech/jts/simplify/DouglasPeuckerSimplifier.js";
 import { geometryBounds } from "./geo.js";
 
 export const FIT_MODES = ["auto", "precise", "envelopes", "bbox"];
@@ -34,55 +41,61 @@ export function countVertices(geom) {
 }
 
 // ---------------------------------------------------------------- Simplification
-// Distance d'un point à un segment, dans l'espace où x est déjà mis à l'échelle du cosinus de
-// la latitude (sinon un degré de longitude pèserait autant qu'un degré de latitude).
-function segmentDistance(p, a, b) {
-  const dx = b[0] - a[0];
-  const dy = b[1] - a[1];
-  const len2 = dx * dx + dy * dy;
-  let t = len2 === 0 ? 0 : ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2;
-  t = Math.max(0, Math.min(1, t));
-  return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
+// Chaque partie est simplifiée (Douglas-Peucker) puis élargie de la même tolérance (buffer,
+// jointure en onglet, limite 2 : au moins aussi large qu'un buffer arrondi) : chaque sommet écarté
+// est à moins de `tolérance` du contour simplifié, que le buffer recouvre donc entièrement. Sans
+// cet élargissement, la simplification rognerait la côte de la tolérance, c'est-à-dire des données.
+// Partie par partie : un îlot qui s'effondre est remplacé par son rectangle, jamais supprimé.
+// Les calculs se font dans un repère où x est multiplié par cos(latitude), pour que la tolérance
+// soit la même en longitude et en latitude.
+const reader = new GeoJSONReader();
+const writer = new GeoJSONWriter();
+
+function bufferParameters() {
+  const params = new BufferParameters();
+  params.setQuadrantSegments(1);
+  params.setEndCapStyle(BufferParameters.CAP_FLAT);
+  params.setJoinStyle(BufferParameters.JOIN_MITRE);
+  params.setMitreLimit(2);
+  return params;
 }
 
-// Douglas-Peucker itératif (une côte peut compter des centaines de milliers de sommets : pas de récursion).
-function douglasPeucker(points, tolerance) {
-  const n = points.length;
-  if (n < 3) return points.slice();
-  const keep = new Uint8Array(n);
-  keep[0] = keep[n - 1] = 1;
-  const stack = [[0, n - 1]];
-  while (stack.length) {
-    const [a, b] = stack.pop();
-    let max = -1;
-    let index = -1;
-    for (let i = a + 1; i < b; i++) {
-      const d = segmentDistance(points[i], points[a], points[b]);
-      if (d > max) { max = d; index = i; }
-    }
-    if (max > tolerance) {
-      keep[index] = 1;
-      stack.push([a, index], [index, b]);
-    }
-  }
-  return points.filter((_, i) => keep[i]);
+// Parties du (Multi)Polygone en repère « isotrope », prêtes à être simplifiées plusieurs fois.
+export function prepareParts(geom) {
+  const bounds = geometryBounds(geom);
+  const k = Math.cos((((bounds[1] + bounds[3]) / 2) * Math.PI) / 180) || 1;
+  const parts = polygonsOf(geom).map((poly) => {
+    const scaled = { type: "Polygon", coordinates: poly.map((ring) => ring.map(([x, y]) => [x * k, y])) };
+    return { jts: reader.read(scaled), bounds: ringBounds(scaled.coordinates[0]) };
+  });
+  return { parts, k };
 }
 
-// Anneau fermé : coupé au point le plus éloigné du départ pour avoir deux chaînes ouvertes.
-// `null` si l'anneau s'effondre (moins de 3 sommets distincts).
-function simplifyRing(ring, tolerance, k) {
-  const scaled = ring.map(([x, y]) => [x * k, y]);
-  let far = 0;
-  let farDist = -1;
-  for (let i = 1; i < scaled.length - 1; i++) {
-    const d = Math.hypot(scaled[i][0] - scaled[0][0], scaled[i][1] - scaled[0][1]);
-    if (d > farDist) { farDist = d; far = i; }
+export function simplifyGeometry(geom, toleranceM, prepared = prepareParts(geom)) {
+  const { parts, k } = prepared;
+  const tolerance = toleranceM / METERS_PER_DEGREE;
+  const params = bufferParameters();
+  const grown = new ArrayList();
+  for (const part of parts) {
+    let result = null;
+    try {
+      const simple = DouglasPeuckerSimplifier.simplify(part.jts, tolerance);
+      if (simple && !simple.isEmpty()) result = new BufferOp(simple, params).getResultGeometry(tolerance);
+    } catch {
+      /* repli sur le rectangle ci-dessous */
+    }
+    if (!result || result.isEmpty()) {
+      const [x0, y0, x1, y1] = part.bounds;
+      const rect = { type: "Polygon", coordinates: [rectRing([x0 - tolerance, y0 - tolerance, x1 + tolerance, y1 + tolerance])] };
+      result = reader.read(rect);
+    }
+    grown.add(result);
   }
-  if (far === 0) return null;
-  const first = douglasPeucker(scaled.slice(0, far + 1), tolerance);
-  const second = douglasPeucker(scaled.slice(far), tolerance);
-  const out = first.concat(second.slice(1));
-  return out.length >= 4 ? out.map(([x, y]) => [x / k, y]) : null;
+  const merged = UnaryUnionOp.union(grown); // des parties voisines peuvent se chevaucher après le buffer
+  const out = writer.write(merged);
+  const unscale = ([x, y]) => [x / k, y];
+  if (out.type === "Polygon") return { type: "Polygon", coordinates: out.coordinates.map((ring) => ring.map(unscale)) };
+  return { type: "MultiPolygon", coordinates: out.coordinates.map((poly) => poly.map((ring) => ring.map(unscale))) };
 }
 
 const rectRing = ([x0, y0, x1, y1]) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]];
@@ -96,25 +109,6 @@ function ringBounds(ring) {
     if (y > y1) y1 = y;
   }
   return [x0, y0, x1, y1];
-}
-
-// Simplifie un (Multi)Polygone en EPSG:4326 avec une tolérance en mètres. Un îlot qui
-// s'effondre est remplacé par son rectangle englobant, un trou qui s'effondre est supprimé :
-// dans les deux cas l'emprise ne fait que s'agrandir.
-export function simplifyGeometry(geom, toleranceM) {
-  const bounds = geometryBounds(geom);
-  if (!bounds) return geom;
-  const k = Math.cos((((bounds[1] + bounds[3]) / 2) * Math.PI) / 180) || 1;
-  const tolerance = toleranceM / METERS_PER_DEGREE;
-  const polygon = (poly) => {
-    const [outer, ...holes] = poly;
-    const simpleOuter = simplifyRing(outer, tolerance, k);
-    if (!simpleOuter) return [rectRing(ringBounds(outer))];
-    return [simpleOuter, ...holes.map((h) => simplifyRing(h, tolerance, k)).filter(Boolean)];
-  };
-  return geom.type === "Polygon"
-    ? { type: "Polygon", coordinates: polygon(geom.coordinates) }
-    : { type: "MultiPolygon", coordinates: geom.coordinates.map(polygon) };
 }
 
 // ---------------------------------------------------------------- Rectangles englobants
@@ -201,8 +195,9 @@ export function fitExtent(geom, { mode = "auto", maxVertices = 5000, maxRects = 
 
   if (mode === "auto") {
     if (originalVertices <= maxVertices) return result("precise", geom);
+    const prepared = prepareParts(geom);
     for (const toleranceM of TOLERANCES_M) {
-      const simple = simplifyGeometry(geom, toleranceM);
+      const simple = simplifyGeometry(geom, toleranceM, prepared);
       if (countVertices(simple) <= maxVertices) return result("simplified", simple, { toleranceM });
     }
   }
