@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GPF Extraction — interface web</title>
+  <meta name="description" content="Interface web expérimentale et non officielle pour le service d'extraction de la Géoplateforme (BD TOPO® et autres produits).">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div>
+    <h1>GPF Extraction <span class="muted">— interface web</span></h1>
+    <p class="muted">Extraire la BD TOPO® et les autres produits de la Géoplateforme auxquels votre compte a accès.</p>
+  </div>
+  <span class="badge warn" title="Pas de revue de code externe, pas de processus de publication">Expérimental · non officiel</span>
+</header>
+
+<main>
+  <!-- 1. Connexion -->
+  <section id="auth" class="card">
+    <h2><span class="step">1</span> Connexion</h2>
+    <p id="authStatus" class="status" role="status">Non connecté.</p>
+    <div class="row">
+      <label class="grow">Jeton d'accès (Bearer)
+        <input id="tokenInput" type="password" autocomplete="off" spellcheck="false" placeholder="Collez ici un jeton d'accès Géoplateforme">
+      </label>
+      <button id="tokenUse" type="button">Utiliser ce jeton</button>
+      <button id="tokenClear" type="button" class="secondary">Effacer</button>
+      <button id="oidcLogin" type="button" hidden>Se connecter</button>
+    </div>
+    <label class="inline"><input id="tokenRemember" type="checkbox"> Mémoriser pour cet onglet seulement (effacé à sa fermeture)</label>
+    <details>
+      <summary>Comment obtenir un jeton&nbsp;?</summary>
+      <p>Le jeton reste dans votre navigateur et n'est envoyé qu'à <code>data.geopf.fr</code>. Il est <strong>temporaire</strong> (quelques dizaines de minutes à quelques heures).</p>
+      <ul>
+        <li><strong>Depuis QGIS</strong> (console Python, avec une configuration d'authentification Géoplateforme déjà connectée) :
+<pre>from qgis.core import QgsApplication
+from qgis.PyQt.QtCore import QUrl
+from qgis.PyQt.QtNetwork import QNetworkRequest
+r = QNetworkRequest(QUrl("https://data.geopf.fr/extraction/processes"))
+QgsApplication.authManager().updateNetworkRequest(r, "ID_DE_LA_CONFIG")
+print(bytes(r.rawHeader(b"Authorization")).decode())</pre></li>
+        <li><strong>Depuis le Swagger officiel</strong> du service (<a href="https://data.geopf.fr/extraction/swagger-ui/index.html" target="_blank" rel="noopener">swagger-ui</a>) : bouton <em>Authorize</em>, puis le jeton apparaît dans la commande <code>curl</code> générée par <em>Try it out</em>.</li>
+      </ul>
+      <p class="muted">Une connexion automatique (OAuth2) nécessite un client dédié enregistré côté Géoplateforme pour cette page : le client public du Swagger refuse toute redirection vers une autre origine.</p>
+    </details>
+  </section>
+
+  <!-- 2. Emprise -->
+  <section id="extent" class="card">
+    <h2><span class="step">2</span> Emprise</h2>
+    <div class="tabs" role="tablist">
+      <button id="tabSearch" role="tab" aria-selected="true" type="button">Recherche administrative</button>
+      <button id="tabBbox" role="tab" aria-selected="false" type="button">Rectangle (BBox)</button>
+    </div>
+
+    <div id="paneSearch">
+      <label>Commune, département ou région
+        <input id="adminSearch" type="search" autocomplete="off" placeholder="Rechercher… (ex. Rouen, Rhône, Bretagne)">
+      </label>
+      <div id="presets" class="chips" aria-label="Préréglages"></div>
+      <ul id="adminResults" class="results" aria-live="polite"></ul>
+    </div>
+
+    <div id="paneBbox" hidden>
+      <div class="row">
+        <button id="drawBbox" type="button">Dessiner un rectangle sur la carte</button>
+        <span class="muted">ou saisir les coordonnées (EPSG:4326) :</span>
+      </div>
+      <div class="row coords">
+        <label>Ouest (xmin)<input id="bboxXmin" type="number" step="any"></label>
+        <label>Sud (ymin)<input id="bboxYmin" type="number" step="any"></label>
+        <label>Est (xmax)<input id="bboxXmax" type="number" step="any"></label>
+        <label>Nord (ymax)<input id="bboxYmax" type="number" step="any"></label>
+        <button id="bboxApply" type="button" class="secondary">Appliquer</button>
+      </div>
+    </div>
+
+    <p id="extentLabel" class="status" role="status">Aucune emprise choisie.</p>
+    <p id="domWarning" class="alert warn" hidden></p>
+    <div id="map" aria-label="Carte"></div>
+  </section>
+
+  <!-- 3. Produit -->
+  <section id="product" class="card">
+    <h2><span class="step">3</span> Produit</h2>
+    <label>Filtrer
+      <input id="productFilter" type="search" placeholder="Filtrer (ex. BD TOPO)…">
+    </label>
+    <select id="productList" size="6" aria-label="Produits disponibles"></select>
+    <p id="productStatus" class="muted">Connectez-vous pour lister les produits.</p>
+    <p id="productDescription" class="muted"></p>
+  </section>
+
+  <!-- 4. Paramètres -->
+  <section id="params" class="card" hidden>
+    <h2><span class="step">4</span> Paramètres</h2>
+    <fieldset>
+      <legend>Prédicat(s) géométrique(s) <span class="muted">(combinés en OU)</span></legend>
+      <div id="predicates" class="checks"></div>
+    </fieldset>
+    <div id="relationsBox" hidden>
+      <h3>Tables à extraire</h3>
+      <div class="row">
+        <input id="tableFilter" type="search" class="grow" placeholder="Filtrer les tables…">
+        <button id="tablesAll" type="button" class="secondary">Tout cocher</button>
+        <button id="tablesNone" type="button" class="secondary">Tout décocher</button>
+      </div>
+      <div id="tableList" class="tables"></div>
+      <p id="tableCount" class="muted"></p>
+    </div>
+    <div id="genericFields" class="fields"></div>
+  </section>
+
+  <!-- 5. Requête -->
+  <section id="request" class="card" hidden>
+    <h2><span class="step">5</span> Requête et lancement</h2>
+    <p class="muted">Le filtre spatial utilise le contour précis de l'emprise (pas seulement son rectangle englobant), exprimé dans la projection native de la donnée — indépendante de la projection de sortie choisie.</p>
+    <label class="inline"><input id="jsonEdit" type="checkbox"> Modifier le JSON à la main (mode avancé)</label>
+    <textarea id="requestJson" spellcheck="false" readonly rows="14" aria-label="Corps de la requête"></textarea>
+    <p id="requestSize" class="muted"></p>
+    <ul id="missing" class="missing"></ul>
+    <div class="row">
+      <button id="launch" type="button" disabled>Lancer l'extraction</button>
+      <button id="copyJson" type="button" class="secondary">Copier le JSON</button>
+      <button id="copyCurl" type="button" class="secondary">Copier en curl</button>
+    </div>
+  </section>
+
+  <!-- 6. Jobs -->
+  <section id="jobs" class="card">
+    <h2><span class="step">6</span> Jobs</h2>
+    <p class="muted">Un job tourne côté serveur, indépendamment de cette page : il reste retrouvable ici (ce navigateur) ou via « Importer ». Un seul job simultané est autorisé par compte.</p>
+    <div class="row">
+      <button id="jobsImport" type="button" class="secondary">Importer les jobs du serveur</button>
+      <button id="jobsRefresh" type="button" class="secondary">Rafraîchir</button>
+    </div>
+    <div id="jobList"></div>
+  </section>
+</main>
+
+<footer>
+  <p>Interface web <span id="webVersion"></span> — expérimentale et non officielle, indépendante de l'IGN. Code source, plugin QGIS et documentation :
+    <a id="repoLink" target="_blank" rel="noopener">dépôt GitHub</a>. Fonds de carte © IGN / Géoplateforme.</p>
+</footer>
+
+<dialog id="errorDialog">
+  <form method="dialog">
+    <h2>Erreur</h2>
+    <p id="errorMessage"></p>
+    <textarea id="errorReport" readonly rows="14" spellcheck="false" aria-label="Requête envoyée et réponse reçue"></textarea>
+    <div class="row">
+      <button id="errorCopy" type="button">Copier la requête et la réponse</button>
+      <button value="close" class="secondary">Fermer</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/proj4@2.15.0/dist/proj4.js"
+        integrity="sha384-xW3INKRIuZiGkhth61Bh5nbna+3oHENli5N2RUsGhI1IuqEnzYMJK9EGgdUVtwo+" crossorigin="anonymous"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

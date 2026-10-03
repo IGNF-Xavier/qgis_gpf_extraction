@@ -45,6 +45,20 @@ non authentifié de l'ancien plugin.
 - **Édition avancée du corps de requête (JSON)** en secours pour tout
   processus ou paramètre non couvert par le formulaire générique.
 
+## Interface web (expérimentale)
+
+Une interface web, sans rien à installer, couvre l'essentiel de ce périmètre
+(emprise administrative ou rectangle sur le Plan IGN, produit, tables,
+prédicats, projection de sortie, requête JSON/curl copiable, suivi des jobs et
+liens de téléchargement directs) :
+<https://ignf-xavier.github.io/qgis_gpf_extraction/>. Elle n'effectue pas le
+découpage, le renommage ni le style, qui restent propres au plugin QGIS.
+
+La connexion s'y fait avec un **jeton Bearer collé à la main** (temporaire) : le
+client OAuth2 public du Swagger refuse toute redirection vers une autre origine,
+une connexion automatique exigerait un client dédié enregistré côté
+Géoplateforme. Détails et développement dans [`web/README.md`](web/README.md).
+
 ## Limites connues, au stade actuel
 
 - Le bouton de connexion autonome intégré est désactivé (aucun client

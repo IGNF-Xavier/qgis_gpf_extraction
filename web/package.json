@@ -1,0 +1,9 @@
+{
+  "name": "gpf-extraction-web",
+  "private": true,
+  "type": "module",
+  "description": "Interface web (statique) expérimentale pour le service d'extraction de la Géoplateforme",
+  "scripts": {
+    "test": "node --test tests/"
+  }
+}
