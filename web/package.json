@@ -6,7 +6,7 @@
   "engines": { "node": ">=20" },
   "scripts": {
     "build": "node build.mjs",
-    "test": "node --test tests/"
+    "test": "node --test"
   },
   "dependencies": {
     "@gouvfr/dsfr": "1.14.4",
