@@ -40,7 +40,11 @@ par job) plutôt que l'ancien WFS anonyme.
    les homonymes) — sauté silencieusement si la projection du canevas n'est
    pas définie pour cette zone (ex. Lambert-93 pour un DOM). Le libellé
    d'emprise affiché reste un simple rectangle englobant même dans ce cas :
-   le contour précis est bien celui envoyé au serveur.
+   le filtre envoyé au serveur utilise le contour, simplifié ou remplacé par
+   des rectangles englobants quand il est trop lourd (liste « Contour envoyé
+   au serveur » : automatique par défaut ; un contour de plusieurs centaines
+   de milliers de sommets, comme la Guadeloupe, faisait refuser la requête
+   avec une erreur HTTP 500).
    En choisissant un DOM, un avertissement s'affiche si le titre du produit
    sélectionné indique explicitement ne pas couvrir les DOM (ex. « France
    entière (hors DOM) ») — une heuristique basée sur une convention de

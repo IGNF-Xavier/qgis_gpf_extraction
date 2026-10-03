@@ -34,6 +34,13 @@ from qgis.PyQt.QtWidgets import (
     QWidget,
 )
 
+from gpf_extraction.core.extent_fit import (
+    FIT_AUTO,
+    ExtentFit,
+    fit_extent,
+    vertex_budget,
+    wkt_precision,
+)
 from gpf_extraction.core.models import StoredDataTable
 
 #: Correspondance prédicat (libellé UI) -> fonction PostGIS. `filters` est une
@@ -72,6 +79,12 @@ class RelationsBuilderWidget(QWidget):
         #: directement à construire un `ST_MakeEnvelope`.
         self._extent_geometry: Optional[QgsGeometry] = None
         self._predicates: list[str] = list(DEFAULT_PREDICATES)
+        #: Contour réellement envoyé (précis, simplifié, rectangles, bbox) : voir
+        #: `core/extent_fit.py`. Le calcul est coûteux sur un contour de plusieurs
+        #: centaines de milliers de sommets : mémoïsé tant que la géométrie ne change pas.
+        self._fit_mode: str = FIT_AUTO
+        self._fit_cache: dict = {}
+        self._fit_fingerprint: Optional[int] = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -151,6 +164,36 @@ class RelationsBuilderWidget(QWidget):
         self._extent = rectangle
         self._extent_srid = srid
         self._extent_geometry = geometry
+        # L'appelant repousse l'emprise (reprojetée, donc nouvel objet) à chaque validation :
+        # on ne vide le cache que si le contenu a réellement changé.
+        fingerprint = (
+            hash((srid, bytes(geometry.asWkb()))) if geometry is not None and not geometry.isNull() else None
+        )
+        if fingerprint != self._fit_fingerprint:
+            self._fit_fingerprint = fingerprint
+            self._fit_cache.clear()
+
+    def set_fit_mode(self, mode: str) -> None:
+        """Choisit le contour envoyé : `auto`, `precise`, `envelopes` ou `bbox`."""
+        self._fit_mode = mode
+
+    def current_fit(self) -> Optional[ExtentFit]:
+        """Contour retenu pour le filtre de chaque table, ou None sans contour (BBox dessinée).
+
+        Le contour est recopié dans le filtre de chaque table et de chaque prédicat : son
+        budget de sommets dépend donc du nombre de tables cochées (avec géométrie)."""
+        geometry = self._extent_geometry
+        if geometry is None or geometry.isNull() or geometry.isEmpty():
+            return None
+        tables = max(
+            1,
+            sum(1 for item in self._checked_items() if item.data(Qt.ItemDataRole.UserRole).geometry_attribute),
+        )
+        max_vertices = vertex_budget(tables, len(self._predicates or DEFAULT_PREDICATES))
+        key = (self._fit_mode, max_vertices)
+        if key not in self._fit_cache:
+            self._fit_cache[key] = fit_extent(geometry, self._extent_srid, self._fit_mode, max_vertices)
+        return self._fit_cache[key]
 
     def set_predicates(self, predicates: list[str]) -> None:
         """Définit les prédicats géométriques à combiner (en OU) dans le
@@ -198,10 +241,11 @@ class RelationsBuilderWidget(QWidget):
         """Expression SQL de l'emprise : `ST_GeomFromText(...)` pour une vraie
         géométrie (contour administratif ou couche du projet), `ST_MakeEnvelope(...)`
         en repli pour une simple BBox rectangulaire."""
-        if self._extent_geometry is not None and not self._extent_geometry.isEmpty():
-            wkt = self._extent_geometry.asWkt()
+        fit = self.current_fit()
+        if fit is not None and fit.geometry is not None:
+            wkt = fit.geometry.asWkt(wkt_precision(self._extent_srid))
             return f"ST_GeomFromText('{wkt}', {self._extent_srid})"
-        if self._extent is not None:
+        if self._extent is not None:  # BBox dessinée, ou contour remplacé par un rectangle unique
             return (
                 f"ST_MakeEnvelope({self._extent.xMinimum()}, {self._extent.yMinimum()}, "
                 f"{self._extent.xMaximum()}, {self._extent.yMaximum()}, {self._extent_srid})"

@@ -3,18 +3,26 @@
 
 import { GEOCODING_SEARCH, WFS_BASE, WFS_ADMIN_LAYER_PREFIX } from "./config.js";
 
-const fmt = (n) => String(Math.round(n * 1e7) / 1e7);
-
 // ---------------------------------------------------------------- GeoJSON ↔ WKT
-const ringToWkt = (ring) => "(" + ring.map(([x, y]) => `${fmt(x)} ${fmt(y)}`).join(",") + ")";
-
-export function geojsonToWkt(geom) {
+// `decimals` : 7 par défaut (≈ 1 cm en degrés) ; l'appelant en demande moins pour limiter la
+// taille de la requête (6 en degrés ≈ 10 cm, 2 en mètres = 1 cm).
+export function geojsonToWkt(geom, decimals = 7) {
   if (!geom || !geom.type) return null;
+  const scale = 10 ** decimals;
+  const fmt = (n) => String(Math.round(n * scale) / scale);
+  const ringToWkt = (ring) => "(" + ring.map(([x, y]) => `${fmt(x)} ${fmt(y)}`).join(",") + ")";
   if (geom.type === "Polygon") return `POLYGON(${geom.coordinates.map(ringToWkt).join(",")})`;
   if (geom.type === "MultiPolygon") {
     return `MULTIPOLYGON(${geom.coordinates.map((poly) => `(${poly.map(ringToWkt).join(",")})`).join(",")})`;
   }
   return null;
+}
+
+// Décimales utiles pour un contour : des degrés (valeurs ≤ 360) ou des mètres (projection).
+export function wktDecimals(geom) {
+  const bounds = geometryBounds(geom);
+  const geographic = bounds && bounds.every((v) => Math.abs(v) <= 360);
+  return geographic ? 6 : 2;
 }
 
 function forEachCoordinate(geom, fn) {

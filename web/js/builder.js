@@ -1,7 +1,7 @@
 // Construction du corps de requête d'extraction — équivalent de
 // `wdg_relations_builder.py` / `wdg_process_params.py`. Fonctions pures, testées sous Node.
 
-import { geojsonToWkt } from "./geo.js";
+import { geojsonToWkt, wktDecimals } from "./geo.js";
 import { OUTPUTS_NOT_REQUESTED, fieldDefault, fieldEnum, fieldType } from "./models.js";
 
 export const PREDICATE_SQL = {
@@ -24,7 +24,7 @@ export const DEFAULT_PREDICATES = ["Intersects"];
 export function extentExpression(extent) {
   if (!extent) return null;
   if (extent.geometry) {
-    const wkt = geojsonToWkt(extent.geometry);
+    const wkt = geojsonToWkt(extent.geometry, wktDecimals(extent.geometry));
     if (wkt) return `ST_GeomFromText('${wkt}', ${extent.srid})`;
   }
   if (extent.bbox) {

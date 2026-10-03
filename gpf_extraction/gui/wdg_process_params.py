@@ -106,6 +106,7 @@ class ProcessParamsWidget(QWidget):
         self._extent_rectangle: Optional[QgsRectangle] = None
         self._extent_geometry: Optional[QgsGeometry] = None
         self._predicates: list[str] = list(DEFAULT_PREDICATES)
+        self._fit_mode: str = "auto"
         self._relations_widget: Optional[RelationsBuilderWidget] = None
         self._pending_stored_data: Optional[StoredDataDescription] = None
         self._srs_widget: Optional[QComboBox] = None
@@ -198,6 +199,7 @@ class ProcessParamsWidget(QWidget):
                     geometry=self._extent_geometry,
                 )
             self._relations_widget.set_predicates(self._predicates)
+            self._relations_widget.set_fit_mode(self._fit_mode)
 
         self._wire_format_append_compatibility()
         self._refresh_advanced_preview()
@@ -323,6 +325,22 @@ class ProcessParamsWidget(QWidget):
         if self._relations_widget is not None:
             self._relations_widget.set_predicates(self._predicates)
         self._refresh_advanced_preview()
+
+    def set_fit_mode(self, mode: str) -> None:
+        """Choisit le contour envoyé dans le filtre spatial (`auto`, `precise`,
+        `envelopes`, `bbox`) : voir `core/extent_fit.py`."""
+        self._fit_mode = mode
+        if self._relations_widget is not None:
+            self._relations_widget.set_fit_mode(mode)
+        self._refresh_advanced_preview()
+
+    def extent_fit_description(self) -> str:
+        """Résumé du contour réellement envoyé, ou une chaîne vide sans sélecteur de
+        tables ni contour."""
+        if self._relations_widget is None:
+            return ""
+        fit = self._relations_widget.current_fit()
+        return fit.describe() if fit is not None else ""
 
     # ------------------------------------------------------------------
     # Construction des widgets

@@ -163,6 +163,17 @@ for cid, cfg in am.availableAuthMethodConfigs().items():
         </div>
 
         <p id="extentLabel" class="fr-text--sm fr-mt-2w fr-mb-1w" role="status">Aucune emprise choisie.</p>
+        <div class="fr-select-group fr-mb-1w">
+          <label class="fr-label" for="fitMode">Contour envoyé au serveur
+            <span class="fr-hint-text">Un contour très détaillé (côtes, archipels) alourdit la requête jusqu'à la faire refuser (HTTP 500). « Automatique » le simplifie, puis le remplace par des rectangles englobants si besoin. Ces rectangles couvrent toute l'emprise mais ramènent un peu de données en plus.</span>
+          </label>
+          <select class="fr-select" id="fitMode">
+            <option value="auto" selected>Automatique (recommandé)</option>
+            <option value="precise">Contour précis, sans simplification</option>
+            <option value="envelopes">Rectangles englobants (un par zone)</option>
+            <option value="bbox">Rectangle unique (bbox)</option>
+          </select>
+        </div>
         <div id="domWarning" class="fr-alert fr-alert--warning fr-alert--sm fr-mb-1w" hidden><p id="domWarningText"></p></div>
         <div id="map" class="map" role="region" aria-label="Carte de l'emprise"></div>
         <p class="fr-mt-2w fr-mb-0"><button type="button" class="fr-btn fr-btn--sm" id="extentNext" data-next="stepProductBody" disabled>Continuer</button></p>

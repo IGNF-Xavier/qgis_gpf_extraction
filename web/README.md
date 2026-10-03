@@ -16,8 +16,14 @@ Publiée par GitHub Pages : <https://ignf-xavier.github.io/qgis_gpf_extraction/>
 - **Produit et tables** : liste des produits du compte, sélecteur de tables, prédicats géométriques
   multiples combinés en OU, projection de sortie, format, fusion en un seul fichier, durée de rétention.
 - **Requête** : le corps JSON est affiché (modifiable en mode avancé), copiable en JSON ou en `curl`.
-  Le filtre spatial utilise le contour précis, exprimé dans la projection *native* de la donnée
-  (indépendante de la projection de sortie choisie).
+  Le filtre spatial utilise le contour, exprimé dans la projection *native* de la donnée
+  (indépendante de la projection de sortie choisie). Le contour est recopié dans le filtre de chaque
+  table : un contour très détaillé (Guadeloupe : ~103 000 sommets, requête de 6,8 Mo) fait refuser la
+  requête (HTTP 500). Le choix « Contour envoyé au serveur » est donc **automatique** par défaut :
+  contour précis s'il tient dans le budget, sinon simplifié (10 à 250 m), sinon rectangles englobants,
+  sinon bbox ; le résumé de la requête indique ce qui part réellement. Ici la simplification n'élargit
+  pas le contour (pas de bibliothèque géométrique dans la page) : il peut être rogné de la tolérance
+  au bord ; les modes « précis » et « rectangles » restent au choix.
 - **Jobs** : lancement, suivi paginé (5 par page), annulation, liens de téléchargement directs (aucun fichier
   ne transite par cette page), avertissements sur les résultats suspects. Une liste des **jobs du serveur** (du plus récent
   au plus ancien, filtre par statut, 5 par page) se pagine sans recharger la page : le service ne donne ni

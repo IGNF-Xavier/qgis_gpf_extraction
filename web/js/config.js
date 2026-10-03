@@ -1,6 +1,6 @@
 // Configuration de l'interface web. Aucun secret ici : ce fichier est publié tel quel.
 
-export const WEB_VERSION = "0.4.0";
+export const WEB_VERSION = "0.5.0";
 export const REPO_URL = "https://github.com/IGNF-Xavier/qgis_gpf_extraction";
 
 // Services de la Géoplateforme (tous en CORS ouvert, vérifié en conditions réelles).
@@ -13,6 +13,11 @@ export const WFS_ADMIN_LAYER_PREFIX = "LIMITES_ADMINISTRATIVES_EXPRESS.LATEST";
 // configuration Géoplateforme de cette clé (lot « essentiels » : Plan IGN, photographies
 // aériennes, limites administratives).
 export const CONFIG_KEY = "essentiels";
+
+// Poids visé pour les filtres spatiaux d'une requête (le contour est recopié dans chaque table).
+// Constaté : 6,8 Mo (Guadeloupe, 3 tables, contour précis) → HTTP 500 ; la même emprise en bbox passe.
+// Le seuil réel du service n'est pas documenté : 1 Mo est une valeur prudente, pas une limite connue.
+export const FILTER_BUDGET_BYTES = 1_000_000;
 
 // Projection de travail des emprises (GeoJSON, géocodage, carte).
 export const WORKING_CRS = "EPSG:4326";

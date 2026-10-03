@@ -28,6 +28,7 @@ from qgis.PyQt.QtGui import QDesktopServices
 from qgis.PyQt.QtWidgets import (
     QButtonGroup,
     QCheckBox,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
@@ -58,6 +59,7 @@ from gpf_extraction.core.admin_boundary import (
 from gpf_extraction.core.constants import DEFAULT_WORKING_CRS
 from gpf_extraction.core.csw_client import prefetch_catalog_async
 from gpf_extraction.core.exceptions import AdminBoundaryNotFoundError, ApiRequestError
+from gpf_extraction.core.extent_fit import FIT_AUTO, FIT_BBOX, FIT_ENVELOPES, FIT_PRECISE
 from gpf_extraction.core.extraction_api_client import ExtractionApiClient
 from gpf_extraction.core.job_registry import JobRegistry, TrackedJob
 from gpf_extraction.core.stored_data import StoredDataClient
@@ -248,6 +250,33 @@ class GpfExtractionDialog(QDialog):
         self.lbl_dom_warning.setStyleSheet("color: #a33;")
         self.lbl_dom_warning.setVisible(False)
         extent_layout.addWidget(self.lbl_dom_warning)
+
+        fit_layout = QHBoxLayout()
+        fit_layout.addWidget(QLabel(self.tr("Contour envoyé au serveur :")))
+        self.cmb_fit_mode = QComboBox()
+        for mode, label in (
+            (FIT_AUTO, self.tr("Automatique (recommandé)")),
+            (FIT_PRECISE, self.tr("Contour précis, sans simplification")),
+            (FIT_ENVELOPES, self.tr("Rectangles englobants (un par zone)")),
+            (FIT_BBOX, self.tr("Rectangle unique (bbox)")),
+        ):
+            self.cmb_fit_mode.addItem(label, mode)
+        self.cmb_fit_mode.setToolTip(
+            self.tr(
+                "Un contour très détaillé (côtes, archipels) alourdit la requête jusqu'à la "
+                "faire refuser par le serveur (HTTP 500 constaté avec la Guadeloupe : 6,8 Mo). "
+                "« Automatique » le simplifie, puis le remplace par des rectangles englobants "
+                "si besoin. Dans tous les cas l'emprise reste couverte : on peut récupérer "
+                "un peu plus de données, pratiquement jamais moins (voir « Découper à l'emprise »)."
+            )
+        )
+        self.cmb_fit_mode.currentIndexChanged.connect(self._on_fit_mode_changed)
+        fit_layout.addWidget(self.cmb_fit_mode, 1)
+        extent_layout.addLayout(fit_layout)
+        self.lbl_fit_note = QLabel()
+        self.lbl_fit_note.setWordWrap(True)
+        self.lbl_fit_note.setVisible(False)
+        extent_layout.addWidget(self.lbl_fit_note)
 
         extent_layout.addWidget(QLabel(self.tr("Prédicat(s) géométrique(s) :")))
         predicates_grid = QGridLayout()
@@ -461,8 +490,9 @@ class GpfExtractionDialog(QDialog):
         )
         if self.current_extent_geometry is not None:
             text += self.tr(
-                " (rectangle englobant affiché à titre indicatif ; le contour "
-                "précis est utilisé pour le filtre envoyé au serveur)"
+                " (rectangle englobant affiché à titre indicatif ; le filtre envoyé au "
+                "serveur utilise le contour, simplifié ou remplacé par des rectangles "
+                "s'il est trop lourd)"
             )
         self.lbl_extent_value.setText(text)
         # La transmission au formulaire de paramètres (reprojetée dans la
@@ -519,6 +549,15 @@ class GpfExtractionDialog(QDialog):
     def _checked_predicates(self) -> list[str]:
         checked = [name for name, cb in self._predicate_checkboxes.items() if cb.isChecked()]
         return checked or list(DEFAULT_PREDICATES)
+
+    def _on_fit_mode_changed(self, _index: int = 0) -> None:
+        self.params_widget.set_fit_mode(self.cmb_fit_mode.currentData())
+        self._validate()
+
+    def _update_fit_note(self) -> None:
+        text = self.params_widget.extent_fit_description()
+        self.lbl_fit_note.setText(self.tr("Filtre envoyé : {}").format(text) if text else "")
+        self.lbl_fit_note.setVisible(bool(text))
 
     def _on_predicate_toggled(self, _checked: bool = False) -> None:
         # Empêche de tout décocher : au moins un prédicat actif en permanence
@@ -856,6 +895,7 @@ class GpfExtractionDialog(QDialog):
         # prédicats, processus sélectionné, projection de sortie choisie dans
         # le formulaire) pour que le filtre spatial envoyé reste à jour.
         self._apply_extent_to_params()
+        self._update_fit_note()
 
         ok = bool(self.client) and self.current_extent is not None and self.selected_process is not None
 

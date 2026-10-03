@@ -7,7 +7,8 @@ import {
   DEFAULT_PREDICATES, PREDICATE_SQL, buildBody, buildRelations, curlCommand, initialValue,
   isMultilayerFormat, missingForLaunch, preferredEnumValue,
 } from "./builder.js";
-import { API_BASE, POLL_INTERVAL_MS, REPO_URL, WEB_VERSION } from "./config.js";
+import { API_BASE, FILTER_BUDGET_BYTES, POLL_INTERVAL_MS, REPO_URL, WEB_VERSION } from "./config.js";
+import { describeFit, fitExtent, vertexBudget } from "./extent-fit.js";
 import {
   bboxToPolygon, domCoverageWarning, geometryBounds, loadPresets, makeTransformFrom4326,
   reprojectGeometry, searchAdmin, srid, transformBbox,
@@ -49,7 +50,8 @@ const state = {
   processes: [],
   selection: new Map(),   // au plus un produit : id -> { process, storedData, checkedTables, values, controls, tableFilter, jsonEdit, body, ui }
   pending: new Set(),     // produit choisi dont le chargement est en cours
-  extent: null,           // { label, geometry (EPSG:4326), bbox, code, precise }
+  extent: null,           // { label, geometry (EPSG:4326), bbox, code, precise, fits: Map (contours adaptés, par budget) }
+  fitMode: "auto",        // contour envoyé au serveur : auto | precise | envelopes | bbox
   adminResult: null, missing: [],
   predicates: new Set(DEFAULT_PREDICATES),
   jobs: store.get("gpf_web_jobs", []),
@@ -135,13 +137,13 @@ const mapApi = createMap({
 
 function setExtent({ label, geometry, code = "", precise }) {
   const bbox = geometryBounds(geometry);
-  state.extent = { label, geometry, bbox, code, precise };
+  state.extent = { label, geometry, bbox, code, precise, fits: new Map() };
   const [x0, y0, x1, y1] = bbox;
   // Le résumé est toujours la bounding box ; le contour précis (s'il existe) est ce qui
   // part réellement dans le filtre — d'où la précision ci-dessous.
   $("extentLabel").textContent =
     `Emprise « ${label} » (EPSG:4326) : ${x0.toFixed(4)}, ${y0.toFixed(4)} → ${x1.toFixed(4)}, ${y1.toFixed(4)}` +
-    (precise ? " (rectangle englobant affiché à titre indicatif ; le contour précis est utilisé pour le filtre envoyé au serveur)" : "");
+    (precise ? " (rectangle englobant affiché à titre indicatif ; le filtre envoyé au serveur utilise le contour, simplifié ou remplacé par des rectangles s'il est trop lourd : voir l'étape 5)" : "");
   mapApi.showExtent(geometry, bbox);
   refreshRequest();
 }
@@ -208,6 +210,10 @@ function applyBbox(bbox) {
   for (const b of document.querySelectorAll("#presets button, #adminResults button")) b.setAttribute("aria-pressed", "false");
   setExtent({ label: "BBox", geometry: bboxToPolygon(bbox), precise: false });
 }
+$("fitMode").addEventListener("change", () => {
+  state.fitMode = $("fitMode").value;
+  refreshRequest();
+});
 $("bboxApply").addEventListener("click", () => {
   const [x0, y0, x1, y1] = ["bboxXmin", "bboxYmin", "bboxXmax", "bboxYmax"].map((id) => parseFloat($(id).value));
   if ([x0, y0, x1, y1].some(Number.isNaN) || x0 >= x1 || y0 >= y1) {
@@ -504,15 +510,27 @@ function extentForFilter(entry) {
   const nativeCrs = (entry.storedData && entry.storedData.srs) || "EPSG:4326";
   const transform = makeTransformFrom4326(proj4, nativeCrs);
   if (!transform) return { extent: null, supported: false, nativeCrs };
-  const { geometry, bbox, precise } = state.extent;
+  const { bbox, precise } = state.extent;
   const extent = { srid: srid(nativeCrs) };
-  if (precise) {
-    extent.geometry = reprojectGeometry(geometry, transform);
+  const fit = precise ? fitFor(entry) : null;
+  if (fit && fit.geometry) {
+    extent.geometry = reprojectGeometry(fit.geometry, transform);
     extent.bbox = geometryBounds(extent.geometry);
   } else {
     extent.bbox = transformBbox(bbox, transform);
   }
-  return { extent, supported: true, nativeCrs };
+  return { extent, supported: true, nativeCrs, fit };
+}
+
+// Contour réellement envoyé : il est recopié dans le filtre de chaque table (et chaque
+// prédicat), donc son budget de sommets dépend du nombre de tables cochées. Mémoïsé par budget.
+function fitFor(entry) {
+  const tables = entryTables(entry).filter((t) => entry.checkedTables.has(t.name) && t.geometryAttribute);
+  const maxVertices = vertexBudget({ tables: tables.length, predicates: state.predicates.size, maxBytes: FILTER_BUDGET_BYTES });
+  const key = `${state.fitMode}|${maxVertices}`;
+  const { fits, geometry } = state.extent;
+  if (!fits.has(key)) fits.set(key, fitExtent(geometry, { mode: state.fitMode, maxVertices }));
+  return fits.get(key);
 }
 
 // Un bloc par produit : résumé, et le corps JSON (modifiable, copiable) dans un accordéon.
@@ -570,7 +588,7 @@ function refreshRequest() {
   $("domWarning").hidden = !warnings.length;
 
   for (const entry of entries) {
-    const { extent } = extentForFilter(entry);
+    const { extent, fit } = extentForFilter(entry);
     const tables = entryTables(entry).filter((t) => entry.checkedTables.has(t.name));
     const relations = buildRelations(tables, extent, [...state.predicates]);
     entry.body = buildBody(entry.process, entry.values, relations, state.extent ? state.extent.bbox : null);
@@ -581,7 +599,8 @@ function refreshRequest() {
     if (entry.ui.summary) {
       const format = entry.values.format ? ` · ${entry.values.format}` : "";
       const srs = entry.values.srs ? ` · ${entry.values.srs}` : "";
-      entry.ui.summary.textContent = `${entry.checkedTables.size} table(s)${format}${srs} · requête de ${size}`;
+      const filter = fit ? ` · filtre : ${describeFit(fit)}` : "";
+      entry.ui.summary.textContent = `${entry.checkedTables.size} table(s)${format}${srs} · requête de ${size}${filter}`;
     }
     updateTableCount(entry);
   }
