@@ -27,6 +27,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Dépendances (les tests importent JSTS)
+        working-directory: web
+        run: npm ci
       - name: Tests unitaires (runner Node intégré)
         working-directory: web
         run: npm test
