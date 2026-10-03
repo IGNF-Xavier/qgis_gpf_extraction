@@ -53,6 +53,8 @@ prédicats, projection de sortie, requête JSON/curl copiable, suivi des jobs et
 liens de téléchargement directs) :
 <https://ignf-xavier.github.io/qgis_gpf_extraction/>. Elle n'effectue pas le
 découpage, le renommage ni le style, qui restent propres au plugin QGIS.
+Elle est mise en forme avec le système de design de l'État (DSFR) et sa carte repose sur
+les [extensions Géoplateforme pour OpenLayers](https://github.com/IGNF/geopf-extensions-openlayers).
 
 La connexion s'y fait avec un **jeton Bearer collé à la main** (temporaire) : le
 client OAuth2 public du Swagger refuse toute redirection vers une autre origine,

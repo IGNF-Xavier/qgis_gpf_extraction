@@ -1,6 +1,6 @@
 // Configuration de l'interface web. Aucun secret ici : ce fichier est publié tel quel.
 
-export const WEB_VERSION = "0.1.0";
+export const WEB_VERSION = "0.2.0";
 export const REPO_URL = "https://github.com/IGNF-Xavier/qgis_gpf_extraction";
 
 // Services de la Géoplateforme (tous en CORS ouvert, vérifié en conditions réelles).
@@ -8,7 +8,11 @@ export const API_BASE = "https://data.geopf.fr/extraction";
 export const GEOCODING_SEARCH = "https://data.geopf.fr/geocodage/search";
 export const WFS_BASE = "https://data.geopf.fr/wfs/ows";
 export const WFS_ADMIN_LAYER_PREFIX = "LIMITES_ADMINISTRATIVES_EXPRESS.LATEST";
-export const WMTS_BASE = "https://data.geopf.fr/wmts";
+
+// Fonds de carte : couches et contrôles de geopf-extensions-openlayers, qui lisent la
+// configuration Géoplateforme de cette clé (lot « essentiels » : Plan IGN, photographies
+// aériennes, limites administratives).
+export const CONFIG_KEY = "essentiels";
 
 // Projection de travail des emprises (GeoJSON, géocodage, carte).
 export const WORKING_CRS = "EPSG:4326";

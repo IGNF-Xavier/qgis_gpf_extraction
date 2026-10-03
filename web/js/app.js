@@ -7,12 +7,14 @@ import {
   DEFAULT_PREDICATES, PREDICATE_SQL, buildBody, buildRelations, curlCommand, initialValue,
   isMultilayerFormat, missingForLaunch, preferredEnumValue,
 } from "./builder.js";
-import { API_BASE, POLL_INTERVAL_MS, REPO_URL, WEB_VERSION, WMTS_BASE } from "./config.js";
+import { API_BASE, POLL_INTERVAL_MS, REPO_URL, WEB_VERSION } from "./config.js";
 import {
   bboxToPolygon, domCoverageWarning, geometryBounds, loadPresets, makeTransformFrom4326,
   reprojectGeometry, searchAdmin, srid, transformBbox,
 } from "./geo.js";
+import { createMap } from "./map.js";
 import { fieldEnum, fieldType, isFailed, isRunning, isSuccessful } from "./models.js";
+import proj4 from "proj4";
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...children) => {
@@ -20,6 +22,20 @@ const el = (tag, props = {}, ...children) => {
   for (const child of children) node.append(child);
   return node;
 };
+// Identifiants uniques pour relier <label for> et <input> générés dynamiquement (DSFR).
+let uid = 0;
+const nextId = (prefix) => `${prefix}-${++uid}`;
+
+// Cases à cocher / boutons radio au format DSFR : <div class="fr-…-group"><input><label></div>.
+function dsfrChoice(type, { name, text, checked = false, small = true, hint = "" }) {
+  const id = nextId(type);
+  const input = el("input", { type, id, checked });
+  if (name) input.name = name;
+  const label = el("label", { className: "fr-label", htmlFor: id }, text);
+  if (hint) label.append(el("span", { className: "fr-hint-text", textContent: hint }));
+  const wrap = el("div", { className: `fr-${type}-group${small ? ` fr-${type}-group--sm` : ""}` }, input, label);
+  return { wrap, input, label };
+}
 const store = {
   get: (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } },
   set: (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* quota ou stockage indisponible */ } },
@@ -60,24 +76,27 @@ function showError(error, context = {}) {
   $("errorReport").value = error instanceof ApiError ? error.report() : String(error && error.message ? error.message : error);
   $("errorReport").hidden = !$("errorReport").value;
   $("errorCopy").hidden = $("errorReport").hidden;
-  $("errorDialog").showModal();
+  if (window.dsfr) window.dsfr($("errorDialog")).modal.disclose();
+  else window.alert($("errorMessage").textContent); // DSFR indisponible : au moins afficher le message
 }
 $("errorCopy").addEventListener("click", (e) => copyText($("errorReport").value, e.currentTarget));
 
 // ------------------------------------------------------------------ 1. Connexion
 function refreshAuthUI() {
   const status = $("authStatus");
-  status.className = "status";
+  const alert = $("authAlert");
+  let tone = "info";
   if (!auth.token) {
     status.textContent = "Non connecté : sans jeton, la recherche d'emprise et la construction de la requête fonctionnent, mais pas la liste des produits ni le lancement.";
   } else if (auth.isExpired) {
     status.textContent = "Jeton expiré : collez-en un nouveau.";
-    status.classList.add("bad");
+    tone = "error";
   } else {
     const left = auth.secondsLeft;
     status.textContent = left === null ? "Jeton en place (expiration inconnue)." : `Jeton valide encore ${Math.max(1, Math.round(left / 60))} min.`;
-    status.classList.add("ok");
+    tone = "success";
   }
+  alert.className = `fr-alert fr-alert--sm fr-alert--${tone}`;
   $("oidcLogin").hidden = !oidcConfigured();
   refreshRequest();
 }
@@ -98,14 +117,13 @@ $("oidcLogin").addEventListener("click", () => startLogin());
 setInterval(refreshAuthUI, 30000);
 
 // ------------------------------------------------------------------ 2. Emprise
-const map = L.map("map").setView([46.6, 2.5], 5);
-const tile = (layer, format) =>
-  `${WMTS_BASE}?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${layer}&STYLE=normal&FORMAT=${format}` +
-  "&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}";
-const planIgn = L.tileLayer(tile("GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2", "image/png"), { maxZoom: 19, attribution: "© IGN / Géoplateforme" }).addTo(map);
-const ortho = L.tileLayer(tile("ORTHOIMAGERY.ORTHOPHOTOS", "image/jpeg"), { maxZoom: 19, attribution: "© IGN / Géoplateforme" });
-L.control.layers({ "Plan IGN": planIgn, "Photographies aériennes": ortho }).addTo(map);
-let extentLayer = null;
+const drawButton = $("drawBbox");
+const DRAW_LABEL = drawButton.textContent;
+const mapApi = createMap({
+  target: "map",
+  onBox: (bbox) => applyBbox(bbox),
+  onDrawChange: (active) => { drawButton.textContent = active ? "Cliquez-glissez sur la carte…" : DRAW_LABEL; },
+});
 
 function setExtent({ label, geometry, code = "", precise }) {
   const bbox = geometryBounds(geometry);
@@ -116,9 +134,7 @@ function setExtent({ label, geometry, code = "", precise }) {
   $("extentLabel").textContent =
     `Emprise « ${label} » (EPSG:4326) : ${x0.toFixed(4)}, ${y0.toFixed(4)} → ${x1.toFixed(4)}, ${y1.toFixed(4)}` +
     (precise ? " (rectangle englobant affiché à titre indicatif ; le contour précis est utilisé pour le filtre envoyé au serveur)" : "");
-  if (extentLayer) extentLayer.remove();
-  extentLayer = L.geoJSON(geometry, { style: { color: "#000091", weight: 2, fillOpacity: 0.12 } }).addTo(map);
-  map.fitBounds([[y0, x0], [y1, x1]], { padding: [24, 24] });
+  mapApi.showExtent(geometry, bbox);
   refreshRequest();
 }
 
@@ -127,15 +143,17 @@ function selectAdmin(result) {
   setExtent({ label: result.label, geometry: result.geometry, code: result.code, precise: true });
 }
 
-function setTab(name) {
-  const search = name === "search";
-  $("tabSearch").setAttribute("aria-selected", String(search));
-  $("tabBbox").setAttribute("aria-selected", String(!search));
-  $("paneSearch").hidden = !search;
-  $("paneBbox").hidden = search;
-}
-$("tabSearch").addEventListener("click", () => setTab("search"));
-$("tabBbox").addEventListener("click", () => setTab("bbox"));
+// Les onglets « Recherche administrative » / « Rectangle » sont gérés par le DSFR (fr-tabs).
+
+const tag = (label, onClick) => {
+  const button = el("button", { type: "button", className: "fr-tag", textContent: label });
+  button.setAttribute("aria-pressed", "false");
+  button.addEventListener("click", (event) => {
+    event.stopImmediatePropagation(); // le DSFR basculerait aria-pressed lui-même (et désélectionnerait au 2e clic)
+    onClick(button);
+  });
+  return el("li", {}, button);
+};
 
 let searchTimer = null;
 $("adminSearch").addEventListener("input", () => {
@@ -148,62 +166,38 @@ $("adminSearch").addEventListener("input", () => {
     try {
       const results = await searchAdmin(text);
       if (text !== $("adminSearch").value.trim()) return; // réponse périmée
-      if (!results.length) list.append(el("li", { className: "muted", textContent: "Aucun résultat." }));
+      if (!results.length) list.append(el("li", { className: "fr-hint-text", textContent: "Aucun résultat." }));
       for (const result of results) {
-        const button = el("button", { type: "button", textContent: result.label });
-        button.addEventListener("click", () => {
-          for (const b of list.querySelectorAll("button")) b.removeAttribute("aria-selected");
-          button.setAttribute("aria-selected", "true");
+        list.append(tag(result.label, (button) => {
+          for (const b of list.querySelectorAll("button")) b.setAttribute("aria-pressed", "false");
+          button.setAttribute("aria-pressed", "true");
           selectAdmin(result);
-        });
-        list.append(el("li", {}, button));
+        }));
       }
     } catch (error) {
-      list.append(el("li", { className: "muted", textContent: `Recherche indisponible (${error.message}).` }));
+      list.append(el("li", { className: "fr-hint-text", textContent: `Recherche indisponible (${error.message}).` }));
     }
   }, 350);
 });
 
 loadPresets().then((presets) => {
   for (const preset of presets) {
-    const button = el("button", { type: "button", textContent: preset.label.replace(" (préréglage)", ""), title: "Préréglage" });
-    button.addEventListener("click", () => selectAdmin(preset));
-    $("presets").append(button);
+    $("presets").append(tag(preset.label.replace(" (préréglage)", ""), (button) => {
+      for (const b of $("presets").querySelectorAll("button")) b.setAttribute("aria-pressed", "false");
+      button.setAttribute("aria-pressed", "true");
+      selectAdmin(preset);
+    }));
   }
 });
 
 // Rectangle dessiné à la souris (ou saisi à la main) : le rectangle EST l'emprise utilisée.
-let drawing = false;
-let drawStart = null;
-let drawRect = null;
-$("drawBbox").addEventListener("click", () => {
-  drawing = true;
-  map.dragging.disable();
-  map.getContainer().style.cursor = "crosshair";
-  $("drawBbox").textContent = "Cliquez-glissez sur la carte…";
-});
-map.on("mousedown", (e) => {
-  if (!drawing) return;
-  drawStart = e.latlng;
-  drawRect = L.rectangle([drawStart, drawStart], { color: "#ce0500", weight: 2 }).addTo(map);
-});
-map.on("mousemove", (e) => { if (drawing && drawStart) drawRect.setBounds([drawStart, e.latlng]); });
-map.on("mouseup", (e) => {
-  if (!drawing || !drawStart) return;
-  const b = L.latLngBounds(drawStart, e.latlng);
-  drawing = false;
-  drawStart = null;
-  drawRect.remove();
-  drawRect = null;
-  map.dragging.enable();
-  map.getContainer().style.cursor = "";
-  $("drawBbox").textContent = "Dessiner un rectangle sur la carte";
-  if (b.getWest() === b.getEast() || b.getSouth() === b.getNorth()) return;
-  applyBbox([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]);
+drawButton.addEventListener("click", () => {
+  if (!mapApi.startDraw()) $("extentLabel").textContent = "La carte n'est pas disponible : saisissez les coordonnées du rectangle.";
 });
 function applyBbox(bbox) {
   [$("bboxXmin").value, $("bboxYmin").value, $("bboxXmax").value, $("bboxYmax").value] = bbox.map((n) => +n.toFixed(6));
   state.adminResult = null;
+  for (const b of document.querySelectorAll("#presets button, #adminResults button")) b.setAttribute("aria-pressed", "false");
   setExtent({ label: "BBox", geometry: bboxToPolygon(bbox), precise: false });
 }
 $("bboxApply").addEventListener("click", () => {
@@ -232,21 +226,26 @@ async function loadProducts() {
 const BDTOPO_HINTS = ["bdtopo", "bd topo", "bd_topo"];
 function renderProducts() {
   const filter = $("productFilter").value.trim().toLowerCase();
-  const select = $("productList");
-  select.replaceChildren();
+  const list = $("productList");
+  list.replaceChildren();
   const sorted = [...state.processes].sort((a, b) => {
     const rank = (p) => (BDTOPO_HINTS.some((h) => p.title.toLowerCase().includes(h)) ? 0 : 1);
     return rank(a) - rank(b) || a.title.localeCompare(b.title);
   });
   for (const process of sorted) {
     if (filter && !`${process.title} ${process.id} ${process.description}`.toLowerCase().includes(filter)) continue;
-    const option = el("option", { value: process.id, textContent: process.title, title: process.description });
-    option.selected = state.process && state.process.id === process.id;
-    select.append(option);
+    const { wrap, input, label } = dsfrChoice("radio", {
+      name: "product", text: process.title, checked: Boolean(state.process && state.process.id === process.id),
+    });
+    input.value = process.id;
+    label.title = process.description;
+    list.append(wrap);
   }
 }
 $("productFilter").addEventListener("input", renderProducts);
-$("productList").addEventListener("change", () => selectProduct($("productList").value));
+$("productList").addEventListener("change", (event) => {
+  if (event.target instanceof HTMLInputElement && event.target.checked) selectProduct(event.target.value);
+});
 
 async function selectProduct(id) {
   $("productStatus").textContent = "Chargement du produit…";
@@ -292,18 +291,20 @@ function buildParams() {
   // Prédicats (cases à cocher combinées en OU ; au moins un reste toujours coché).
   const predicates = $("predicates");
   predicates.replaceChildren();
+  const predicateBoxes = new Map();
   for (const name of Object.keys(PREDICATE_SQL)) {
-    const box = el("input", { type: "checkbox", checked: state.predicates.has(name) });
-    box.addEventListener("change", () => {
-      if (box.checked) state.predicates.add(name);
+    const { wrap, input } = dsfrChoice("checkbox", { text: name, checked: state.predicates.has(name) });
+    predicateBoxes.set(name, input);
+    input.addEventListener("change", () => {
+      if (input.checked) state.predicates.add(name);
       else state.predicates.delete(name);
       if (!state.predicates.size) {
         state.predicates.add(DEFAULT_PREDICATES[0]);
-        for (const other of predicates.querySelectorAll("input")) other.checked = other.parentElement.textContent.trim() === DEFAULT_PREDICATES[0];
+        for (const [other, box] of predicateBoxes) box.checked = other === DEFAULT_PREDICATES[0];
       }
       refreshRequest();
     });
-    predicates.append(el("label", {}, box, name));
+    predicates.append(wrap);
   }
 
   // Tables (input `relations`).
@@ -325,25 +326,32 @@ function buildParams() {
 }
 
 function buildField(field) {
-  const label = FIELD_LABELS[field.id.toLowerCase()] || field.title || field.id;
-  const wrap = el("label", { title: field.description }, label + (field.required ? " *" : ""));
-  let input;
+  const text = (FIELD_LABELS[field.id.toLowerCase()] || field.title || field.id) + (field.required ? " *" : "");
   const e = fieldEnum(field);
   const type = fieldType(field);
+  const id = nextId("field");
+  // Groupe DSFR : <div class="fr-input-group|fr-select-group"><label class="fr-label"><input|select></div>
+  const group = (kind, control, hint = "") => {
+    const label = el("label", { className: "fr-label", htmlFor: id, title: field.description || "" }, text);
+    if (hint) label.append(el("span", { className: "fr-hint-text", textContent: hint }));
+    return el("div", { className: `fr-${kind}-group fr-mb-2w` }, label, control);
+  };
+  let input;
+  let wrap;
 
   if (field.id.toLowerCase() === "srs") {
     const native = state.storedData && state.storedData.srs;
     const options = [...new Set([native, ...COMMON_SRS].filter(Boolean))];
-    input = el("input", { type: "text", value: native || "" });
+    input = el("input", { type: "text", id, className: "fr-input", value: native || "" });
     input.setAttribute("list", "srsOptions"); // `list` est en lecture seule côté DOM : attribut obligatoire
     const list = el("datalist", { id: "srsOptions" });
     for (const code of options) list.append(el("option", { value: code, label: code === native ? "natif de la donnée" : "" }));
-    wrap.append(input, list);
-    wrap.append(el("small", { className: "muted", textContent: "Projection de sortie du résultat (indépendante du filtre spatial)." }));
+    wrap = group("input", input, "Projection de sortie du résultat (indépendante du filtre spatial).");
+    wrap.append(list);
     input.addEventListener("input", () => { state.values.srs = input.value.trim() || undefined; refreshRequest(); });
     state.values.srs = native || undefined;
   } else if (e) {
-    input = el("select");
+    input = el("select", { id, className: "fr-select" });
     if (!field.required) input.append(el("option", { value: "", textContent: "(non spécifié)" }));
     for (const value of e) input.append(el("option", { value: String(value), textContent: String(value) }));
     const initial = field.required ? preferredEnumValue(e) : initialValue(field);
@@ -354,15 +362,17 @@ function buildField(field) {
       if (field.id === "format") syncAppendWithFormat();
       refreshRequest();
     });
-    wrap.append(input);
+    wrap = group("select", input);
   } else if (type === "boolean") {
-    input = el("input", { type: "checkbox", checked: Boolean(initialValue(field)) });
+    const choice = dsfrChoice("checkbox", { text, checked: Boolean(initialValue(field)) });
+    input = choice.input;
+    choice.label.title = field.description || "";
     state.values[field.id] = input.checked;
     input.addEventListener("change", () => { state.values[field.id] = input.checked; refreshRequest(); });
-    wrap.className = "inline";
-    wrap.prepend(input);
+    wrap = choice.wrap;
+    wrap.classList.add("fr-mb-2w");
   } else if (type === "integer" || type === "number") {
-    input = el("input", { type: "number", step: type === "integer" ? "1" : "any" });
+    input = el("input", { type: "number", id, className: "fr-input", step: type === "integer" ? "1" : "any" });
     if (field.id === "lifetime") {
       input.min = "0";
       input.max = "336";
@@ -377,13 +387,13 @@ function buildField(field) {
     };
     read();
     input.addEventListener("input", () => { read(); refreshRequest(); });
-    wrap.append(input);
+    wrap = group("input", input);
   } else if (type === "" || type === "string") {
-    input = el("input", { type: "text" });
+    input = el("input", { type: "text", id, className: "fr-input" });
     if (typeof initialValue(field) === "string") input.value = initialValue(field);
     state.values[field.id] = input.value.trim() || undefined;
     input.addEventListener("input", () => { state.values[field.id] = input.value.trim() || undefined; refreshRequest(); });
-    wrap.append(input);
+    wrap = group("input", input);
   } else {
     return null; // array / object : le mode JSON avancé reste le moyen de le renseigner
   }
@@ -412,15 +422,17 @@ function renderTables() {
   const filter = $("tableFilter").value.trim().toLowerCase();
   for (const table of tables) {
     if (filter && !table.name.toLowerCase().includes(filter)) continue;
-    const checkbox = el("input", { type: "checkbox", checked: state.checkedTables.has(table.name) });
-    checkbox.addEventListener("change", () => {
-      if (checkbox.checked) state.checkedTables.add(table.name);
+    const { wrap, input } = dsfrChoice("checkbox", {
+      text: table.name + (table.geometryAttribute ? "" : " — sans géométrie"), checked: state.checkedTables.has(table.name),
+    });
+    input.addEventListener("change", () => {
+      if (input.checked) state.checkedTables.add(table.name);
       else state.checkedTables.delete(table.name);
       refreshRequest();
     });
-    box.append(el("label", {}, checkbox, table.name + (table.geometryAttribute ? "" : " — sans géométrie")));
+    box.append(wrap);
   }
-  if (!tables.length) box.append(el("span", { className: "muted", textContent: "Aucune table décrite pour ce produit." }));
+  if (!tables.length) box.append(el("span", { className: "fr-hint-text", textContent: "Aucune table décrite pour ce produit." }));
   updateTableCount();
 }
 function updateTableCount() {
@@ -448,7 +460,7 @@ $("tablesNone").addEventListener("click", () => setAllTables(false));
 function extentForFilter() {
   if (!state.extent) return { extent: null, supported: true };
   const nativeCrs = (state.storedData && state.storedData.srs) || "EPSG:4326";
-  const transform = makeTransformFrom4326(window.proj4, nativeCrs);
+  const transform = makeTransformFrom4326(proj4, nativeCrs);
   if (!transform) return { extent: null, supported: false, nativeCrs };
   const { geometry, bbox, precise } = state.extent;
   const extent = { srid: srid(nativeCrs) };
@@ -464,7 +476,7 @@ function extentForFilter() {
 function refreshRequest() {
   const title = state.process ? state.process.title : "";
   const warning = domCoverageWarning(title, state.adminResult);
-  $("domWarning").textContent = warning ? `⚠ ${warning}` : "";
+  $("domWarningText").textContent = warning || "";
   $("domWarning").hidden = !warning;
   updateTableCount();
 
@@ -551,18 +563,18 @@ const STATUS_LABEL = { successful: "terminé", running: "en cours", accepted: "e
 function renderJobs() {
   const box = $("jobList");
   box.replaceChildren();
-  if (!state.jobs.length) box.append(el("p", { className: "muted", textContent: "Aucun job suivi dans ce navigateur." }));
+  if (!state.jobs.length) box.append(el("p", { className: "fr-hint-text fr-mt-2w", textContent: "Aucun job suivi dans ce navigateur." }));
   for (const job of state.jobs) {
     const status = String(job.status || "").toLowerCase();
-    const pillClass = isSuccessful(status) ? "ok" : isFailed(status) ? "bad" : "running";
+    const badge = isSuccessful(status) ? "success" : isFailed(status) ? "error" : "info";
     const head = el("header", {}, el("strong", { textContent: job.title || job.processId }),
-      el("span", { className: `pill ${pillClass}`, textContent: STATUS_LABEL[status] || status || "inconnu" }));
-    const meta = el("p", { className: "muted", textContent: `${job.jobId} · ${new Date(job.created).toLocaleString("fr-FR")}${job.tables ? ` · ${job.tables} table(s)` : ""}${job.message ? ` · ${job.message}` : ""}` });
-    const actions = el("div", { className: "row" });
+      el("span", { className: `fr-badge fr-badge--sm fr-badge--${badge}`, textContent: STATUS_LABEL[status] || status || "inconnu" }));
+    const meta = el("p", { className: "fr-text--sm fr-mb-1w", textContent: `${job.jobId} · ${new Date(job.created).toLocaleString("fr-FR")}${job.tables ? ` · ${job.tables} table(s)` : ""}${job.message ? ` · ${job.message}` : ""}` });
+    const actions = el("ul", { className: "fr-btns-group fr-btns-group--sm fr-btns-group--inline-md" });
     const button = (text, handler, secondary = true) => {
-      const b = el("button", { type: "button", textContent: text, className: secondary ? "secondary" : "" });
+      const b = el("button", { type: "button", textContent: text, className: `fr-btn${secondary ? " fr-btn--secondary" : ""}` });
       b.addEventListener("click", handler);
-      actions.append(b);
+      actions.append(el("li", {}, b));
     };
     button("Rafraîchir", () => refreshJob(job.jobId, true));
     if (isRunning(status)) button("Annuler", () => cancelJob(job));
@@ -581,11 +593,14 @@ function renderResult(result) {
   for (const file of result.files) {
     const link = el("a", { href: file.href, textContent: file.filename, rel: "noopener", target: "_blank" });
     link.setAttribute("download", file.filename);
-    list.append(el("li", {}, link, el("span", { className: "muted", textContent: file.size ? ` — ${formatSize(file.size)}` : "" })));
+    link.className = "fr-link fr-icon-download-line fr-link--icon-left";
+    list.append(el("li", {}, link, el("span", { className: "fr-hint-text", textContent: file.size ? ` — ${formatSize(file.size)}` : "" })));
   }
   wrap.append(list);
-  if (result.summary) wrap.append(el("p", { className: "muted", textContent: result.summary }));
-  for (const warning of result.warnings) wrap.append(el("p", { className: "alert warn", textContent: `⚠ ${warning}` }));
+  if (result.summary) wrap.append(el("p", { className: "fr-text--sm", textContent: result.summary }));
+  for (const warning of result.warnings) {
+    wrap.append(el("div", { className: "fr-alert fr-alert--warning fr-alert--sm fr-mb-1w" }, el("p", { textContent: warning })));
+  }
   return wrap;
 }
 

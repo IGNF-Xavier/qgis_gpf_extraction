@@ -1,43 +1,99 @@
 <!doctype html>
-<html lang="fr">
+<html lang="fr" data-fr-scheme="system">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>GPF Extraction — interface web</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23004c97'/%3E%3Cpath d='M4 11V5h5M4 8h4M10 11l2-3-2-3' stroke='white' stroke-width='1.3' fill='none'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23000091'/%3E%3Cpath d='M4 11V5h5M4 8h4M10 11l2-3-2-3' stroke='white' stroke-width='1.3' fill='none'/%3E%3C/svg%3E">
   <meta name="description" content="Interface web expérimentale et non officielle pour le service d'extraction de la Géoplateforme (BD TOPO® et autres produits).">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous">
+  <link rel="stylesheet" href="dsfr/dsfr.min.css">
+  <link rel="stylesheet" href="dsfr/utility/icons/icons.min.css">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="geopf-dsfr.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="top">
-  <div>
-    <h1>GPF Extraction <span class="muted">— interface web</span></h1>
-    <p class="muted">Extraire la BD TOPO® et les autres produits de la Géoplateforme auxquels votre compte a accès.</p>
+<div class="fr-skiplinks">
+  <nav class="fr-container" role="navigation" aria-label="Accès rapide">
+    <ul class="fr-skiplinks__list">
+      <li><a class="fr-link" href="#content">Contenu</a></li>
+    </ul>
+  </nav>
+</div>
+
+<header role="banner" class="fr-header">
+  <div class="fr-header__body">
+    <div class="fr-container">
+      <div class="fr-header__body-row">
+        <div class="fr-header__brand">
+          <div class="fr-header__navbar">
+            <button class="fr-btn--menu fr-btn" data-fr-opened="false" aria-controls="modal-menu" aria-haspopup="menu" id="fr-btn-menu-mobile" title="Menu" type="button">Menu</button>
+          </div>
+          <div class="fr-header__service">
+            <a href="." title="Accueil — GPF Extraction">
+              <p class="fr-header__service-title">GPF Extraction <span class="fr-badge fr-badge--sm fr-badge--green-emeraude">Expérimental</span></p>
+            </a>
+            <p class="fr-header__service-tagline">Extraire la BD TOPO® et les autres produits de la Géoplateforme auxquels votre compte a accès</p>
+          </div>
+        </div>
+        <div class="fr-header__tools">
+          <div class="fr-header__tools-links">
+            <ul class="fr-btns-group">
+              <li><button class="fr-btn fr-icon-theme-fill" aria-controls="fr-theme-modal" data-fr-opened="false" type="button">Paramètres d’affichage</button></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
-  <span class="badge warn" title="Pas de revue de code externe, pas de processus de publication">Expérimental · non officiel</span>
+  <div class="fr-header__menu fr-modal" id="modal-menu" aria-labelledby="fr-btn-menu-mobile">
+    <div class="fr-container">
+      <button class="fr-btn--close fr-btn" aria-controls="modal-menu" title="Fermer" type="button">Fermer</button>
+      <div class="fr-header__menu-links"></div>
+    </div>
+  </div>
 </header>
 
-<main>
+<main id="content" role="main" class="fr-container fr-my-4w">
+  <div class="fr-alert fr-alert--warning fr-alert--sm fr-mb-4w">
+    <p>Interface expérimentale et non officielle, indépendante de l'IGN : pas de revue de code externe ni de processus de publication.</p>
+  </div>
+
   <!-- 1. Connexion -->
-  <section id="auth" class="card">
-    <h2><span class="step">1</span> Connexion</h2>
-    <p id="authStatus" class="status" role="status">Non connecté.</p>
-    <div class="row">
-      <label class="grow">Jeton d'accès (Bearer)
-        <input id="tokenInput" type="password" autocomplete="off" spellcheck="false" placeholder="Collez ici un jeton d'accès Géoplateforme">
-      </label>
-      <button id="tokenUse" type="button">Utiliser ce jeton</button>
-      <button id="tokenClear" type="button" class="secondary">Effacer</button>
-      <button id="oidcLogin" type="button" hidden>Se connecter</button>
+  <section id="auth" class="fr-mb-6w" aria-labelledby="authTitle">
+    <h2 id="authTitle" class="fr-h4">1. Connexion</h2>
+    <div id="authAlert" class="fr-alert fr-alert--sm fr-alert--info">
+      <p id="authStatus" role="status">Non connecté.</p>
     </div>
-    <label class="inline"><input id="tokenRemember" type="checkbox"> Mémoriser pour cet onglet seulement (effacé à sa fermeture)</label>
-    <details>
-      <summary>Comment obtenir un jeton&nbsp;?</summary>
-      <p>Le jeton reste dans votre navigateur et n'est envoyé qu'à <code>data.geopf.fr</code>. Il est <strong>temporaire</strong> (quelques dizaines de minutes à quelques heures).</p>
-      <ul>
-        <li><strong>Depuis QGIS</strong> (avec une configuration d'authentification Géoplateforme déjà connectée). Collez le script dans l'<em>éditeur</em> de la console Python (bouton « Afficher l'éditeur »), puis exécutez-le : il parcourt vos configurations d'authentification et affiche le jeton de chacune (« pas de jeton » pour celles qui n'en fournissent pas). Copiez celui de votre configuration Géoplateforme.
+    <div class="fr-grid-row fr-grid-row--gutters fr-grid-row--bottom fr-mt-1w">
+      <div class="fr-col-12 fr-col-md-7">
+        <div class="fr-input-group">
+          <label class="fr-label" for="tokenInput">Jeton d'accès (Bearer)
+            <span class="fr-hint-text">Collez ici un jeton d'accès Géoplateforme.</span>
+          </label>
+          <input class="fr-input" id="tokenInput" type="password" autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+      <div class="fr-col-12 fr-col-md-5">
+        <ul class="fr-btns-group fr-btns-group--inline-md">
+          <li><button id="tokenUse" type="button" class="fr-btn">Utiliser ce jeton</button></li>
+          <li><button id="tokenClear" type="button" class="fr-btn fr-btn--secondary">Effacer</button></li>
+          <li><button id="oidcLogin" type="button" class="fr-btn" hidden>Se connecter</button></li>
+        </ul>
+      </div>
+    </div>
+    <div class="fr-checkbox-group fr-checkbox-group--sm fr-mb-2w">
+      <input id="tokenRemember" type="checkbox">
+      <label class="fr-label" for="tokenRemember">Mémoriser pour cet onglet seulement (effacé à sa fermeture)</label>
+    </div>
+    <section class="fr-accordion">
+      <h3 class="fr-accordion__title">
+        <button class="fr-accordion__btn" type="button" aria-expanded="false" aria-controls="tokenHelp">Comment obtenir un jeton&nbsp;?</button>
+      </h3>
+      <div class="fr-collapse" id="tokenHelp">
+        <p>Le jeton reste dans votre navigateur et n'est envoyé qu'à <code>data.geopf.fr</code>. Il est <strong>temporaire</strong> (quelques dizaines de minutes à quelques heures).</p>
+        <ul>
+          <li><strong>Depuis QGIS</strong> (avec une configuration d'authentification Géoplateforme déjà connectée). Collez le script dans l'<em>éditeur</em> de la console Python (bouton « Afficher l'éditeur »), puis exécutez-le : il parcourt vos configurations d'authentification et affiche le jeton de chacune (« pas de jeton » pour celles qui n'en fournissent pas). Copiez celui de votre configuration Géoplateforme.
 <pre>from qgis.core import QgsApplication
 from qgis.PyQt.QtCore import QUrl
 from qgis.PyQt.QtNetwork import QNetworkRequest
@@ -48,126 +104,207 @@ for cid, cfg in am.availableAuthMethodConfigs().items():
     h = bytes(r.rawHeader(b"Authorization")).decode()
     print(cfg.name(), "|", cid, "|", h or "(pas de jeton)")</pre>
           Si la session de la configuration a expiré, QGIS peut ouvrir une fenêtre de reconnexion : reconnectez-vous, puis relancez le script.</li>
-        <li><strong>Depuis le Swagger officiel</strong> du service (<a href="https://data.geopf.fr/extraction/swagger-ui/index.html" target="_blank" rel="noopener">swagger-ui</a>) : bouton <em>Authorize</em>, puis le jeton apparaît dans la commande <code>curl</code> générée par <em>Try it out</em>.</li>
-      </ul>
-      <p class="muted">Une connexion automatique (OAuth2) nécessite un client dédié enregistré côté Géoplateforme pour cette page : le client public du Swagger refuse toute redirection vers une autre origine.</p>
-    </details>
+          <li><strong>Depuis le Swagger officiel</strong> du service (<a href="https://data.geopf.fr/extraction/swagger-ui/index.html" target="_blank" rel="noopener">swagger-ui</a>) : bouton <em>Authorize</em>, puis le jeton apparaît dans la commande <code>curl</code> générée par <em>Try it out</em>.</li>
+        </ul>
+        <p class="fr-hint-text">Une connexion automatique (OAuth2) nécessite un client dédié enregistré côté Géoplateforme pour cette page : le client public du Swagger refuse toute redirection vers une autre origine.</p>
+      </div>
+    </section>
   </section>
 
   <!-- 2. Emprise -->
-  <section id="extent" class="card">
-    <h2><span class="step">2</span> Emprise</h2>
-    <div class="tabs" role="tablist">
-      <button id="tabSearch" role="tab" aria-selected="true" type="button">Recherche administrative</button>
-      <button id="tabBbox" role="tab" aria-selected="false" type="button">Rectangle (BBox)</button>
-    </div>
+  <section id="extent" class="fr-mb-6w" aria-labelledby="extentTitle">
+    <h2 id="extentTitle" class="fr-h4">2. Emprise</h2>
+    <div class="fr-tabs">
+      <ul class="fr-tabs__list" role="tablist" aria-label="Mode de choix de l'emprise">
+        <li role="presentation"><button id="tabSearch" class="fr-tabs__tab" tabindex="0" role="tab" type="button" aria-selected="true" aria-controls="paneSearch">Recherche administrative</button></li>
+        <li role="presentation"><button id="tabBbox" class="fr-tabs__tab" tabindex="-1" role="tab" type="button" aria-selected="false" aria-controls="paneBbox">Rectangle (BBox)</button></li>
+      </ul>
 
-    <div id="paneSearch">
-      <label>Commune, département ou région
-        <input id="adminSearch" type="search" autocomplete="off" placeholder="Rechercher… (ex. Rouen, Rhône, Bretagne)">
-      </label>
-      <div id="presets" class="chips" aria-label="Préréglages"></div>
-      <ul id="adminResults" class="results" aria-live="polite"></ul>
-    </div>
-
-    <div id="paneBbox" hidden>
-      <div class="row">
-        <button id="drawBbox" type="button">Dessiner un rectangle sur la carte</button>
-        <span class="muted">ou saisir les coordonnées (EPSG:4326) :</span>
+      <div id="paneSearch" class="fr-tabs__panel fr-tabs__panel--selected" role="tabpanel" aria-labelledby="tabSearch" tabindex="0">
+        <div class="fr-input-group">
+          <label class="fr-label" for="adminSearch">Commune, département ou région
+            <span class="fr-hint-text">Par exemple Rouen, Rhône ou Bretagne. Le contour précis est utilisé pour filtrer les données.</span>
+          </label>
+          <input class="fr-input" id="adminSearch" type="search" autocomplete="off">
+        </div>
+        <p class="fr-text--sm fr-mb-1w fr-mt-2w">Préréglages</p>
+        <ul id="presets" class="fr-tags-group" aria-label="Préréglages"></ul>
+        <ul id="adminResults" class="fr-tags-group fr-mt-2w" aria-live="polite"></ul>
       </div>
-      <div class="row coords">
-        <label>Ouest (xmin)<input id="bboxXmin" type="number" step="any"></label>
-        <label>Sud (ymin)<input id="bboxYmin" type="number" step="any"></label>
-        <label>Est (xmax)<input id="bboxXmax" type="number" step="any"></label>
-        <label>Nord (ymax)<input id="bboxYmax" type="number" step="any"></label>
-        <button id="bboxApply" type="button" class="secondary">Appliquer</button>
+
+      <div id="paneBbox" class="fr-tabs__panel" role="tabpanel" aria-labelledby="tabBbox" tabindex="0">
+        <button id="drawBbox" type="button" class="fr-btn fr-btn--secondary fr-btn--icon-left fr-icon-edit-line">Dessiner un rectangle sur la carte</button>
+        <p class="fr-text--sm fr-mt-2w fr-mb-1w">ou saisir les coordonnées (EPSG:4326) :</p>
+        <div class="fr-grid-row fr-grid-row--gutters fr-grid-row--bottom">
+          <div class="fr-col-6 fr-col-md-2"><div class="fr-input-group"><label class="fr-label" for="bboxXmin">Ouest (xmin)</label><input class="fr-input" id="bboxXmin" type="number" step="any"></div></div>
+          <div class="fr-col-6 fr-col-md-2"><div class="fr-input-group"><label class="fr-label" for="bboxYmin">Sud (ymin)</label><input class="fr-input" id="bboxYmin" type="number" step="any"></div></div>
+          <div class="fr-col-6 fr-col-md-2"><div class="fr-input-group"><label class="fr-label" for="bboxXmax">Est (xmax)</label><input class="fr-input" id="bboxXmax" type="number" step="any"></div></div>
+          <div class="fr-col-6 fr-col-md-2"><div class="fr-input-group"><label class="fr-label" for="bboxYmax">Nord (ymax)</label><input class="fr-input" id="bboxYmax" type="number" step="any"></div></div>
+          <div class="fr-col-12 fr-col-md-2"><button id="bboxApply" type="button" class="fr-btn fr-btn--secondary">Appliquer</button></div>
+        </div>
       </div>
     </div>
 
-    <p id="extentLabel" class="status" role="status">Aucune emprise choisie.</p>
-    <p id="domWarning" class="alert warn" hidden></p>
-    <div id="map" aria-label="Carte"></div>
+    <p id="extentLabel" class="fr-text--sm fr-mt-2w fr-mb-1w" role="status">Aucune emprise choisie.</p>
+    <div id="domWarning" class="fr-alert fr-alert--warning fr-alert--sm fr-mb-1w" hidden><p id="domWarningText"></p></div>
+    <div id="map" class="map" role="region" aria-label="Carte de l'emprise"></div>
   </section>
 
   <!-- 3. Produit -->
-  <section id="product" class="card">
-    <h2><span class="step">3</span> Produit</h2>
-    <label>Filtrer
-      <input id="productFilter" type="search" placeholder="Filtrer (ex. BD TOPO)…">
-    </label>
-    <select id="productList" size="6" aria-label="Produits disponibles"></select>
-    <p id="productStatus" class="muted">Connectez-vous pour lister les produits.</p>
-    <p id="productDescription" class="muted"></p>
+  <section id="product" class="fr-mb-6w" aria-labelledby="productTitle">
+    <h2 id="productTitle" class="fr-h4">3. Produit</h2>
+    <div class="fr-input-group">
+      <label class="fr-label" for="productFilter">Filtrer les produits <span class="fr-hint-text">Par exemple BD TOPO.</span></label>
+      <input class="fr-input" id="productFilter" type="search" autocomplete="off">
+    </div>
+    <fieldset class="fr-fieldset fr-mt-2w" aria-labelledby="productLegend">
+      <legend class="fr-fieldset__legend fr-text--regular" id="productLegend">Produits disponibles</legend>
+      <div id="productList" class="scroll-box" role="radiogroup" aria-labelledby="productLegend"></div>
+    </fieldset>
+    <p id="productStatus" class="fr-hint-text">Connectez-vous pour lister les produits.</p>
+    <p id="productDescription" class="fr-text--sm"></p>
   </section>
 
   <!-- 4. Paramètres -->
-  <section id="params" class="card" hidden>
-    <h2><span class="step">4</span> Paramètres</h2>
-    <fieldset>
-      <legend>Prédicat(s) géométrique(s) <span class="muted">(combinés en OU)</span></legend>
-      <div id="predicates" class="checks"></div>
+  <section id="params" class="fr-mb-6w" aria-labelledby="paramsTitle" hidden>
+    <h2 id="paramsTitle" class="fr-h4">4. Paramètres</h2>
+    <fieldset class="fr-fieldset" aria-labelledby="predicatesLegend">
+      <legend class="fr-fieldset__legend fr-text--regular" id="predicatesLegend">Prédicat(s) géométrique(s) <span class="fr-hint-text">combinés en OU, au moins un reste toujours coché</span></legend>
+      <div id="predicates" class="fr-fieldset__element--inline-group"></div>
     </fieldset>
     <div id="relationsBox" hidden>
-      <h3>Tables à extraire</h3>
-      <div class="row">
-        <input id="tableFilter" type="search" class="grow" placeholder="Filtrer les tables…">
-        <button id="tablesAll" type="button" class="secondary">Tout cocher</button>
-        <button id="tablesNone" type="button" class="secondary">Tout décocher</button>
+      <h3 class="fr-h6">Tables à extraire</h3>
+      <div class="fr-grid-row fr-grid-row--gutters fr-grid-row--middle">
+        <div class="fr-col-12 fr-col-md-6">
+          <div class="fr-input-group">
+            <label class="fr-label sr-only" for="tableFilter">Filtrer les tables</label>
+            <input class="fr-input" id="tableFilter" type="search" placeholder="Filtrer les tables…" autocomplete="off">
+          </div>
+        </div>
+        <div class="fr-col-12 fr-col-md-6">
+          <ul class="fr-btns-group fr-btns-group--sm fr-btns-group--inline-md">
+            <li><button id="tablesAll" type="button" class="fr-btn fr-btn--secondary">Tout cocher</button></li>
+            <li><button id="tablesNone" type="button" class="fr-btn fr-btn--secondary">Tout décocher</button></li>
+          </ul>
+        </div>
       </div>
-      <div id="tableList" class="tables"></div>
-      <p id="tableCount" class="muted"></p>
+      <div id="tableList" class="scroll-box tables"></div>
+      <p id="tableCount" class="fr-hint-text"></p>
     </div>
-    <div id="genericFields" class="fields"></div>
+    <div id="genericFields" class="fr-mt-3w"></div>
   </section>
 
   <!-- 5. Requête -->
-  <section id="request" class="card" hidden>
-    <h2><span class="step">5</span> Requête et lancement</h2>
-    <p class="muted">Le filtre spatial utilise le contour précis de l'emprise (pas seulement son rectangle englobant), exprimé dans la projection native de la donnée — indépendante de la projection de sortie choisie.</p>
-    <label class="inline"><input id="jsonEdit" type="checkbox"> Modifier le JSON à la main (mode avancé)</label>
-    <textarea id="requestJson" spellcheck="false" readonly rows="14" aria-label="Corps de la requête"></textarea>
-    <p id="requestSize" class="muted"></p>
-    <ul id="missing" class="missing"></ul>
-    <div class="row">
-      <button id="launch" type="button" disabled>Lancer l'extraction</button>
-      <button id="copyJson" type="button" class="secondary">Copier le JSON</button>
-      <button id="copyCurl" type="button" class="secondary">Copier en curl</button>
+  <section id="request" class="fr-mb-6w" aria-labelledby="requestTitle" hidden>
+    <h2 id="requestTitle" class="fr-h4">5. Requête et lancement</h2>
+    <p class="fr-text--sm">Le filtre spatial utilise le contour précis de l'emprise (pas seulement son rectangle englobant), exprimé dans la projection native de la donnée — indépendante de la projection de sortie choisie.</p>
+    <div class="fr-checkbox-group fr-checkbox-group--sm fr-mb-2w">
+      <input id="jsonEdit" type="checkbox">
+      <label class="fr-label" for="jsonEdit">Modifier le JSON à la main (mode avancé)</label>
     </div>
+    <div class="fr-input-group">
+      <label class="fr-label sr-only" for="requestJson">Corps de la requête</label>
+      <textarea class="fr-input mono" id="requestJson" spellcheck="false" readonly rows="14"></textarea>
+    </div>
+    <p id="requestSize" class="fr-hint-text"></p>
+    <ul id="missing" class="fr-text--sm missing"></ul>
+    <ul class="fr-btns-group fr-btns-group--inline-md">
+      <li><button id="launch" type="button" class="fr-btn fr-btn--icon-left fr-icon-play-circle-line" disabled>Lancer l'extraction</button></li>
+      <li><button id="copyJson" type="button" class="fr-btn fr-btn--secondary">Copier le JSON</button></li>
+      <li><button id="copyCurl" type="button" class="fr-btn fr-btn--secondary">Copier en curl</button></li>
+    </ul>
   </section>
 
   <!-- 6. Jobs -->
-  <section id="jobs" class="card">
-    <h2><span class="step">6</span> Jobs</h2>
-    <p class="muted">Un job tourne côté serveur, indépendamment de cette page : il reste retrouvable ici (ce navigateur) ou via « Importer ». Un seul job simultané est autorisé par compte.</p>
-    <div class="row">
-      <button id="jobsImport" type="button" class="secondary">Importer les jobs du serveur</button>
-      <button id="jobsRefresh" type="button" class="secondary">Rafraîchir</button>
-    </div>
+  <section id="jobs" class="fr-mb-6w" aria-labelledby="jobsTitle">
+    <h2 id="jobsTitle" class="fr-h4">6. Jobs</h2>
+    <p class="fr-text--sm">Un job tourne côté serveur, indépendamment de cette page : il reste retrouvable ici (ce navigateur) ou via « Importer ». Un seul job simultané est autorisé par compte.</p>
+    <ul class="fr-btns-group fr-btns-group--sm fr-btns-group--inline-md">
+      <li><button id="jobsImport" type="button" class="fr-btn fr-btn--secondary">Importer les jobs du serveur</button></li>
+      <li><button id="jobsRefresh" type="button" class="fr-btn fr-btn--secondary fr-btn--icon-left fr-icon-refresh-line">Rafraîchir</button></li>
+    </ul>
     <div id="jobList"></div>
   </section>
 </main>
 
-<footer>
-  <p>Interface web <span id="webVersion"></span> — expérimentale et non officielle, indépendante de l'IGN. Code source, plugin QGIS et documentation :
-    <a id="repoLink" target="_blank" rel="noopener">dépôt GitHub</a>. Fonds de carte © IGN / Géoplateforme.</p>
+<footer class="fr-footer" role="contentinfo" id="footer">
+  <div class="fr-container">
+    <div class="fr-footer__bottom">
+      <ul class="fr-footer__bottom-list">
+        <li class="fr-footer__bottom-item"><a id="repoLink" class="fr-footer__bottom-link" target="_blank" rel="noopener">Dépôt GitHub (code source, plugin QGIS, documentation)</a></li>
+        <li class="fr-footer__bottom-item"><button class="fr-footer__bottom-link" aria-controls="fr-theme-modal" data-fr-opened="false" type="button">Paramètres d’affichage</button></li>
+      </ul>
+      <div class="fr-footer__bottom-copy">
+        <p>Interface web <span id="webVersion"></span> — expérimentale et non officielle, indépendante de l'IGN. Fonds de carte © IGN / Géoplateforme. Construite avec le Système de design de l'État (DSFR) et les extensions Géoplateforme pour OpenLayers.</p>
+      </div>
+    </div>
+  </div>
 </footer>
 
-<dialog id="errorDialog">
-  <form method="dialog">
-    <h2>Erreur</h2>
-    <p id="errorMessage"></p>
-    <textarea id="errorReport" readonly rows="14" spellcheck="false" aria-label="Requête envoyée et réponse reçue"></textarea>
-    <div class="row">
-      <button id="errorCopy" type="button">Copier la requête et la réponse</button>
-      <button value="close" class="secondary">Fermer</button>
+<!-- Erreur (requête et réponse copiables) -->
+<dialog id="errorDialog" class="fr-modal" aria-labelledby="errorTitle" role="dialog">
+  <div class="fr-container fr-container--fluid fr-container-md">
+    <div class="fr-grid-row fr-grid-row--center">
+      <div class="fr-col-12 fr-col-md-10 fr-col-lg-8">
+        <div class="fr-modal__body">
+          <div class="fr-modal__header">
+            <button class="fr-btn--close fr-btn" aria-controls="errorDialog" title="Fermer" type="button">Fermer</button>
+          </div>
+          <div class="fr-modal__content">
+            <h2 id="errorTitle" class="fr-modal__title"><span class="fr-icon-error-fill fr-icon--lg" aria-hidden="true"></span> Erreur</h2>
+            <p id="errorMessage"></p>
+            <div class="fr-input-group">
+              <label class="fr-label sr-only" for="errorReport">Requête envoyée et réponse reçue</label>
+              <textarea class="fr-input mono" id="errorReport" readonly rows="14" spellcheck="false"></textarea>
+            </div>
+          </div>
+          <div class="fr-modal__footer">
+            <ul class="fr-btns-group fr-btns-group--right fr-btns-group--inline-reverse fr-btns-group--inline-lg">
+              <li><button id="errorCopy" type="button" class="fr-btn">Copier la requête et la réponse</button></li>
+              <li><button class="fr-btn fr-btn--secondary" aria-controls="errorDialog" type="button">Fermer</button></li>
+            </ul>
+          </div>
+        </div>
+      </div>
     </div>
-  </form>
+  </div>
 </dialog>
 
-<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/proj4@2.15.0/dist/proj4.js"
-        integrity="sha384-xW3INKRIuZiGkhth61Bh5nbna+3oHENli5N2RUsGhI1IuqEnzYMJK9EGgdUVtwo+" crossorigin="anonymous"></script>
-<script type="module" src="js/app.js"></script>
+<!-- Paramètres d'affichage (thème clair / sombre) -->
+<dialog id="fr-theme-modal" class="fr-modal" aria-labelledby="fr-theme-modal-title" role="dialog">
+  <div class="fr-container fr-container--fluid fr-container-md">
+    <div class="fr-grid-row fr-grid-row--center">
+      <div class="fr-col-12 fr-col-md-6 fr-col-lg-4">
+        <div class="fr-modal__body">
+          <div class="fr-modal__header">
+            <button class="fr-btn--close fr-btn" aria-controls="fr-theme-modal" title="Fermer" type="button">Fermer</button>
+          </div>
+          <div class="fr-modal__content">
+            <h2 id="fr-theme-modal-title" class="fr-modal__title">Paramètres d’affichage</h2>
+            <div id="fr-display" class="fr-display">
+              <div class="fr-form-group">
+                <fieldset class="fr-fieldset">
+                  <legend class="fr-fieldset__legend fr-text--regular">Choisissez un thème pour personnaliser l’apparence du site.</legend>
+                  <div class="fr-fieldset__element">
+                    <div class="fr-radio-group"><input value="light" type="radio" id="fr-radios-theme-light" name="fr-radios-theme"><label class="fr-label" for="fr-radios-theme-light">Thème clair</label></div>
+                  </div>
+                  <div class="fr-fieldset__element">
+                    <div class="fr-radio-group"><input value="dark" type="radio" id="fr-radios-theme-dark" name="fr-radios-theme"><label class="fr-label" for="fr-radios-theme-dark">Thème sombre</label></div>
+                  </div>
+                  <div class="fr-fieldset__element">
+                    <div class="fr-radio-group"><input value="system" type="radio" id="fr-radios-theme-system" name="fr-radios-theme"><label class="fr-label" for="fr-radios-theme-system">Système <span class="fr-hint-text">Utilise les paramètres système.</span></label></div>
+                  </div>
+                </fieldset>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<script type="module" src="dsfr/dsfr.module.min.js"></script>
+<script type="module" src="app.js"></script>
 </body>
 </html>

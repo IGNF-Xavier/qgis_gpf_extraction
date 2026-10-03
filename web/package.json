@@ -3,7 +3,19 @@
   "private": true,
   "type": "module",
   "description": "Interface web (statique) expérimentale pour le service d'extraction de la Géoplateforme",
+  "engines": { "node": ">=20" },
   "scripts": {
+    "build": "node build.mjs",
     "test": "node --test tests/"
+  },
+  "dependencies": {
+    "@gouvfr/dsfr": "1.14.4",
+    "geopf-extensions-openlayers": "1.0.0-beta.15",
+    "geoportal-access-lib": "3.4.7",
+    "ol": "^10.8.0",
+    "proj4": "2.15.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
   }
 }

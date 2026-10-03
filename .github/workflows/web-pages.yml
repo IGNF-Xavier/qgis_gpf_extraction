@@ -1,6 +1,6 @@
 name: Interface web (GitHub Pages)
 
-# Teste puis publie le dossier `web/` (site statique, sans étape de build) sur GitHub Pages.
+# Teste, construit (esbuild : OpenLayers + extensions Géoplateforme + DSFR) puis publie `web/dist` sur GitHub Pages.
 on:
   push:
     branches: [main]
@@ -26,7 +26,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - name: Tests unitaires (runner Node intégré)
         working-directory: web
         run: node --test tests/
@@ -40,12 +40,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
-      - name: Ne publier que le site (pas les tests ni package.json)
-        run: |
-          mkdir -p _site
-          cp -r web/index.html web/style.css web/js _site/
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Dépendances (versions figées par package-lock.json)
+        working-directory: web
+        run: npm ci
+      - name: Construction du site (web/dist)
+        working-directory: web
+        run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
+          path: web/dist
       - id: deployment
         uses: actions/deploy-pages@v4
