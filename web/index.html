@@ -37,13 +37,17 @@
       <summary>Comment obtenir un jeton&nbsp;?</summary>
       <p>Le jeton reste dans votre navigateur et n'est envoyé qu'à <code>data.geopf.fr</code>. Il est <strong>temporaire</strong> (quelques dizaines de minutes à quelques heures).</p>
       <ul>
-        <li><strong>Depuis QGIS</strong> (console Python, avec une configuration d'authentification Géoplateforme déjà connectée) :
+        <li><strong>Depuis QGIS</strong> (avec une configuration d'authentification Géoplateforme déjà connectée). Collez le script dans l'<em>éditeur</em> de la console Python (bouton « Afficher l'éditeur »), puis exécutez-le : il parcourt vos configurations d'authentification et affiche le jeton de chacune (« pas de jeton » pour celles qui n'en fournissent pas). Copiez celui de votre configuration Géoplateforme.
 <pre>from qgis.core import QgsApplication
 from qgis.PyQt.QtCore import QUrl
 from qgis.PyQt.QtNetwork import QNetworkRequest
-r = QNetworkRequest(QUrl("https://data.geopf.fr/extraction/processes"))
-QgsApplication.authManager().updateNetworkRequest(r, "ID_DE_LA_CONFIG")
-print(bytes(r.rawHeader(b"Authorization")).decode())</pre></li>
+am = QgsApplication.authManager()
+for cid, cfg in am.availableAuthMethodConfigs().items():
+    r = QNetworkRequest(QUrl("https://data.geopf.fr/extraction/processes"))
+    am.updateNetworkRequest(r, cid)
+    h = bytes(r.rawHeader(b"Authorization")).decode()
+    print(cfg.name(), "|", cid, "|", h or "(pas de jeton)")</pre>
+          Si la session de la configuration a expiré, QGIS peut ouvrir une fenêtre de reconnexion : reconnectez-vous, puis relancez le script.</li>
         <li><strong>Depuis le Swagger officiel</strong> du service (<a href="https://data.geopf.fr/extraction/swagger-ui/index.html" target="_blank" rel="noopener">swagger-ui</a>) : bouton <em>Authorize</em>, puis le jeton apparaît dans la commande <code>curl</code> générée par <em>Try it out</em>.</li>
       </ul>
       <p class="muted">Une connexion automatique (OAuth2) nécessite un client dédié enregistré côté Géoplateforme pour cette page : le client public du Swagger refuse toute redirection vers une autre origine.</p>
