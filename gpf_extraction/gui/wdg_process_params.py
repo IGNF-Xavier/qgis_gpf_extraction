@@ -334,6 +334,28 @@ class ProcessParamsWidget(QWidget):
             self._relations_widget.set_fit_mode(mode)
         self._refresh_advanced_preview()
 
+    def suggest_batches(self) -> list:
+        """Lots de tables proposés pour garder un contour fidèle (listes de noms), ou `[]`."""
+        if self._relations_widget is None:
+            return []
+        return self._relations_widget.suggest_batches()
+
+    def get_body_for_tables(self, names: list) -> dict:
+        """Corps de requête restreint à ces tables (un lot d'une extraction découpée)."""
+        if self._relations_widget is None:
+            return self.get_body()
+        self._relations_widget.set_table_subset(names)
+        try:
+            return self.get_body()
+        finally:
+            self._relations_widget.set_table_subset(None)
+
+    def predicates_note(self) -> str:
+        """Explication de la réduction des prédicats, ou une chaîne vide."""
+        from gpf_extraction.core.predicates import reduction_note
+
+        return reduction_note(self._predicates)
+
     def extent_fit_description(self) -> str:
         """Résumé du contour réellement envoyé, ou une chaîne vide sans sélecteur de
         tables ni contour."""

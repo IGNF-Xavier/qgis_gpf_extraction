@@ -32,10 +32,13 @@ test("bornes d'une géométrie", () => {
 test("filtre : un seul prédicat sans parenthèse, plusieurs combinés en OU", () => {
   const extent = { srid: 4326, bbox: [2, 48, 3, 49] };
   assert.equal(tableFilter(table, extent, ["Intersects"]), "ST_Intersects(geometrie, ST_MakeEnvelope(2, 48, 3, 49, 4326))");
+  // Contains et Within n'impliquent pas l'un l'autre : ils restent combinés en OU
   assert.equal(
-    tableFilter(table, extent, ["Intersects", "Contains"]),
-    "(ST_Intersects(geometrie, ST_MakeEnvelope(2, 48, 3, 49, 4326)) OR ST_Contains(geometrie, ST_MakeEnvelope(2, 48, 3, 49, 4326)))",
+    tableFilter(table, extent, ["Contains", "Within"]),
+    "(ST_Contains(geometrie, ST_MakeEnvelope(2, 48, 3, 49, 4326)) OR ST_Within(geometrie, ST_MakeEnvelope(2, 48, 3, 49, 4326)))",
   );
+  // Intersects absorbe Contains : même résultat, une seule copie de l'emprise
+  assert.equal(tableFilter(table, extent, ["Intersects", "Contains"]), "ST_Intersects(geometrie, ST_MakeEnvelope(2, 48, 3, 49, 4326))");
   assert.match(tableFilter(table, extent, []), /^ST_Intersects/); // jamais de filtre vide
 });
 

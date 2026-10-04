@@ -4,11 +4,15 @@
 import { ExtractionApi, ApiError, describeApiError } from "./api.js";
 import { AuthState, handleRedirect, oidcConfigured, startLogin } from "./auth.js";
 import {
-  DEFAULT_PREDICATES, PREDICATE_SQL, buildBody, buildRelations, curlCommand, initialValue,
+  DEFAULT_PREDICATES, PREDICATE_SQL, buildBody, buildRelations, curlCommand, extentExpression, initialValue,
   isMultilayerFormat, missingForLaunch, preferredEnumValue,
 } from "./builder.js";
-import { API_BASE, FILTER_BUDGET_BYTES, POLL_INTERVAL_MS, REPO_URL, WEB_VERSION } from "./config.js";
-import { describeFit, fitExtent, vertexBudget } from "./extent-fit.js";
+import {
+  API_BASE, BYTES_PER_VERTEX, FILTER_BUDGET_BYTES, FILTER_WRAPPER_BYTES, GEOMETRY_ENCODING, MIN_FILTER_BYTES, POLL_INTERVAL_MS, REPO_URL, WEB_VERSION,
+} from "./config.js";
+import { planBatches, splitEvenly } from "./batch.js";
+import { describeFit, fitExtent } from "./extent-fit.js";
+import { effectivePredicates, reductionNote } from "./predicates.js";
 import {
   bboxToPolygon, domCoverageWarning, geometryBounds, loadPresets, makeTransformFrom4326,
   reprojectGeometry, searchAdmin, srid, transformBbox,
@@ -52,6 +56,9 @@ const state = {
   pending: new Set(),     // produit choisi dont le chargement est en cours
   extent: null,           // { label, geometry (EPSG:4326), bbox, code, precise, fits: Map (contours adaptés, par budget) }
   fitMode: "auto",        // contour envoyé au serveur : auto | precise | envelopes | bbox
+  batches: [],            // découpage proposé en lots de tables : [[nom, …], …] (vide : pas de découpage utile)
+  splitBatches: false,    // l'utilisateur a coché « découper en plusieurs extractions »
+  batch: store.get("gpf_web_batch", null), // lots restants d'une extraction découpée : { processId, title, bodies, total }
   adminResult: null, missing: [],
   predicates: new Set(DEFAULT_PREDICATES),
   jobs: store.get("gpf_web_jobs", []),
@@ -137,7 +144,7 @@ const mapApi = createMap({
 
 function setExtent({ label, geometry, code = "", precise }) {
   const bbox = geometryBounds(geometry);
-  state.extent = { label, geometry, bbox, code, precise, fits: new Map() };
+  state.extent = { label, geometry, bbox, code, precise, fits: new Map(), caches: new Map() };
   const [x0, y0, x1, y1] = bbox;
   // Le résumé est toujours la bounding box ; le contour précis (s'il existe) est ce qui
   // part réellement dans le filtre — d'où la précision ci-dessous.
@@ -505,14 +512,15 @@ function updateTableCount(entry) {
 // ------------------------------------------------------------------ 5. Requête et lancement
 // Emprise exprimée dans la SRID *native de la donnée stockée*, pas dans la projection de
 // sortie choisie (cf. builder.js). `supported` faux si la projection native n'est pas gérée.
-function extentForFilter(entry) {
+function extentForFilter(entry, tablesInRequest) {
   if (!state.extent) return { extent: null, supported: true };
   const nativeCrs = (entry.storedData && entry.storedData.srs) || "EPSG:4326";
   const transform = makeTransformFrom4326(proj4, nativeCrs);
   if (!transform) return { extent: null, supported: false, nativeCrs };
   const { bbox, precise } = state.extent;
-  const extent = { srid: srid(nativeCrs) };
-  const fit = precise ? fitFor(entry) : null;
+  const extent = { srid: srid(nativeCrs), encoding: GEOMETRY_ENCODING };
+  const fit = precise ? fitFor(entry, transform, nativeCrs, tablesInRequest) : null;
+  extent.coarse = Boolean(fit) && fit.kind === "simplified";
   if (fit && fit.geometry) {
     extent.geometry = reprojectGeometry(fit.geometry, transform);
     extent.bbox = geometryBounds(extent.geometry);
@@ -522,15 +530,57 @@ function extentForFilter(entry) {
   return { extent, supported: true, nativeCrs, fit };
 }
 
-// Contour réellement envoyé : il est recopié dans le filtre de chaque table (et chaque
-// prédicat), donc son budget de sommets dépend du nombre de tables cochées. Mémoïsé par budget.
-function fitFor(entry) {
-  const tables = entryTables(entry).filter((t) => entry.checkedTables.has(t.name) && t.geometryAttribute);
-  const maxVertices = vertexBudget({ tables: tables.length, predicates: state.predicates.size, maxBytes: FILTER_BUDGET_BYTES });
-  const key = `${state.fitMode}|${maxVertices}`;
-  const { fits, geometry } = state.extent;
-  if (!fits.has(key)) fits.set(key, fitExtent(geometry, { mode: state.fitMode, maxVertices }));
+const checkedTables = (entry) => entryTables(entry).filter((t) => entry.checkedTables.has(t.name));
+
+// Poids de la requête hors filtres : tables et colonnes, plus les entrées fixes. Pour un lot de `count` tables,
+// on prorate le poids de toute la sélection.
+function otherBytes(entry, count) {
+  const tables = checkedTables(entry);
+  const total = tables.reduce((n, t) => n + t.name.length + Object.keys(t.attributes).reduce((m, a) => m + a.length + 4, 0) + 40, 0) + 300;
+  return count !== undefined && tables.length ? Math.round((total * count) / tables.length) : total;
+}
+
+// Contour réellement envoyé : il est recopié dans le filtre de chaque table (et chaque prédicat effectif), donc son
+// budget dépend du nombre de tables de la requête. Choisi d'après la taille **encodée** du filtre — contour
+// reprojeté dans la projection native, encodé comme il partira — et non d'après un nombre de sommets estimé.
+// Mémoïsé par budget ; les simplifications et tailles sont réutilisées d'un budget à l'autre.
+function fitFor(entry, transform, nativeCrs, tablesInRequest) {
+  const geomTables = checkedTables(entry).filter((t) => t.geometryAttribute);
+  const n = Math.max(1, tablesInRequest !== undefined ? tablesInRequest : geomTables.length);
+  const copies = n * effectivePredicates([...state.predicates]).length;
+  const other = tablesInRequest !== undefined ? otherBytes(entry, n) : otherBytes(entry);
+  const maxBytes = Math.max(MIN_FILTER_BYTES, Math.floor((FILTER_BUDGET_BYTES - other) / copies));
+  const key = `${state.fitMode}|${nativeCrs}|${maxBytes}`;
+  const { fits, caches, geometry } = state.extent;
+  if (!caches.has(nativeCrs)) caches.set(nativeCrs, new Map());
+  if (!fits.has(key)) {
+    const sizeOf = (geom, kind) =>
+      extentExpression({ srid: srid(nativeCrs), geometry: reprojectGeometry(geom, transform), encoding: GEOMETRY_ENCODING, coarse: kind === "simplified" }).length +
+      FILTER_WRAPPER_BYTES;
+    const maxVertices = Math.max(100, Math.floor(maxBytes / BYTES_PER_VERTEX[GEOMETRY_ENCODING]));
+    fits.set(key, fitExtent(geometry, { mode: state.fitMode, maxVertices, maxBytes, sizeOf, cache: caches.get(nativeCrs) }));
+  }
   return fits.get(key);
+}
+
+// Découpage proposé de la sélection en lots de tables ([] : pas de découpage utile). Une seule requête sur toutes
+// les tables dégrade-t-elle le contour alors que quelques lots successifs le garderaient fidèle ?
+function suggestBatches(entry) {
+  if (!state.extent || !state.extent.precise || entry.jsonEdit) return [];
+  const geomTables = checkedTables(entry).filter((t) => t.geometryAttribute);
+  if (geomTables.length < 2) return [];
+  const nativeCrs = (entry.storedData && entry.storedData.srs) || "EPSG:4326";
+  const transform = makeTransformFrom4326(proj4, nativeCrs);
+  if (!transform) return [];
+  const count = planBatches(geomTables.length, (n) => fitFor(entry, transform, nativeCrs, n));
+  return count < 2 ? [] : splitEvenly(geomTables, count).map((chunk) => chunk.map((t) => t.name));
+}
+
+// Corps de requête pour un sous-ensemble de tables (un lot).
+function bodyForTables(entry, tables) {
+  const { extent } = extentForFilter(entry, tables.length);
+  const relations = buildRelations(tables, extent, [...state.predicates]);
+  return buildBody(entry.process, entry.values, relations, state.extent ? state.extent.bbox : null);
 }
 
 // Un bloc par produit : résumé, et le corps JSON (modifiable, copiable) dans un accordéon.
@@ -588,10 +638,8 @@ function refreshRequest() {
   $("domWarning").hidden = !warnings.length;
 
   for (const entry of entries) {
-    const { extent, fit } = extentForFilter(entry);
-    const tables = entryTables(entry).filter((t) => entry.checkedTables.has(t.name));
-    const relations = buildRelations(tables, extent, [...state.predicates]);
-    entry.body = buildBody(entry.process, entry.values, relations, state.extent ? state.extent.bbox : null);
+    const { fit } = extentForFilter(entry);
+    entry.body = bodyForTables(entry, checkedTables(entry));
     if (!entry.jsonEdit && entry.ui.json) entry.ui.json.value = JSON.stringify(entry.body, null, 2);
     const kb = new Blob([JSON.stringify(entry.body)]).size / 1024;
     const size = `${kb.toFixed(kb < 10 ? 1 : 0)} Ko`;
@@ -604,6 +652,20 @@ function refreshRequest() {
     }
     updateTableCount(entry);
   }
+
+  const [first] = entries;
+  state.batches = first ? suggestBatches(first) : [];
+  if (!state.batches.length) state.splitBatches = false;
+  $("splitBatches").checked = state.splitBatches;
+  $("batchBox").hidden = !state.batches.length;
+  if (state.batches.length) {
+    const biggest = Math.max(...state.batches.map((names) => names.length));
+    $("splitBatchesText").textContent =
+      `Découper en ${state.batches.length} extractions successives (${biggest} tables chacune au plus) pour garder un contour fidèle`;
+  }
+  const note = reductionNote([...state.predicates]);
+  $("predicatesNote").textContent = note;
+  $("predicatesNote").hidden = !note;
 
   const [entry] = entries;
   state.missing = missingForLaunch({
@@ -631,32 +693,45 @@ function currentBody(entry) {
 
 let launching = false;
 
-function trackLaunched(entry, body, job) {
+function trackLaunched(entry, body, job, lot = "") {
   const tables = Object.keys((body.inputs && body.inputs.relations) || {}).length;
   state.jobs.unshift({
-    jobId: job.jobId, processId: entry.process.id, title: entry.process.title, status: job.status, message: job.message,
-    created: new Date().toISOString(), tables, comment: "",
+    jobId: job.jobId, processId: entry.process.id, title: lot ? `${entry.process.title} (${lot})` : entry.process.title,
+    status: job.status, message: job.message, created: new Date().toISOString(), tables, comment: "",
   });
   tracked.page = 1;
   saveJobs();
   renderJobs();
 }
 
+$("splitBatches").addEventListener("change", () => {
+  state.splitBatches = $("splitBatches").checked;
+});
+
 $("launch").addEventListener("click", async () => {
   const [entry] = state.selection.values();
   if (!entry || launching) return;
   let body;
+  let rest = [];
   try {
-    body = currentBody(entry);
+    if (state.splitBatches && state.batches.length > 1 && !entry.jsonEdit) {
+      const all = checkedTables(entry);
+      const bodies = state.batches.map((names) => bodyForTables(entry, all.filter((t) => names.includes(t.name))));
+      [body, ...rest] = bodies;
+    } else {
+      body = currentBody(entry);
+    }
   } catch (error) {
     showError(error);
     return;
   }
+  const total = rest.length + 1;
   launching = true;
   refreshRequest();
   try {
     const job = await api.execute(entry.process.id, body);
-    trackLaunched(entry, body, job);
+    trackLaunched(entry, body, job, rest.length ? `lot 1/${total}` : "");
+    if (rest.length) setBatch({ processId: entry.process.id, title: entry.process.title, bodies: rest, total });
     setStepOpen("stepJobsBody", true);
     scrollToStep("stepJobs");
   } catch (error) {
@@ -666,6 +741,44 @@ $("launch").addEventListener("click", async () => {
     refreshRequest();
   }
 });
+
+// ---- Lots d'une extraction découpée : le suivant part quand le précédent est terminé (un seul job à la fois).
+function setBatch(batch) {
+  state.batch = batch;
+  store.set("gpf_web_batch", batch);
+  renderBatchStatus();
+}
+
+function renderBatchStatus() {
+  const left = state.batch ? state.batch.bodies.length : 0;
+  $("batchStatus").hidden = !left;
+  if (left) {
+    $("batchStatusText").textContent =
+      `Extraction découpée : ${left} lot(s) restant(s) sur ${state.batch.total}, lancé(s) l'un après l'autre à la fin du précédent. Gardez cette page ouverte.`;
+  }
+}
+
+$("batchCancel").addEventListener("click", () => setBatch(null));
+
+let batchLaunching = false;
+async function launchNextBatch() {
+  if (!state.batch || !state.batch.bodies.length || batchLaunching || launching || !auth.authenticated) return;
+  if (state.jobs.some((j) => isRunning(j.status) || !j.status)) return; // un seul job à la fois côté service
+  batchLaunching = true;
+  const { processId, title, bodies, total } = state.batch;
+  const index = total - bodies.length + 1;
+  try {
+    const job = await api.execute(processId, bodies[0]);
+    trackLaunched({ process: { id: processId, title } }, bodies[0], job, `lot ${index}/${total}`);
+    setBatch(bodies.length > 1 ? { processId, title, bodies: bodies.slice(1), total } : null);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 429) return; // un job tourne encore : nouvel essai au prochain suivi
+    setBatch(null);
+    showError(error);
+  } finally {
+    batchLaunching = false;
+  }
+}
 
 // ------------------------------------------------------------------ 6. Jobs
 const saveJobs = () => store.set("gpf_web_jobs", state.jobs);
@@ -862,7 +975,9 @@ async function pollJobs(interactive = false) {
   for (const job of [...state.jobs]) {
     if (isRunning(job.status) || !job.status) await refreshJob(job.jobId, interactive);
   }
+  await launchNextBatch();
 }
+renderBatchStatus();
 setInterval(() => pollJobs(false), POLL_INTERVAL_MS);
 
 // ---- Jobs du serveur : liste complète chargée une fois, paginée côté navigateur (sans appel réseau).

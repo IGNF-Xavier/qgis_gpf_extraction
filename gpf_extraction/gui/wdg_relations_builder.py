@@ -35,12 +35,18 @@ from qgis.PyQt.QtWidgets import (
 )
 
 from gpf_extraction.core.extent_fit import (
+    DEFAULT_BUDGET_BYTES,
     FIT_AUTO,
+    MIN_FILTER_BYTES,
+    TWKB_WRAPPER_BYTES,
     ExtentFit,
     fit_extent,
-    vertex_budget,
-    wkt_precision,
+    to_polygons,
+    twkb_precision,
 )
+from gpf_extraction.core.job_batch import plan_batches, split_evenly
+from gpf_extraction.core.predicates import effective_predicates
+from gpf_extraction.core.twkb import to_hex
 from gpf_extraction.core.models import StoredDataTable
 
 #: Correspondance prédicat (libellé UI) -> fonction PostGIS. `filters` est une
@@ -84,7 +90,10 @@ class RelationsBuilderWidget(QWidget):
         #: centaines de milliers de sommets : mémoïsé tant que la géométrie ne change pas.
         self._fit_mode: str = FIT_AUTO
         self._fit_cache: dict = {}
+        self._fit_geom_cache: dict = {}  # simplifications/encodages réutilisés d'un budget à l'autre
         self._fit_fingerprint: Optional[int] = None
+        #: Si renseigné, `get_value` ne renvoie que ces tables (un lot d'une extraction découpée).
+        self._table_subset: Optional[set] = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -172,28 +181,79 @@ class RelationsBuilderWidget(QWidget):
         if fingerprint != self._fit_fingerprint:
             self._fit_fingerprint = fingerprint
             self._fit_cache.clear()
+            self._fit_geom_cache.clear()
 
     def set_fit_mode(self, mode: str) -> None:
         """Choisit le contour envoyé : `auto`, `precise`, `envelopes` ou `bbox`."""
         self._fit_mode = mode
 
-    def current_fit(self) -> Optional[ExtentFit]:
+    def set_table_subset(self, names: Optional[list]) -> None:
+        """Restreint `get_value` à ces tables (lot d'une extraction découpée) ; None = toutes les cochées."""
+        self._table_subset = set(names) if names is not None else None
+
+    def _selected_tables(self) -> list:
+        tables = [item.data(Qt.ItemDataRole.UserRole) for item in self._checked_items()]
+        if self._table_subset is not None:
+            tables = [t for t in tables if t.name in self._table_subset]
+        return tables
+
+    def _filter_budget_bytes(self, tables: int, other_bytes: int) -> int:
+        """Budget d'un filtre (octets) : ce qui reste du budget de la requête une fois comptés les
+        noms et colonnes des tables, réparti sur les copies du contour (tables × prédicats effectifs)."""
+        copies = max(1, tables) * len(effective_predicates(self._predicates))
+        return max(MIN_FILTER_BYTES, (DEFAULT_BUDGET_BYTES - other_bytes) // copies)
+
+    def _other_bytes(self, tables: list, count: Optional[int] = None) -> int:
+        """Poids de la requête hors filtres : tables et colonnes, plus les entrées fixes. Pour un lot
+        de `count` tables, on prorate le poids de toute la sélection."""
+        total = sum(len(t.name) + sum(len(a) + 4 for a in t.attributes) + 40 for t in tables) + 300
+        if count is not None and tables:
+            return int(total * count / len(tables))
+        return total
+
+    def current_fit(self, tables_in_request: Optional[int] = None) -> Optional[ExtentFit]:
         """Contour retenu pour le filtre de chaque table, ou None sans contour (BBox dessinée).
 
-        Le contour est recopié dans le filtre de chaque table et de chaque prédicat : son
-        budget de sommets dépend donc du nombre de tables cochées (avec géométrie)."""
+        Le contour est recopié dans le filtre de chaque table et de chaque prédicat (après réduction
+        logique) : son budget dépend du nombre de tables de la requête. Il est choisi d'après la
+        taille **encodée** du filtre, pas d'après un nombre de sommets estimé.
+
+        :param tables_in_request: nombre de tables à compter (pour tester un lot) ; par défaut, les
+            tables retenues par la sélection ou le lot courant.
+        """
         geometry = self._extent_geometry
         if geometry is None or geometry.isNull() or geometry.isEmpty():
             return None
-        tables = max(
-            1,
-            sum(1 for item in self._checked_items() if item.data(Qt.ItemDataRole.UserRole).geometry_attribute),
-        )
-        max_vertices = vertex_budget(tables, len(self._predicates or DEFAULT_PREDICATES))
-        key = (self._fit_mode, max_vertices)
+        selected = [t for t in self._selected_tables() if t.geometry_attribute]
+        all_checked = [item.data(Qt.ItemDataRole.UserRole) for item in self._checked_items()]
+        n_tables = max(1, tables_in_request if tables_in_request is not None else len(selected))
+        other = self._other_bytes(all_checked, n_tables) if tables_in_request is not None else self._other_bytes(selected)
+        max_bytes = self._filter_budget_bytes(n_tables, other)
+        key = (self._fit_mode, max_bytes)
         if key not in self._fit_cache:
-            self._fit_cache[key] = fit_extent(geometry, self._extent_srid, self._fit_mode, max_vertices)
+            srid = self._extent_srid
+            self._fit_cache[key] = fit_extent(
+                geometry,
+                srid,
+                self._fit_mode,
+                max_bytes=max_bytes,
+                size_of=lambda geom, kind: len(to_hex(to_polygons(geom), twkb_precision(srid, kind))) + TWKB_WRAPPER_BYTES,
+                cache=self._fit_geom_cache,
+            )
         return self._fit_cache[key]
+
+    def suggest_batches(self) -> list:
+        """Découpage proposé de la sélection en lots de tables (liste de listes de noms), ou `[]`.
+
+        Une seule requête sur toutes les tables dégrade-t-elle le contour (simplification forte,
+        rectangles, bbox) alors que quelques lots successifs le garderaient fidèle ? Voir `core/job_batch.py`."""
+        selected = [t for t in self._selected_tables() if t.geometry_attribute]
+        if self._extent_geometry is None or len(selected) < 2:
+            return []
+        batches = plan_batches(len(selected), self.current_fit)
+        if batches < 2:
+            return []
+        return [[t.name for t in chunk] for chunk in split_evenly(selected, batches)]
 
     def set_predicates(self, predicates: list[str]) -> None:
         """Définit les prédicats géométriques à combiner (en OU) dans le
@@ -238,13 +298,15 @@ class RelationsBuilderWidget(QWidget):
     # Valeur
     # ------------------------------------------------------------------
     def _extent_sql_expression(self) -> Optional[str]:
-        """Expression SQL de l'emprise : `ST_GeomFromText(...)` pour une vraie
-        géométrie (contour administratif ou couche du projet), `ST_MakeEnvelope(...)`
-        en repli pour une simple BBox rectangulaire."""
+        """Expression SQL de l'emprise : pour une vraie géométrie (contour administratif ou
+        couche du projet), un TWKB hexadécimal (`ST_GeomFromTWKB`), ~4 à 5 fois plus léger que
+        le WKT recopié dans le filtre de chaque table ; `ST_MakeEnvelope(...)` en repli pour une
+        simple BBox rectangulaire. Le TWKB ne porte pas de SRID : `ST_SetSRID`."""
         fit = self.current_fit()
         if fit is not None and fit.geometry is not None:
-            wkt = fit.geometry.asWkt(wkt_precision(self._extent_srid))
-            return f"ST_GeomFromText('{wkt}', {self._extent_srid})"
+            precision = twkb_precision(self._extent_srid, fit.kind)
+            twkb = to_hex(to_polygons(fit.geometry), precision)
+            return f"ST_SetSRID(ST_GeomFromTWKB(decode('{twkb}','hex')), {self._extent_srid})"
         if self._extent is not None:  # BBox dessinée, ou contour remplacé par un rectangle unique
             return (
                 f"ST_MakeEnvelope({self._extent.xMinimum()}, {self._extent.yMinimum()}, "
@@ -255,11 +317,11 @@ class RelationsBuilderWidget(QWidget):
     def get_value(self) -> dict:
         """Construit la valeur de l'input `relations` pour les tables cochées."""
         expr = self._extent_sql_expression()
-        predicates = self._predicates or DEFAULT_PREDICATES
+        # `Intersects OR Contains` = `Intersects` : on n'envoie (et ne recopie) que ce qui change le résultat.
+        predicates = effective_predicates(self._predicates or DEFAULT_PREDICATES)
 
         result: dict = {}
-        for item in self._checked_items():
-            table: StoredDataTable = item.data(Qt.ItemDataRole.UserRole)
+        for table in self._selected_tables():
             entry: dict = {"attributes": list(table.attributes.keys())}
             geom_attr = table.geometry_attribute
             if geom_attr and expr is not None:

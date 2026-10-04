@@ -109,6 +109,38 @@ class TestExtentFit(unittest.TestCase):
         many = [(i % 30 * 0.5, i // 30 * 0.5, i % 30 * 0.5 + 0.01, i // 30 * 0.5 + 0.01) for i in range(600)]
         self.assertLessEqual(len(cluster_rects(many, max_rects=12)), 12)
 
+    def test_fit_by_encoded_size(self):
+        # le contour est choisi d'après la taille encodée réelle, pas d'après un nombre de sommets estimé
+        geom = archipelago()
+        size_of = lambda g, kind: vertex_count(g) * 7  # noqa: E731 - « taille » factice : 7 octets par sommet
+        cache = {}
+        roomy = fit_extent(geom, 4326, FIT_AUTO, max_bytes=2_000_000, size_of=size_of, cache=cache)
+        self.assertEqual(roomy.kind, FIT_PRECISE)
+        self.assertGreater(roomy.encoded_bytes, 0)
+        tight = fit_extent(geom, 4326, FIT_AUTO, max_bytes=60_000, size_of=size_of, cache=cache)
+        self.assertEqual(tight.kind, "simplified")
+        self.assertLessEqual(tight.encoded_bytes, 60_000)
+        # le cache est réutilisé : mêmes simplifications d'un budget à l'autre
+        again = fit_extent(geom, 4326, FIT_AUTO, max_bytes=60_000, size_of=size_of, cache=cache)
+        self.assertEqual(again.geometry.asWkt(), tight.geometry.asWkt())
+        # budget minuscule : rectangles, puis bbox quand même eux sont trop lourds
+        self.assertIn(fit_extent(geom, 4326, FIT_AUTO, max_bytes=300, size_of=size_of, cache=cache).kind, (FIT_ENVELOPES, FIT_BBOX))
+        self.assertEqual(fit_extent(geom, 4326, FIT_AUTO, max_bytes=50, size_of=size_of, cache=cache).kind, FIT_BBOX)
+
+    def test_twkb_helpers(self):
+        from gpf_extraction.core.extent_fit import to_polygons, twkb_precision
+        from gpf_extraction.core.twkb import decode, encode
+
+        geom = QgsGeometry.fromWkt("MULTIPOLYGON(((0 0, 1 0, 1 1, 0 1, 0 0)), ((5 5, 6 5, 6 6, 5 5)))")
+        polygons = to_polygons(geom)
+        self.assertEqual(len(polygons), 2)
+        self.assertEqual(decode(encode(polygons)), polygons)
+        self.assertEqual(twkb_precision(4326, FIT_PRECISE), 6)
+        self.assertEqual(twkb_precision(4326, "simplified"), 5)
+        self.assertEqual(twkb_precision(4326, FIT_ENVELOPES), 6)
+        self.assertEqual(twkb_precision(2154, FIT_PRECISE), 2)
+        self.assertEqual(twkb_precision(2154, "simplified"), 0)
+
     def test_vertex_budget(self):
         self.assertGreater(vertex_budget(3), vertex_budget(59))
         self.assertLess(vertex_budget(3, predicates=2), vertex_budget(3, predicates=1))

@@ -103,6 +103,11 @@ class JobsDialog(QDialog):
         buttons_layout.addWidget(self.btn_forget)
 
         buttons_layout.addStretch(1)
+        self.btn_resume_batches = QPushButton("")
+        self.btn_resume_batches.clicked.connect(self._resume_batches)
+        buttons_layout.addWidget(self.btn_resume_batches)
+        self._update_resume_button()
+
         self.btn_close = QPushButton(self.tr("Fermer"))
         self.btn_close.clicked.connect(self.accept)
         buttons_layout.addWidget(self.btn_close)
@@ -116,6 +121,21 @@ class JobsDialog(QDialog):
     # ------------------------------------------------------------------
     # Client API (créé à la demande, seulement si une session est active)
     # ------------------------------------------------------------------
+    def _update_resume_button(self) -> None:
+        from gpf_extraction.core.job_batch import BatchQueue
+
+        pending = BatchQueue.pending_count()
+        self.btn_resume_batches.setVisible(pending > 0)
+        self.btn_resume_batches.setText(self.tr("Reprendre les lots restants ({})").format(pending))
+
+    def _resume_batches(self) -> None:
+        from gpf_extraction.gui.batch_runner import launch_next_batch
+
+        client = self._get_client()
+        if client is not None:
+            launch_next_batch(client, self.project, parent=self.parent())
+        self._update_resume_button()
+
     def _get_client(self) -> ExtractionApiClient | None:
         if self._client is not None:
             return self._client

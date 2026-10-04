@@ -2,6 +2,8 @@
 // `wdg_relations_builder.py` / `wdg_process_params.py`. Fonctions pures, testées sous Node.
 
 import { geojsonToWkt, wktDecimals } from "./geo.js";
+import { effectivePredicates } from "./predicates.js";
+import { twkbHex } from "./twkb.js";
 import { OUTPUTS_NOT_REQUESTED, fieldDefault, fieldEnum, fieldType } from "./models.js";
 
 export const PREDICATE_SQL = {
@@ -20,11 +22,22 @@ export const DEFAULT_PREDICATES = ["Intersects"];
 // projection de sortie choisie : le filtre est évalué contre la colonne géométrique
 // source, `srs` ne reprojette que le résultat — les confondre renvoie silencieusement
 // zéro entité, constaté en conditions réelles).
-//   extent = { srid, geometry?: GeoJSON, bbox?: [xmin, ymin, xmax, ymax] }
+//   extent = { srid, geometry?: GeoJSON, bbox?: [xmin, ymin, xmax, ymax],
+//              encoding?: "wkt" (défaut) | "twkb", coarse?: boolean }
+// `coarse` : contour simplifié puis élargi d'au moins 10 m, dont on peut arrondir les coordonnées
+// d'un cran de plus en TWKB (≤ 1 m, bien en deçà de l'élargissement).
 export function extentExpression(extent) {
   if (!extent) return null;
   if (extent.geometry) {
-    const wkt = geojsonToWkt(extent.geometry, wktDecimals(extent.geometry));
+    const decimals = wktDecimals(extent.geometry);
+    if (extent.encoding === "twkb") {
+      const polygons = extent.geometry.type === "Polygon" ? [extent.geometry.coordinates] : extent.geometry.coordinates;
+      const geographic = decimals === 6;
+      const precision = geographic ? (extent.coarse ? 5 : 6) : extent.coarse ? 0 : 2;
+      // Le TWKB ne porte pas de SRID : ST_SetSRID.
+      return `ST_SetSRID(ST_GeomFromTWKB(decode('${twkbHex(polygons, precision)}','hex')), ${extent.srid})`;
+    }
+    const wkt = geojsonToWkt(extent.geometry, decimals);
     if (wkt) return `ST_GeomFromText('${wkt}', ${extent.srid})`;
   }
   if (extent.bbox) {
@@ -38,7 +51,8 @@ export function extentExpression(extent) {
 export function tableFilter(table, extent, predicates) {
   const expr = extentExpression(extent);
   if (!table.geometryAttribute || !expr) return null;
-  const chosen = predicates && predicates.length ? predicates : DEFAULT_PREDICATES;
+  // `Intersects OR Contains` = `Intersects` : on n'envoie (et ne recopie) que ce qui change le résultat.
+  const chosen = effectivePredicates(predicates && predicates.length ? predicates : DEFAULT_PREDICATES);
   const clauses = chosen.map((p) => `${PREDICATE_SQL[p]}(${table.geometryAttribute}, ${expr})`);
   return clauses.length === 1 ? clauses[0] : `(${clauses.join(" OR ")})`;
 }

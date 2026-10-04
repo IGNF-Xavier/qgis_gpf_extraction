@@ -80,6 +80,7 @@ class JobMonitorDialog(QDialog):
         self._extent_wkt = extent_wkt
         self._extent_crs = extent_crs
         self._downloaded_path: Optional[str] = None
+        self._batch_continued = False
 
         layout = QVBoxLayout(self)
 
@@ -300,7 +301,19 @@ class JobMonitorDialog(QDialog):
         )
         self._finish_as_closable()
 
+    def _continue_batches(self) -> None:
+        """Extraction découpée en lots : le job est terminé (ou en échec), le suivant peut partir —
+        le service n'en accepte qu'un à la fois. Une seule fois par suivi."""
+        if self._batch_continued:
+            return
+        self._batch_continued = True
+        from gpf_extraction.gui.batch_runner import launch_next_batch
+
+        if launch_next_batch(self._client, self._project, parent=self.parent()):
+            self._append_log(self.tr("Lot suivant de l'extraction découpée lancé (ou en attente de son tour)."))
+
     def _finish_as_closable(self) -> None:
+        self._continue_batches()
         # Le bouton "Close" a le rôle RejectRole : il déclenche donc le
         # signal `rejected`, déjà branché sur `_cancel_or_close`, qui
         # accepte la boîte de dialogue puisque le timer est alors arrêté.
@@ -322,6 +335,10 @@ class JobMonitorDialog(QDialog):
                 )
             JobRegistry.remove_job(self._job.job_id)
             JobRegistry.ignore_job(self._job.job_id)
+            # Annuler un lot abandonne aussi les suivants : c'est l'utilisateur qui arrête l'extraction.
+            from gpf_extraction.core.job_batch import BatchQueue
+
+            BatchQueue.clear()
             self.reject()
         else:
             self.accept()

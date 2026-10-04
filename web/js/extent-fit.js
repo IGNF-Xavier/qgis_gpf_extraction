@@ -179,36 +179,61 @@ export function envelopesOf(geom, maxRects = 12) {
 // ---------------------------------------------------------------- Choix de la stratégie
 /**
  * @param {object} geom   (Multi)Polygone GeoJSON en EPSG:4326
- * @param {{mode?: string, maxVertices?: number, maxRects?: number}} options
+ * @param {object} options
+ * @param {string} [options.mode]  "auto" (défaut), "precise", "envelopes" ou "bbox"
+ * @param {number} [options.maxVertices]  budget de sommets, utilisé quand la taille encodée n'est pas fournie
+ * @param {number} [options.maxBytes]  budget d'un filtre en octets ; avec `sizeOf`, le contour est choisi d'après
+ *   sa **taille encodée réelle** plutôt que d'après un nombre de sommets estimé
+ * @param {(geometry: object, kind: string) => number} [options.sizeOf]  octets du filtre (kind : "precise",
+ *   "simplified" ou "envelopes", la précision des coordonnées en dépend)
+ * @param {Map} [options.cache]  à réutiliser entre appels pour la même géométrie : évite de resimplifier et de
+ *   réencoder à chaque nouveau budget
  * @returns {{kind: "precise"|"simplified"|"envelopes"|"bbox", geometry: object|null, vertices: number,
- *            originalVertices: number, toleranceM: number, rects: number}}
+ *            originalVertices: number, toleranceM: number, rects: number, encodedBytes: number}}
  *   `geometry` est null pour `bbox` : l'appelant utilise alors la bbox (ST_MakeEnvelope).
  */
-export function fitExtent(geom, { mode = "auto", maxVertices = 5000, maxRects = 12 } = {}) {
+export function fitExtent(geom, { mode = "auto", maxVertices = 5000, maxRects = 12, maxBytes = null, sizeOf = null, cache = new Map() } = {}) {
   const originalVertices = countVertices(geom);
-  const result = (kind, geometry, extra = {}) => ({
+  const bySize = typeof sizeOf === "function" && maxBytes !== null;
+  const result = (kind, geometry, key = null, extra = {}) => ({
     kind, geometry, originalVertices, toleranceM: 0, rects: 0,
-    vertices: geometry ? countVertices(geometry) : 5, ...extra,
+    vertices: geometry ? countVertices(geometry) : 5,
+    encodedBytes: key !== null ? cache.get(`size:${key}`) || 0 : 0,
+    ...extra,
   });
+  const fits = (key, geometry, kind) => {
+    if (!bySize) return countVertices(geometry) <= maxVertices;
+    if (!cache.has(`size:${key}`)) cache.set(`size:${key}`, sizeOf(geometry, kind));
+    return cache.get(`size:${key}`) <= maxBytes;
+  };
+
   if (mode === "bbox") return result("bbox", null);
-  if (mode === "precise") return result("precise", geom);
+  if (mode === "precise") {
+    if (bySize) fits("precise", geom, "precise");
+    return result("precise", geom, "precise");
+  }
 
   if (mode === "auto") {
-    if (originalVertices <= maxVertices) return result("precise", geom);
-    const prepared = prepareParts(geom);
+    if (fits("precise", geom, "precise")) return result("precise", geom, "precise");
+    if (!cache.has("prepared")) cache.set("prepared", prepareParts(geom));
     for (const toleranceM of TOLERANCES_M) {
-      const simple = simplifyGeometry(geom, toleranceM, prepared);
-      if (countVertices(simple) <= maxVertices) return result("simplified", simple, { toleranceM });
+      const gkey = `geom:${toleranceM}`;
+      if (!cache.has(gkey)) cache.set(gkey, simplifyGeometry(geom, toleranceM, cache.get("prepared")));
+      const simple = cache.get(gkey);
+      if (fits(`simplified:${toleranceM}`, simple, "simplified")) return result("simplified", simple, `simplified:${toleranceM}`, { toleranceM });
     }
   }
 
   // « envelopes », ou repli de l'automatique quand même 250 m ne suffit pas.
   const limit = Math.max(1, Math.min(maxRects, Math.floor(maxVertices / (RECT_STEPS * 4 + 1))));
-  const rects = envelopesOf(geom, limit);
-  if (rects.length === 1) return result("bbox", null, { rects: 1 });
+  const rkey = `rects:${limit}`;
+  if (!cache.has(rkey)) cache.set(rkey, envelopesOf(geom, limit));
+  const rects = cache.get(rkey);
+  if (rects.length === 1) return result("bbox", null, null, { rects: 1 });
   const coordinates = rects.map((r) => [densifiedRect(r, RECT_STEPS)]);
   const envelopes = { type: "MultiPolygon", coordinates };
-  return result("envelopes", envelopes, { rects: rects.length });
+  if (bySize && mode === "auto" && !fits(`envelopes:${limit}`, envelopes, "envelopes")) return result("bbox", null, null, { rects: 1 }); // même les rectangles sont trop lourds
+  return result("envelopes", envelopes, `envelopes:${limit}`, { rects: rects.length });
 }
 
 // Budget de sommets par filtre : le contour est recopié dans le filtre de chaque table, pour

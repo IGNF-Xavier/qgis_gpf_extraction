@@ -85,6 +85,28 @@ than the historical anonymous WFS.
    style lookup can take about 35 seconds the first time in a QGIS
    session.)*
 
+### Extent sent, predicates and split extractions
+
+The extraction service has **no extent input shared by all tables**: the contour is copied into the filter of
+**each table**, and the service refuses any request above about **256 KB** (HTTP 500 at creation, measured between
+256,500 and 262,000 bytes for the whole body). A detailed département contour weighs hundreds of KB. The plugin
+therefore reduces it before sending, and says in the dialog what is actually sent:
+
+- **Contour sent to the server** (list in the "Emprise" group): *automatic* (default) — precise contour if it fits
+  the budget (200 KB for the whole request), else simplified (10 to 250 m) **then grown by the same tolerance**, so
+  the extent stays covered; else bounding rectangles, else the bbox. The tolerance is chosen from the **encoded
+  size** of the filter. *Precise contour*, *rectangles* or *single rectangle* can be forced.
+- **Compact encoding**: the contour is sent as hexadecimal TWKB (`ST_GeomFromTWKB`), about 4.6 times lighter than
+  WKT, so a finer contour fits in the same weight.
+- **Predicates**: `Contains`, `Within`, `Touches`, `Crosses`, `Overlaps` and `Equals` all imply `Intersects`;
+  ticking `Intersects` with any of them returns exactly the rows `Intersects` alone does. The plugin then sends
+  `Intersects` only (and says so). `Disjoint`, the opposite of `Intersects`, is kept.
+- **Split into several extractions**: when one request would degrade the contour (simplification above 50 m,
+  rectangles or bbox) but a few batches of tables would keep it faithful, a checkbox offers to spread the tables
+  over N extractions started **one after the other** (the service accepts one job at a time). Each batch has its
+  own `lotN` sub-folder and GeoPackage. Closing QGIS between two batches is fine: the "Jobs en cours" window
+  offers to **resume the remaining batches**. Cancelling a batch drops the following ones.
+
 ### Tracking jobs — "Jobs en cours"
 
 A job keeps running on the Géoplateforme's server independently of QGIS.

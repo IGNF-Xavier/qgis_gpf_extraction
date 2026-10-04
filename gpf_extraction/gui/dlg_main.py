@@ -113,6 +113,7 @@ class GpfExtractionDialog(QDialog):
         #: Géométrie réelle de l'emprise (contour administratif ou couche du
         #: projet, en EPSG:4326), None pour une BBox purement rectangulaire.
         self.current_extent_geometry: QgsGeometry | None = None
+        self._suggested_batches: list = []
         self._predicate_checkboxes: dict[str, QCheckBox] = {}
         #: Résultat administratif actuellement choisi (recherche ou
         #: préréglage), pour l'avertissement de couverture DOM — None si
@@ -277,6 +278,19 @@ class GpfExtractionDialog(QDialog):
         self.lbl_fit_note.setWordWrap(True)
         self.lbl_fit_note.setVisible(False)
         extent_layout.addWidget(self.lbl_fit_note)
+        self.chk_split_batches = QCheckBox()
+        self.chk_split_batches.setVisible(False)
+        self.chk_split_batches.setToolTip(
+            self.tr(
+                "Le contour est recopié dans le filtre de chaque table : avec beaucoup de tables il "
+                "faut le simplifier fortement, voire le remplacer par des rectangles. Cette option "
+                "répartit les tables en plusieurs extractions lancées l'une après l'autre (le service "
+                "n'accepte qu'un job à la fois) : chacune garde un contour fidèle. Un fichier par lot, "
+                "dans un sous-dossier « lotN » ; fermer QGIS entre deux lots est possible, la reprise "
+                "se fait depuis « Jobs en cours »."
+            )
+        )
+        extent_layout.addWidget(self.chk_split_batches)
 
         extent_layout.addWidget(QLabel(self.tr("Prédicat(s) géométrique(s) :")))
         predicates_grid = QGridLayout()
@@ -556,8 +570,26 @@ class GpfExtractionDialog(QDialog):
 
     def _update_fit_note(self) -> None:
         text = self.params_widget.extent_fit_description()
-        self.lbl_fit_note.setText(self.tr("Filtre envoyé : {}").format(text) if text else "")
-        self.lbl_fit_note.setVisible(bool(text))
+        note = self.params_widget.predicates_note()
+        lines = [self.tr("Filtre envoyé : {}").format(text)] if text else []
+        if note:
+            lines.append(note)
+        self.lbl_fit_note.setText("\n".join(lines))
+        self.lbl_fit_note.setVisible(bool(lines))
+
+        batches = self.params_widget.suggest_batches()
+        self._suggested_batches = batches
+        if batches:
+            sizes = sorted({len(b) for b in batches})
+            self.chk_split_batches.setText(
+                self.tr(
+                    "Découper en {n} extractions successives ({size} tables chacune environ) "
+                    "pour garder un contour fidèle"
+                ).format(n=len(batches), size=sizes[-1])
+            )
+        self.chk_split_batches.setVisible(bool(batches))
+        if not batches:
+            self.chk_split_batches.setChecked(False)
 
     def _on_predicate_toggled(self, _checked: bool = False) -> None:
         # Empêche de tout décocher : au moins un prédicat actif en permanence
@@ -908,8 +940,19 @@ class GpfExtractionDialog(QDialog):
         self.button_box.button(QDialogButtonBox.StandardButton.Ok).setEnabled(ok)
 
     def _on_accept(self) -> None:
+        # Extraction découpée en lots de tables : le premier part maintenant, les suivants quand
+        # le précédent est terminé (un seul job à la fois côté service).
+        batch_groups = (
+            list(self._suggested_batches)
+            if self.chk_split_batches.isVisible() and self.chk_split_batches.isChecked()
+            else []
+        )
         try:
-            body = self.params_widget.get_body()
+            if batch_groups:
+                bodies = [self.params_widget.get_body_for_tables(names) for names in batch_groups]
+                body, remaining_bodies = bodies[0], bodies[1:]
+            else:
+                body, remaining_bodies = self.params_widget.get_body(), []
         except ValueError as exc:
             QMessageBox.warning(self, self.tr("Paramètres invalides"), str(exc))
             return
@@ -984,6 +1027,17 @@ class GpfExtractionDialog(QDialog):
         requested_tables = len(relations_value) if isinstance(relations_value, dict) else 0
 
         gpkg_name = self.txt_gpkg_name.text().strip()
+        batch_options = None
+        if remaining_bodies:
+            from gpf_extraction.gui.batch_runner import batch_gpkg_name, batch_output_dir
+
+            batch_options = {
+                "output_dir": output_dir or "",
+                "gpkg_name": gpkg_name,
+            }
+            output_dir = batch_output_dir(batch_options, 1)
+            gpkg_name = batch_gpkg_name(batch_options, 1)
+            product_name = f"{product_name} (lot 1/{len(remaining_bodies) + 1})"
         clip_to_extent = self.chk_clip_to_extent.isChecked()
         # Toujours en EPSG:4326 (CRS de travail interne, cf. DEFAULT_WORKING_CRS) —
         # indépendant de la projection de sortie éventuellement choisie pour
@@ -1030,4 +1084,25 @@ class GpfExtractionDialog(QDialog):
             parent=self.iface.mainWindow() if self.iface else None,
         )
         monitor.show()
+        if remaining_bodies:
+            from gpf_extraction.core.job_batch import BatchQueue
+
+            BatchQueue.save(
+                {
+                    "process_id": self.selected_process.id,
+                    "title": self.selected_process.title,
+                    "bodies": remaining_bodies,
+                    "total": len(remaining_bodies) + 1,
+                    "options": {
+                        **batch_options,
+                        "product_name": product_name.rsplit(" (lot ", 1)[0],
+                        "comment": self.txt_comment.text().strip(),
+                        "add_to_project": self.chk_add_to_project.isChecked(),
+                        "poll_interval": settings.status_check_sleep,
+                        "clip_to_extent": clip_to_extent,
+                        "extent_wkt": extent_wkt,
+                        "extent_crs": DEFAULT_WORKING_CRS,
+                    },
+                }
+            )
         self.accept()

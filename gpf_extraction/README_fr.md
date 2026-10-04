@@ -95,6 +95,29 @@ par job) plutôt que l'ancien WFS anonyme.
    Limitations connues : cette recherche de style peut prendre environ 35
    secondes la première fois dans une session QGIS.)*
 
+### Contour envoyé, prédicats et extraction découpée
+
+Le service d'extraction n'a **pas d'entrée d'emprise commune** : le contour est recopié dans le filtre de
+**chaque table**, et il refuse toute requête dépassant environ **256 Ko** (HTTP 500 à la création, mesuré entre
+256 500 et 262 000 octets pour l'ensemble du corps). Un contour de département détaillé en pèse plusieurs
+centaines. Le plugin le réduit donc avant l'envoi, et dit dans le dialogue ce qui part réellement :
+
+- **Contour envoyé au serveur** (liste dans le groupe « Emprise ») : *automatique* (par défaut) — contour précis
+  s'il tient dans le budget (200 Ko pour toute la requête), sinon simplifié (de 10 à 250 m) **puis élargi de
+  la même tolérance**, de sorte que l'emprise reste couverte ; sinon rectangles englobants, sinon bbox. La
+  tolérance est choisie d'après la **taille encodée** du filtre. On peut forcer *contour précis*, *rectangles*
+  ou *rectangle unique*.
+- **Encodage compact** : le contour est envoyé en TWKB hexadécimal (`ST_GeomFromTWKB`), environ 4,6 fois plus
+  léger que le WKT, ce qui permet de garder un contour plus fin à poids égal.
+- **Prédicats** : `Contains`, `Within`, `Touches`, `Crosses`, `Overlaps` et `Equals` impliquent tous
+  `Intersects` ; cocher `Intersects` avec l'un d'eux donne exactement les mêmes lignes que `Intersects` seul.
+  Le plugin n'envoie alors que `Intersects` (et le dit). `Disjoint`, contraire d'`Intersects`, est conservé.
+- **Découper en plusieurs extractions** : quand une seule requête dégraderait le contour (simplification au-delà
+  de 50 m, rectangles ou bbox) mais que quelques lots de tables le garderaient fidèle, une case propose de
+  répartir les tables en N extractions lancées **l'une après l'autre** (le service n'accepte qu'un job à la
+  fois). Chaque lot a son sous-dossier `lotN` et son GeoPackage. Fermer QGIS entre deux lots est possible : la
+  fenêtre « Jobs en cours » propose de **reprendre les lots restants**. Annuler un lot abandonne les suivants.
+
 ### Suivre les jobs — « Jobs en cours »
 
 Un job continue de tourner sur le serveur de la Géoplateforme

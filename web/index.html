@@ -228,8 +228,15 @@ for cid, cfg in am.availableAuthMethodConfigs().items():
         </button>
       </h2>
       <div class="fr-collapse" id="stepRequestBody">
-        <p class="fr-text--sm">Le filtre spatial utilise le contour précis de l'emprise (pas seulement son rectangle englobant), exprimé dans la projection native de la donnée — indépendante de la projection de sortie choisie.</p>
+        <p class="fr-text--sm">Le filtre spatial utilise le contour de l'emprise (pas seulement son rectangle englobant), simplifié ou remplacé par des rectangles s'il est trop lourd, exprimé dans la projection native de la donnée — indépendante de la projection de sortie choisie.</p>
         <div id="requestList"></div>
+        <p id="predicatesNote" class="fr-hint-text" hidden></p>
+        <div id="batchBox" class="fr-checkbox-group fr-checkbox-group--sm fr-mb-2w" hidden>
+          <input type="checkbox" id="splitBatches">
+          <label class="fr-label" for="splitBatches"><span id="splitBatchesText"></span>
+            <span class="fr-hint-text">Le contour est recopié dans le filtre de chaque table : avec beaucoup de tables il faut le simplifier fortement. Les tables sont réparties en plusieurs extractions lancées l'une après l'autre (un seul job à la fois côté service), chacune avec un contour fidèle. Cette page doit rester ouverte jusqu'au dernier lot.</span>
+          </label>
+        </div>
         <ul id="missing" class="fr-text--sm missing"></ul>
         <ul class="fr-btns-group fr-btns-group--icon-left fr-btns-group--inline-md">
           <li><button id="launch" type="button" class="fr-btn fr-btn--icon-left fr-icon-play-circle-line" disabled>Lancer l'extraction</button></li>
@@ -252,6 +259,10 @@ for cid, cfg in am.availableAuthMethodConfigs().items():
           <li><button id="jobsRefresh" type="button" class="fr-btn fr-btn--secondary fr-btn--icon-left fr-icon-refresh-line">Rafraîchir</button></li>
           <li><button id="jobsClear" type="button" class="fr-btn fr-btn--tertiary fr-btn--icon-left fr-icon-delete-line">Oublier les jobs terminés ou en échec</button></li>
         </ul>
+        <div id="batchStatus" class="fr-alert fr-alert--info fr-alert--sm fr-mb-2w" hidden>
+          <p id="batchStatusText" role="status" aria-live="polite"></p>
+          <button id="batchCancel" type="button" class="fr-btn fr-btn--tertiary fr-btn--sm fr-mt-1w">Abandonner les lots restants</button>
+        </div>
         <p id="jobCount" class="fr-hint-text" role="status" aria-live="polite"></p>
         <div id="jobList"></div>
         <nav id="jobPager" class="fr-pagination fr-mt-2w" role="navigation" aria-label="Pagination des jobs suivis" hidden></nav>

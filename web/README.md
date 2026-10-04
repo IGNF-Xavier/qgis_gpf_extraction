@@ -25,6 +25,14 @@ Publiée par GitHub Pages : <https://ignf-xavier.github.io/qgis_gpf_extraction/>
   de sa tolérance (JSTS : simplification puis buffer, partie par partie), comme dans le plugin : rien
   n'est rogné au bord, on récupère au plus un peu de données en plus ; les modes « précis » et
   « rectangles » restent au choix.
+  Le service refuse toute requête de plus de ≈ 256 Ko (mesuré entre 256 500 et 262 000 octets pour tout le
+  corps) : le budget est de 200 Ko, et la tolérance est choisie d'après la **taille encodée** du filtre.
+  Le contour part en **TWKB hexadécimal** (`ST_GeomFromTWKB`), ≈ 4,6 fois plus léger que le WKT.
+  `Contains`, `Within`, `Touches`, `Crosses`, `Overlaps` et `Equals` impliquent `Intersects` : cochés avec lui,
+  ils ne sont pas envoyés (même résultat, une copie du contour en moins ; la page l'indique).
+  Quand une seule requête dégraderait le contour mais que quelques lots de tables le garderaient fidèle, une
+  case propose de **découper en plusieurs extractions** lancées l'une après l'autre (un seul job à la fois côté
+  service) : la page lance elle-même le lot suivant, elle doit donc rester ouverte jusqu'au dernier.
 - **Jobs** : lancement, suivi paginé (5 par page), annulation, liens de téléchargement directs (aucun fichier
   ne transite par cette page), avertissements sur les résultats suspects. Une liste des **jobs du serveur** (du plus récent
   au plus ancien, filtre par statut, 5 par page) se pagine sans recharger la page : le service ne donne ni

@@ -22,7 +22,7 @@ qgisMinimumVersion=3.16
 qgisMaximumVersion=4.99
 
 # versioning
-version=3.5.1
+version=3.6.0
 changelog=
     3.4.7 selecting a commune, departement, region or preset in the administrative search now zooms the map to it in the background (dialog keeps focus) - an immediate visual check, handy for homonyms or to confirm a DOM/metropole preset before launching a long extraction. Fixed a real bug found while testing this live: zooming straight to the target's bounding box, reprojected into whatever CRS the canvas happens to use, produced nonsensical coordinates for an overseas departement when the canvas CRS is only defined for mainland France (e.g. Lambert-93) - now skipped silently in that case (checked via the CRS's own declared area of use) rather than sending the canvas somewhere meaningless; verified fixed for that exact combination, and unaffected for a canvas CRS valid everywhere (EPSG:4326) or an in-bounds mainland target.
 

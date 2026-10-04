@@ -20,9 +20,10 @@ Chaque étape recouvre l'emprise : on peut récupérer un peu plus de données,
 pratiquement jamais moins (résidu mesuré sur la Guadeloupe à 10 m : 192 m² sur
 ~1 600 km²). L'option « découper à l'emprise » du plugin retire l'excédent
 après téléchargement. Le seuil réel du service
-n'est pas documenté. Mesuré sur la Guadeloupe (3 tables) : filtres de ~190 Ko chacun → HTTP 500,
-filtres de ~10 Ko → accepté. Le budget par défaut (60 Ko par requête) reste donc proche de la
-valeur qui a fonctionné ; le seuil exact n'est pas connu.
+n'est pas documenté. Mesuré (une table, filtre « rembourré » sur une petite emprise) : corps de
+228 000, 250 500 et 256 500 octets acceptés, 262 000 / 465 495 / 600 000 refusés (HTTP 500 à la création) :
+la limite porte sur la **taille de toute la requête** et se situe entre 256 500 et 262 000 octets. Le budget
+par défaut (200 Ko) garde une marge d'au moins 22 %.
 
 Module indépendant de l'interface (uniquement `qgis.core`), donc testable seul.
 """
@@ -30,7 +31,7 @@ Module indépendant de l'interface (uniquement `qgis.core`), donc testable seul.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Callable, Optional
 
 from qgis.core import Qgis, QgsCoordinateReferenceSystem, QgsGeometry, QgsRectangle
 
@@ -51,8 +52,15 @@ FIT_MODES = (FIT_AUTO, FIT_PRECISE, FIT_ENVELOPES, FIT_BBOX)
 TOLERANCES_M = (10, 25, 50, 100, 250)
 
 #: Poids visé pour les filtres spatiaux d'une requête (le contour est recopié dans chaque table).
-DEFAULT_BUDGET_BYTES = 60_000
-BYTES_PER_VERTEX = 22
+DEFAULT_BUDGET_BYTES = 200_000
+BYTES_PER_VERTEX = 22  # WKT
+#: TWKB en hexadécimal : ~4,5 octets par sommet sur un contour détaillé, ~8 sur un contour
+#: simplifié (écarts plus grands entre sommets) ; estimation prudente.
+BYTES_PER_VERTEX_TWKB = 9
+#: `ST_SetSRID(ST_GeomFromTWKB(decode('…','hex')), srid)` hors contour.
+TWKB_WRAPPER_BYTES = 70
+#: Plancher du budget d'un filtre (octets) : en deçà, plus aucun contour utile ne tient.
+MIN_FILTER_BYTES = 1500
 MIN_VERTICES = 100
 MAX_VERTICES = 50_000
 
@@ -71,6 +79,8 @@ class ExtentFit:
     original_vertices: int
     tolerance_m: float = 0.0
     rects: int = 0
+    #: Taille du filtre encodé (octets), quand le contour a été choisi d'après sa taille réelle.
+    encoded_bytes: int = 0
 
     def describe(self) -> str:
         if self.kind == FIT_PRECISE:
@@ -103,6 +113,23 @@ def vertex_budget(
 def is_geographic(srid: int) -> bool:
     crs = QgsCoordinateReferenceSystem(f"EPSG:{srid}")
     return crs.isValid() and crs.isGeographic()
+
+
+def to_polygons(geometry: QgsGeometry) -> list:
+    """(Multi)Polygone en listes imbriquées `[polygone][anneau][(x, y), …]`, pour `core/twkb.py`."""
+    polygons = geometry.asMultiPolygon() if geometry.isMultipart() else [geometry.asPolygon()]
+    return [[[(p.x(), p.y()) for p in ring] for ring in polygon] for polygon in polygons]
+
+
+def twkb_precision(srid: int, kind: str) -> int:
+    """Décimales conservées dans le TWKB : 6 en degrés (≈ 10 cm), 2 en mètres (1 cm) pour un
+    contour précis ; un cran de moins quand il a été simplifié puis élargi d'au moins 10 m
+    (l'arrondi, ≤ 1 m, est alors bien en deçà de l'élargissement). Les rectangles englobants,
+    eux, ne sont pas élargis : pleine précision."""
+    geographic = is_geographic(srid)
+    if kind == "simplified":
+        return 5 if geographic else 0
+    return 6 if geographic else 2
 
 
 def wkt_precision(srid: int) -> int:
@@ -205,37 +232,68 @@ def fit_extent(
     mode: str = FIT_AUTO,
     max_vertices: int = 5000,
     max_rects: int = 12,
+    max_bytes: Optional[int] = None,
+    size_of: Optional[Callable[[QgsGeometry, str], int]] = None,
+    cache: Optional[dict] = None,
 ) -> ExtentFit:
     """Choisit le contour à envoyer.
 
     :param geometry: contour de l'emprise, déjà dans le SRID `srid`.
     :param srid: SRID de `geometry` (donne l'unité des tolérances : degrés ou mètres).
     :param mode: `auto`, `precise`, `envelopes` ou `bbox`.
-    :param max_vertices: budget de sommets pour un filtre (cf. `vertex_budget`).
+    :param max_vertices: budget de sommets pour un filtre (cf. `vertex_budget`), utilisé quand la
+        taille encodée n'est pas fournie.
+    :param max_bytes: budget d'un filtre en octets ; avec `size_of`, le contour est choisi d'après
+        sa **taille encodée réelle** plutôt que d'après un nombre de sommets estimé.
+    :param size_of: `size_of(géométrie, nature)` → octets du filtre ; `nature` vaut `precise`,
+        `simplified` ou `envelopes` (la précision des coordonnées en dépend).
+    :param cache: dictionnaire à réutiliser entre appels pour la même géométrie : évite de
+        resimplifier et de réencoder à chaque nouveau budget.
     """
     original = vertex_count(geometry)
+    cache = cache if cache is not None else {}
+    by_size = size_of is not None and max_bytes is not None
 
-    def result(kind: str, geom: Optional[QgsGeometry], **extra) -> ExtentFit:
-        return ExtentFit(kind, geom, vertex_count(geom) if geom is not None else 5, original, **extra)
+    def result(kind: str, geom: Optional[QgsGeometry], key=None, **extra) -> ExtentFit:
+        encoded = cache.get(("size", key), 0) if key is not None else 0
+        return ExtentFit(
+            kind, geom, vertex_count(geom) if geom is not None else 5, original, encoded_bytes=encoded, **extra
+        )
+
+    def fits(key, geom: QgsGeometry, kind: str) -> bool:
+        if not by_size:
+            return vertex_count(geom) <= max_vertices
+        if ("size", key) not in cache:
+            cache[("size", key)] = size_of(geom, kind)
+        return cache[("size", key)] <= max_bytes
 
     if mode == FIT_BBOX:
         return result(FIT_BBOX, None)
     if mode == FIT_PRECISE:
-        return result(FIT_PRECISE, geometry)
+        if by_size:
+            fits(("precise",), geometry, FIT_PRECISE)
+        return result(FIT_PRECISE, geometry, ("precise",))
 
     if mode == FIT_AUTO:
-        if original <= max_vertices:
-            return result(FIT_PRECISE, geometry)
+        if fits(("precise",), geometry, FIT_PRECISE):
+            return result(FIT_PRECISE, geometry, ("precise",))
         parts = geometry.asGeometryCollection() or [geometry]
         for meters in TOLERANCES_M:
-            grown = _simplify_and_grow(parts, _to_units(meters, srid))
-            if grown is not None and vertex_count(grown) <= max_vertices:
-                return result("simplified", grown, tolerance_m=meters)
+            key = ("simplified", meters)
+            if ("geom", meters) not in cache:
+                cache[("geom", meters)] = _simplify_and_grow(parts, _to_units(meters, srid))
+            grown = cache[("geom", meters)]
+            if grown is not None and fits(key, grown, "simplified"):
+                return result("simplified", grown, key, tolerance_m=meters)
 
     # `envelopes`, ou repli de l'automatique quand même 250 m ne suffit pas.
     limit = max(1, min(max_rects, max_vertices // (_RECT_STEPS * 4 + 1)))
-    rects = _envelopes(geometry, limit)
+    if ("rects", limit) not in cache:
+        cache[("rects", limit)] = _envelopes(geometry, limit)
+    rects = cache[("rects", limit)]
     if len(rects) == 1:
         return result(FIT_BBOX, None, rects=1)
     union = QgsGeometry.collectGeometry([_rect_geometry(r) for r in rects])
-    return result(FIT_ENVELOPES, union, rects=len(rects))
+    if by_size and mode == FIT_AUTO and not fits(("envelopes", limit), union, FIT_ENVELOPES):
+        return result(FIT_BBOX, None, rects=1)  # même les rectangles sont trop lourds : bbox
+    return result(FIT_ENVELOPES, union, ("envelopes", limit), rects=len(rects))
